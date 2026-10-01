@@ -37,6 +37,9 @@ export async function rewardsHome(userId: string) {
     points: user.points,
     bonusSpins: user.bonusSpins,
     dailySpinAvailable: !daily,
+    // The free spin resets at midnight IST (dayKey uses istDay()).
+    nextFreeSpinAt: daily ? new Date(`${day}T00:00:00+05:30`).getTime() + 24 * 3600 * 1000 : null,
+    todaySpin: daily ? safeJson(daily.result) : null,
     predictionBoost: user.predictionBoost,
     theme: user.theme,
     themes: user.unlockedThemes.split(",").filter(Boolean),

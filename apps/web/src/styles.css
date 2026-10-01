@@ -446,3 +446,8 @@ button:disabled { opacity: 0.55; }
 .lb-rank { font-family: Sora, Inter, sans-serif; font-weight: 800; text-align: center; }
 .lb-pts { font-weight: 800; }
 @media (prefers-reduced-motion: reduce) { .wheel-svg { transition: none; } .toast { animation: none; } }
+
+.spin-btn { position: relative; z-index: 3; touch-action: manipulation; }
+.spin-btn.used { background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.spin-btn[aria-busy="true"] { opacity: .8; }
+.wheel-wrap { z-index: 1; pointer-events: none; overflow: visible; }

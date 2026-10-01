@@ -63,9 +63,32 @@ export function RewardsPage({ lang }: { lang: string }) {
   const wheel = data?.wheels?.[0];
   const segments: Segment[] = wheel?.segments?.length ? wheel.segments : FALLBACK;
   const turn = (to: number) => { rot.current = to; setRotation(to); };
+  const canSpin = Boolean(data?.dailySpinAvailable || (data?.bonusSpins || 0) > 0);
+
+  const lock = useRef(false);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
+  const nextAt: number = data?.nextFreeSpinAt || nextIstMidnight();
+  const wait = untilText(nextAt - now);
+
+  function nudge(text: string) {
+    // The button is never dead: say why there is no spin, and wiggle the wheel.
+    haptic("light");
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred("warning");
+    setResult(text);
+    toast(text, "err");
+    turn(rot.current + 12);
+    setTimeout(() => turn(rot.current - 12), 180);
+  }
 
   async function spin() {
-    if (spinning) return;
+    if (lock.current) return;
+    if (!data) { toast("Loading the wheel…"); load(); return; }
+    if (!canSpin) {
+      nudge(`⏳ Free spin used today. Next free spin in ${wait}.`);
+      return;
+    }
+    lock.current = true;
     setSpinning(true);
     setResult("");
     haptic("light");
@@ -80,17 +103,22 @@ export function RewardsPage({ lang }: { lang: string }) {
         const label = res.prize?.label || "Try again";
         setResult(res.prize?.kind === "none" || !res.prize ? `🔁 ${label}. Come back tomorrow!` : `🎉 You won ${label}!`);
         toast(res.prize?.kind === "none" ? "No prize this time" : `You won ${label}`, "ok");
+        lock.current = false;
         setSpinning(false);
         load();
       }, 4300);
     } catch (e: any) {
-      setResult(e.message);
-      toast(e.message, "err");
+      const text = e.code === "NO_SPIN" ? `⏳ Free spin used today. Next free spin in ${wait}.` : e.message;
+      turn(Math.ceil(rot.current / 360) * 360);
+      setResult(text);
+      toast(text, "err");
+      lock.current = false;
       setSpinning(false);
+      load();
     }
   }
 
-  const canSpin = Boolean(data?.dailySpinAvailable || (data?.bonusSpins || 0) > 0);
+
   const scratches: any[] = data?.scratches || [];
   const giveaways: any[] = data?.giveaways || [];
   const vouchers: any[] = data?.vouchers || [];
@@ -105,9 +133,10 @@ export function RewardsPage({ lang }: { lang: string }) {
       {failed && <Empty icon="📡" title="Rewards didn't load" text={failed} cta="Retry" onCta={load} />}
       <Wheel segments={segments} rotation={rotation} />
       <p className="text-center small">{wheel?.sponsorName ? `Spin by ${wheel.sponsorName}` : "One free spin every day · points and sponsor vouchers"}</p>
-      <button className="primary" disabled={spinning || (data && !canSpin)} onClick={spin}>
-        {spinning ? "Spinning…" : !data ? t(lang, "spin") : data.dailySpinAvailable ? "🎡 Spin free" : data.bonusSpins > 0 ? `🎡 Bonus spin (${data.bonusSpins} left)` : "✅ Spun today · back tomorrow"}
+      <button type="button" className={`primary spin-btn ${data && !canSpin ? "used" : ""}`} aria-busy={spinning} onClick={spin}>
+        {spinning ? "Spinning…" : !data ? "🎡 Spin free" : data.dailySpinAvailable ? "🎡 Spin free" : data.bonusSpins > 0 ? `🎡 Bonus spin (${data.bonusSpins} left)` : `⏳ Next free spin in ${wait}`}
       </button>
+      {!result && data && !data.dailySpinAvailable && data.todaySpin?.label && <p className="text-center small">Today's spin: {data.todaySpin.label}</p>}
       {result && <div className="result-card">{result}</div>}
 
       <h2>{t(lang, "scratch")}</h2>
@@ -149,4 +178,18 @@ export function RewardsPage({ lang }: { lang: string }) {
       ))}
     </>
   );
+}
+
+function nextIstMidnight(): number {
+  // IST is UTC+5:30 with no DST: the free spin resets at 18:30 UTC.
+  const now = Date.now();
+  const ist = now + 5.5 * 3600_000;
+  return ist - (ist % 86_400_000) + 86_400_000 - 5.5 * 3600_000;
+}
+
+function untilText(ms: number): string {
+  const mins = Math.max(1, Math.ceil(ms / 60_000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h ? `${h}h ${m}m` : `${m}m`;
 }
