@@ -39,7 +39,7 @@ export function BuddyPage({ lang }: { lang: string }) {
 
   return (
     <>
-      <div className="page-head" style={{ justifyContent: "flex-start" }}><Mascot size={48} /><h2>{lang === "hi" ? "लिनो से पूछें" : "Ask Lino"}</h2></div>
+      <div className="page-head" style={{ justifyContent: "flex-start", gap: 10 }}><div style={{ width: 48, height: 48, flex: "none", overflow: "hidden" }}><Mascot size={48} /></div><h2 style={{ margin: 0 }}>{lang === "hi" ? "लिनो से पूछें" : "Ask Lino"}</h2></div>
       <p className="small">{matchName ? `Talking about ${matchName} · ` : ""}Sports only · not betting advice</p>
       <div className="chat">
         {log.map((line, i) => <div key={i} className={`bubble ${line.role === "me" ? "me" : ""}`}>{line.text}</div>)}
