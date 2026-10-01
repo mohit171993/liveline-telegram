@@ -1,0 +1,27 @@
+{
+  "name": "livelinepro",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "build": "pnpm --filter @liveline/shared build && pnpm --filter @liveline/db generate && pnpm --filter @liveline/api build && pnpm --filter @liveline/web build",
+    "test": "pnpm --filter @liveline/shared test",
+    "typecheck": "pnpm --filter @liveline/shared build && pnpm --filter @liveline/api exec tsc -p tsconfig.json --noEmit",
+    "dev:api": "pnpm --filter @liveline/shared build && pnpm --filter @liveline/api dev",
+    "dev:web": "pnpm --filter @liveline/web dev",
+    "db:generate": "pnpm --filter @liveline/db generate",
+    "db:deploy": "pnpm --filter @liveline/db exec prisma migrate deploy",
+    "db:seed": "pnpm --filter @liveline/db seed"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "msgpackr-extract"
+    ]
+  }
+}

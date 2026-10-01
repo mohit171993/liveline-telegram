@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: liveline
+      POSTGRES_PASSWORD: liveline
+      POSTGRES_DB: liveline
+    ports: ["5432:5432"]
+    volumes: ["pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liveline"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://liveline:liveline@postgres:5432/liveline
+      REDIS_URL: redis://redis:6379
+      PORT: "3001"
+      RUN_EMBEDDED_WORKER: "true"
+      USE_MOCK_PROVIDER: "true"
+      USE_MOCK_GIFTPORT: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["3001:3001"]
+    command: ["node", "apps/api/dist/main.js"]
+
+  bot:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://liveline:liveline@postgres:5432/liveline
+      REDIS_URL: redis://redis:6379
+      BOT_HEALTH_PORT: "3003"
+    depends_on: [api]
+    ports: ["3003:3003"]
+    command: ["node", "apps/api/dist/bot.js"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      API_URL: http://localhost:3001
+    ports: ["8080:80"]
+    depends_on: [api]
+
+volumes:
+  pg:

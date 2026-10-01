@@ -1,0 +1,13 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "apps/api/Dockerfile"
+
+[deploy]
+# Set the start command per service inside the existing `betroxy` project:
+#   api     node apps/api/dist/main.js
+#   bot     node apps/api/dist/bot.js
+#   worker  node apps/api/dist/worker.js
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
