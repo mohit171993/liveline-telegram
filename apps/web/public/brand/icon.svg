@@ -1,17 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LiveLine Pro">
   <defs>
-    <linearGradient id="bg" x1="6" y1="2" x2="60" y2="64" gradientUnits="userSpaceOnUse">
+    <radialGradient id="ll-ball" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="46%" stop-color="#E7EEF6"/>
+      <stop offset="100%" stop-color="#9AABBE"/>
+    </radialGradient>
+    <linearGradient id="ll-pulse" x1="4" y1="36" x2="60" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3DFFE8"/>
+      <stop offset="0.52" stop-color="#E7FF4D"/>
+      <stop offset="1" stop-color="#FF7A18"/>
+    </linearGradient>
+    <linearGradient id="ll-tile" x1="6" y1="2" x2="58" y2="62" gradientUnits="userSpaceOnUse">
       <stop stop-color="#1A2C4E"/>
       <stop offset="1" stop-color="#070B14"/>
     </linearGradient>
-    <linearGradient id="pulse" x1="6" y1="36" x2="58" y2="28" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3DFFE8"/>
-      <stop offset="0.55" stop-color="#E7FF4D"/>
-      <stop offset="1" stop-color="#FF7A18"/>
-    </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="15.5" fill="#0C1424" stroke="#F4F7FB" stroke-width="3"/>
-  <path d="M23.5 24.5c2.2-3.2 5.4-4.8 8.5-4.8M40.5 40.5c-2.2 3.2-5.4 4.8-8.5 4.8" fill="none" stroke="#3DFFE8" stroke-width="2.2" stroke-linecap="round"/>
-  <path d="M7 34.5h11.5l6.2-11 8.4 20.5 6.4-13H57" fill="none" stroke="url(#pulse)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="64" height="64" rx="14" fill="url(#ll-tile)"/>
+  <circle cx="32" cy="31" r="16" fill="url(#ll-ball)"/>
+  <path d="M22 24c3.2-4 7.2-5.6 10-5.6" fill="none" stroke="#3DFFE8" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M42 39c-3.2 4-7.2 5.6-10 5.6" fill="none" stroke="#3DFFE8" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M6 34h12l5.4-9 7.6 17 5.6-11H58" fill="none" stroke="url(#ll-pulse)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

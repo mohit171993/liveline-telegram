@@ -18,3 +18,5 @@ test-results
 *.png
 !apps/web/public/**
 !apps/promo/public/**
+!docs/brand-v2/**
+!docs/screenshots/**
