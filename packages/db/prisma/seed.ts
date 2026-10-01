@@ -1,7 +1,7 @@
 import path from "path";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
-import { istDay, loadEncryptionKey, phoneHash } from "@liveline/shared";
+import { istDay, loadEncryptionKey, phoneHash, shiftIstDay } from "@liveline/shared";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
@@ -17,6 +17,7 @@ async function main() {
     where: { telegramId: adminId },
     update: {
       status: "ACTIVE",
+      isPremium: true,
       xp: 140,
       seasonXp: 140,
       dailyStreak: 4,
@@ -305,8 +306,72 @@ async function main() {
   });
 
   await prisma.scratchCard.create({ data: { userId: admin.id, source: "seed" } }).catch(() => undefined);
+  await seedReportShape(admin.id);
 
   console.log(JSON.stringify({ seeded: true, admin: admin.telegramId, wheel: wheel.id }));
+}
+
+async function seedReportShape(adminId: string) {
+  const today = istDay();
+  const days = Array.from({ length: 14 }, (_, i) => shiftIstDay(today, -13 + i));
+  const matches = ["demo_ind_aus", "demo_eng_sa", "demo_pak_nz"];
+  for (const [i, day] of days.entries()) {
+    for (const [m, matchKey] of matches.entries()) {
+      await prisma.matchViewStat.upsert({
+        where: { matchKey_day: { matchKey, day } },
+        update: {},
+        create: { matchKey, day, views: 28 + i * 6 + m * 11, peak: 6 + ((i + m) % 6) * 4 },
+      });
+    }
+    await prisma.channelDay.upsert({
+      where: { day },
+      update: {},
+      create: { day, subscribers: 1480 + i * 22 },
+    });
+  }
+  const havePost = await prisma.channelPost.findFirst({ where: { chatId: "seed-channel" } });
+  if (!havePost) {
+    for (let i = 0; i < 6; i += 1) {
+      await prisma.channelPost.create({
+        data: {
+          chatId: "seed-channel",
+          messageId: 9000 + i,
+          matchKey: matches[i % matches.length],
+          kind: "live",
+          text: "Live score",
+          views: 180 + i * 70,
+          postedAt: new Date(Date.now() - (6 - i) * 86_400_000),
+        },
+      });
+    }
+  }
+  const creative = await prisma.creative.findFirst({ where: { slot: "home_native" } });
+  const events = creative ? await prisma.adEvent.count({ where: { creativeId: creative.id, dedupeKey: { startsWith: "seed-report:" } } }) : 1;
+  if (creative && events === 0) {
+    for (let i = 0; i < 10; i += 1) {
+      const when = new Date(Date.now() - i * 86_400_000);
+      await prisma.adEvent.create({
+        data: {
+          creativeId: creative.id,
+          userId: adminId,
+          type: "impression",
+          dedupeKey: `seed-report:impr:${i}`,
+          createdAt: when,
+        },
+      });
+      if (i % 3 === 0) {
+        await prisma.adEvent.create({
+          data: {
+            creativeId: creative.id,
+            userId: adminId,
+            type: "click",
+            dedupeKey: `seed-report:click:${i}`,
+            createdAt: when,
+          },
+        });
+      }
+    }
+  }
 }
 
 main()

@@ -15,7 +15,12 @@ export async function startWorkers() {
 
   const summary = new Queue("ll-summary", { connection });
   const balance = new Queue("ll-balance", { connection });
-  await summary.add("daily", {}, { repeat: { pattern: "30 3 * * *" }, jobId: "daily-summary" }).catch(() => undefined);
+  const repeats = await summary.getRepeatableJobs().catch(() => []);
+  for (const job of repeats) await summary.removeRepeatableByKey(job.key).catch(() => undefined);
+  await summary.add("nightly", {}, {
+    repeat: { pattern: "0 22 * * *", tz: "Asia/Kolkata" },
+    jobId: "daily-summary-ist",
+  }).catch(() => undefined);
   await balance.add("check", {}, { repeat: { every: 60 * 60 * 1000 }, jobId: "gift-balance" }).catch(() => undefined);
   await requeueReminders().catch((err) => {
     console.error(JSON.stringify({ level: "warn", msg: "requeue", err: String(err) }));

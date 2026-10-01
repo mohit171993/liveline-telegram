@@ -22,6 +22,7 @@ import { decideFulfilment, drawPrize, pickWeighted } from "./rewards";
 import { amountAllowed, parseBalance, parseBuy, parseCatalogue, parseStatus, type GiftCatalogueItem } from "./giftport";
 import { advanceMatch, buildDemoUniverse, projectMatch } from "./cricket";
 import { celebrations, cheerAllowed, fanLoudness, nextDailyStreak, rankFor, scoreGuessPoints, shiftIstDay, triviaFor } from "./engage";
+import { referralSource, reportWindow, retentionRate, trendPct } from "./reports";
 import { assertAvatar, castLook, teamMood } from "./avatar";
 import {
   ageFromBirthYear,
@@ -277,6 +278,32 @@ describe("engagement", () => {
     expect(look.face).toMatch(/\p{Emoji}/u);
     expect(teamMood(70, ["1", "6", "4"]).emoji).toBe("🔥");
     expect(teamMood(20, ["W"]).emoji).toBe("😬");
+  });
+});
+
+describe("report window", () => {
+  it("builds inclusive IST ranges and referral buckets", () => {
+    const now = new Date("2026-10-01T12:00:00+05:30");
+    const week = reportWindow({ preset: "7d", now });
+    expect(week.fromDay).toBe("2026-09-25");
+    expect(week.toDay).toBe("2026-10-01");
+    expect(week.days).toHaveLength(7);
+    expect(week.prevEnd.toISOString()).toBe(week.start.toISOString());
+    const today = reportWindow({ preset: "today", now });
+    expect(today.days).toEqual(["2026-10-01"]);
+    const custom = reportWindow({ preset: "custom", from: "2026-10-03", to: "2026-10-01", now });
+    expect(custom.fromDay).toBe("2026-10-01");
+    expect(custom.toDay).toBe("2026-10-03");
+    expect(() => reportWindow({ preset: "custom", now })).toThrow("CUSTOM_RANGE");
+    expect(trendPct(12, 10)).toBe(20);
+    expect(trendPct(3, 0)).toBeNull();
+    expect(trendPct(0, 0)).toBe(0);
+    expect(retentionRate(4, 10)).toBe(40);
+    expect(retentionRate(0, 0)).toBeNull();
+    expect(referralSource("")).toBe("Direct");
+    expect(referralSource("ref_8992664481")).toBe("Referral");
+    expect(referralSource("sq_LL4481")).toBe("Squad");
+    expect(referralSource("match_demo_ind_aus")).toBe("Match link");
   });
 });
 

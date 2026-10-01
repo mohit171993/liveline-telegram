@@ -24,6 +24,10 @@ export function Dash() {
       <p className="small">Balance {data.giftport?.currency} · {data.giftport?.message}</p>
       <h2>Top matches</h2>
       {(data.top || []).map((row: any) => <div key={row.matchKey} className="board"><span>{row.matchKey}</span><b>{row.views}</b></div>)}
+      <button className="report-entry" onClick={() => nav("/admin/reports")}>
+        <b>Reports</b>
+        <span>Users, play, matches, ads, rewards, channel</span>
+      </button>
       <button className="primary" onClick={() => nav("/admin/new")}>New campaign</button>
       <button className="ghost w-full" onClick={() => nav("/admin/users")}>Users</button>
       <button className="ghost w-full" onClick={() => nav("/admin/admins")}>Admins</button>

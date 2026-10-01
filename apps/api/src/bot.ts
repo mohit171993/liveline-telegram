@@ -7,6 +7,7 @@ import { readUniverse } from "./feed";
 import { redis } from "./redis";
 import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
 import { pinLive, upsertSquad } from "./services/play";
+import { rememberChannelPost } from "./services/reports";
 import { signInitData } from "@liveline/shared";
 
 /** Per-chat menu button: the Mini App only after the phone is verified, plain commands before. */
@@ -157,6 +158,21 @@ export function createBot() {
     const squad = await upsertSquad(String(ctx.chat.id), ctx.chat.title || "Squad", kind);
     const link = `https://t.me/LiveLineProBot?start=sq_${squad.referralCode || squadCode(String(ctx.chat.id))}`;
     await ctx.reply(`Squad ready. Points from members add up here. Share ${link}`);
+  });
+
+  bot.on(["channel_post", "edited_channel_post"], async (ctx) => {
+    const post = ctx.channelPost || ctx.editedChannelPost;
+    if (!post) return;
+    const views = "views" in post ? Number(post.views || 0) : 0;
+    const text = "text" in post ? post.text || "" : "";
+    await rememberChannelPost({
+      chatId: String(post.chat.id),
+      messageId: post.message_id,
+      kind: "channel",
+      text,
+      views,
+      postedAt: new Date(post.date * 1000),
+    }).catch(() => undefined);
   });
 
   bot.on("inline_query", async (ctx) => {

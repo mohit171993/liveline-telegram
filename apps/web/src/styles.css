@@ -372,6 +372,29 @@ h2 { font-size: 20px; margin: 24px 0 8px; }
 .seg button.on { background: var(--lime); color: var(--lime-ink); border-color: transparent; }
 .hero-skel { height: 220px; }
 .stripe { height: 4px; }
+.report-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.report-head h2 { margin: 8px 0; }
+.textlink { border: 0; background: transparent; color: var(--muted); padding: 0; font-weight: 600; }
+.report-kpis { grid-template-columns: repeat(2, 1fr); }
+.report-kpis .kpi b { font-size: 22px; }
+.delta { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; }
+.delta.up { color: var(--lime); }
+.delta.down { color: var(--ll-orange, #ff7a18); }
+.delta.flat { color: var(--muted); font-weight: 600; }
+.report-chart { margin-top: 12px; padding: 12px; }
+.range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.range .field { margin-top: 0; }
+.rows div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.report-entry {
+  width: 100%; text-align: left; margin-top: 12px; padding: 14px;
+  border-radius: 18px; border: 1px solid var(--line); color: var(--ink);
+  background:
+    radial-gradient(120px 80px at 100% 0%, rgba(61,255,232,0.22), transparent 70%),
+    linear-gradient(160deg, rgba(231,255,77,0.12), rgba(7,11,20,0.2));
+  box-shadow: var(--shadow);
+}
+.report-entry b { display: block; font-family: Sora, Inter, sans-serif; font-size: 18px; }
+.report-entry span { color: var(--muted); font-size: 13px; }
 @media (prefers-reduced-motion: reduce) {
   .dot, .skel, .wheel, .fly, .mascot, .hero:after { animation: none; transition: none; }
   .fly { position: static; }

@@ -1,12 +1,13 @@
 import { Queue } from "bullmq";
 import { prisma } from "@liveline/db";
-import { formatIst, istDay, projectMatch, type AdvanceResult } from "@liveline/shared";
+import { projectMatch, type AdvanceResult } from "@liveline/shared";
 import { env, matchLink, miniAppLink } from "../env";
 import { bullConnection } from "../redis";
 import { redis } from "../redis";
 import { sendTelegramMessage } from "../telegram";
 import { httpError } from "../httpError";
 import { adminChatIds } from "./admins";
+import { buildAnalytics, formatDailySummary, rememberChannelPost } from "./reports";
 import { settleFeed } from "./game";
 import { maybeStreakNudges, nudgePredictionWindow, settleOversGuess } from "./engage";
 import { alertVoteOpen, settleLeagueWeek, syncLivePins } from "./play";
@@ -115,9 +116,19 @@ async function channelPost(event: AdvanceResult) {
   const view = projectMatch(event.match, false);
   if (!view.live) return;
   const line = `${view.teams[view.live.batting].flag} <b>${view.teams[view.live.batting].code} ${view.live.runs}/${view.live.wickets}</b> (${view.live.overs})\n${view.live.need || `CRR ${view.live.crr}`}`;
-  await sendTelegramMessage(env.channelId, `🔴 LIVE · ${view.name}\n${line}`, {
+  const text = `🔴 LIVE · ${view.name}\n${line}`;
+  const messageId = await sendTelegramMessage(env.channelId, text, {
     reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: matchLink(event.match.key) }]] },
-  }).catch(() => undefined);
+  }).catch(() => null);
+  if (messageId) {
+    await rememberChannelPost({
+      chatId: String(env.channelId),
+      messageId,
+      matchKey: event.match.key,
+      kind: String(kind),
+      text,
+    }).catch(() => undefined);
+  }
 }
 
 export async function listReminders(userId: string) {
@@ -218,23 +229,8 @@ export async function requeueReminders() {
 }
 
 export async function dailySummary() {
-  const day = istDay();
-  const start = new Date(`${day}T00:00:00+05:30`);
-  const [newUsers, activeSessions, impressions, clicks, top] = await Promise.all([
-    prisma.user.count({ where: { status: "ACTIVE", createdAt: { gte: start } } }),
-    prisma.session.findMany({ where: { startedAt: { gte: start } }, distinct: ["userId"], select: { userId: true } }),
-    prisma.adEvent.count({ where: { type: "impression", createdAt: { gte: start } } }),
-    prisma.adEvent.count({ where: { type: "click", createdAt: { gte: start } } }),
-    prisma.matchViewStat.findMany({ where: { day }, orderBy: { views: "desc" }, take: 3 }),
-  ]);
-  const text = [
-    `📊 <b>LiveLine daily summary</b> · ${formatIst(new Date())} IST`,
-    `New users: ${newUsers}`,
-    `DAU: ${activeSessions.length}`,
-    `Top matches: ${top.map((t) => `${t.matchKey} (${t.views})`).join(", ") || "—"}`,
-    `Ad impressions: ${impressions}`,
-    `Ad clicks: ${clicks}`,
-  ].join("\n");
+  const report = await buildAnalytics({ preset: "today" });
+  const text = formatDailySummary(report);
   const chats = new Set<string>(await adminChatIds());
   if (env.adminAlertChat) chats.add(env.adminAlertChat);
   for (const chat of chats) await sendTelegramMessage(chat, text).catch(() => undefined);

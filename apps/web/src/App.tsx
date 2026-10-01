@@ -9,6 +9,7 @@ import { RewardsPage } from "./screens/Rewards";
 import { AlertsPage } from "./screens/Alerts";
 import { BuddyPage } from "./screens/Buddy";
 import { Admins, CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
+import { Reports } from "./screens/Reports";
 import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
 import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
@@ -70,6 +71,7 @@ export function App() {
         <Route path="/ai/:key" element={<BuddyPage lang={lang} />} />
         <Route path="/advertise" element={<AdvertisePage />} />
         <Route path="/admin" element={<Dash />} />
+        <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/new" element={<CreateCampaign />} />
         <Route path="/admin/users" element={<Users />} />
         <Route path="/admin/admins" element={<Admins />} />

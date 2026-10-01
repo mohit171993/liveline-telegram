@@ -5,6 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "@liveline/db";
 import { findPlayer, istDay, SPORT_MODULES } from "@liveline/shared";
+import { buildAnalytics, parseSection, recordMatchView, sectionCsv } from "./services/reports";
 import { env, channelUrl, matchLink } from "./env";
 import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
@@ -114,13 +115,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     const key = (req.params as { key: string }).key;
     const found = await getMatch(key);
     if (!found) throw httpError(404, "NOT_FOUND");
-    const day = istDay();
-    await prisma.matchViewStat.upsert({
-      where: { matchKey_day: { matchKey: key, day } },
-      update: { views: { increment: 1 } },
-      create: { matchKey: key, day, views: 1 },
-    });
-    await touchQuiet(user.id, key);
+    await recordMatchView(key, user.id);
     return found.view;
   });
 
@@ -770,6 +765,27 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
     return { url: `/media/${name}` };
   });
 
+  app.get("/api/admin/analytics", async (req, reply) => {
+    if (!(await authenticate(req, reply, { admin: true }))) return;
+    const q = req.query as { preset?: string; from?: string; to?: string };
+    return buildAnalytics(q);
+  });
+
+  app.get("/api/admin/analytics.csv", async (req, reply) => {
+    if (!(await authenticate(req, reply, { admin: true }))) return;
+    const q = req.query as { preset?: string; from?: string; to?: string; section?: string };
+    let section: ReturnType<typeof parseSection>;
+    try {
+      section = parseSection(q.section);
+    } catch {
+      throw httpError(400, "SECTION", "Choose a report section.");
+    }
+    const report = await buildAnalytics(q);
+    reply.header("content-type", "text/csv; charset=utf-8");
+    reply.header("content-disposition", `attachment; filename=liveline-${section}.csv`);
+    return reply.send(sectionCsv(section, report));
+  });
+
   app.get("/api/admin/reports", async (req, reply) => {
     if (!(await authenticate(req, reply, { admin: true }))) return;
     const campaignId = (req.query as { campaignId?: string }).campaignId;
@@ -926,11 +942,4 @@ function adminUser(user: {
     points: user.points,
     joinedAt: user.createdAt,
   };
-}
-
-async function touchQuiet(userId: string, matchKey: string) {
-  await prisma.session.updateMany({
-    where: { userId, lastSeen: { gte: new Date(Date.now() - 30 * 60_000) } },
-    data: { matchKey },
-  });
 }

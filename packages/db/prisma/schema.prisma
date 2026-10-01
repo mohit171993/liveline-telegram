@@ -633,8 +633,29 @@ model MatchViewStat {
   matchKey String
   day      String
   views    Int    @default(0)
+  peak     Int    @default(0)
 
   @@id([matchKey, day])
+}
+
+model ChannelPost {
+  id        String   @id @default(cuid())
+  chatId    String
+  messageId Int
+  matchKey  String   @default("")
+  kind      String   @default("")
+  text      String   @default("")
+  views     Int      @default(0)
+  postedAt  DateTime @default(now())
+
+  @@unique([chatId, messageId])
+  @@index([postedAt])
+}
+
+model ChannelDay {
+  day         String   @id
+  subscribers Int
+  checkedAt   DateTime @default(now())
 }
 
 model AdminAccount {
