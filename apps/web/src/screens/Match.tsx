@@ -14,6 +14,8 @@ export function MatchPage({ lang }: { lang: string }) {
   const [moments, setMoments] = useState<string[]>([]);
   const [mute, setMute] = useState(muted());
   const [cheers, setCheers] = useState<{ id: string; emoji: string; x: number }[]>([]);
+  const [laneOn, setLaneOn] = useState(localStorage.getItem("ll-lane") !== "off");
+  const [lane, setLane] = useState<{ id: string; body: string }[]>([]);
 
   async function load() {
     setMatch(await api<Match>(`/api/matches/${key}`));
@@ -55,6 +57,9 @@ export function MatchPage({ lang }: { lang: string }) {
       if (msg.type === "cheer" && msg.key === key) {
         setCheers((cur) => [...cur, { id: msg.id || String(Date.now()), emoji: msg.emoji, x: 16 + Math.random() * 70 }].slice(-12));
       }
+      if (msg.type === "danmaku" && msg.key === key) {
+        setLane((cur) => [...cur, { id: msg.id || String(Date.now()), body: msg.body }].slice(-8));
+      }
     };
     return () => ws.close();
   }, [key]);
@@ -81,7 +86,27 @@ export function MatchPage({ lang }: { lang: string }) {
         {live && <div className="meta">{live.overs} · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"} · {t(lang, "proj")} {live.projected ?? "—"}</div>}
         {live && <div className="win"><i style={{ width: `${live.win.a}%`, background: match.teams.a.color }} /><i style={{ width: `${live.win.b}%`, background: match.teams.b.color }} /></div>}
         <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {live ? `${match.teams.a.code} ${live.win.a} · ${match.teams.b.code} ${live.win.b}` : ""}</div>
+        {live?.luck && (
+          <div className="small mt-2">{live.luck.emoji} Luck {live.luck.score} · {lang === "hi" ? live.luck.labelHi : live.luck.label}
+            {live.forecast ? ` · next over ${live.forecast.low}–${live.forecast.high} · wicket ${live.forecast.wicketChance}%` : ""}
+          </div>
+        )}
+        {laneOn && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
       </div>
+      <AdSlot slot="luck" matchKey={match.key} />
+      <div className="row">
+        <button className="ghost" onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
+      </div>
+      <AdSlot slot="danmaku" matchKey={match.key} />
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        const body = String(new FormData(e.currentTarget).get("body") || "");
+        e.currentTarget.reset();
+        const note = await api<{ id: string; body: string }>(`/api/matches/${match.key}/danmaku`, { method: "POST", body: JSON.stringify({ body }) });
+        setLane((cur) => [...cur, note].slice(-8));
+      }}>
+        <input className="field" name="body" maxLength={42} placeholder="Short comment" aria-label="Comment" />
+      </form>
       <AdSlot slot="powered_by" matchKey={match.key} />
       <FanMeter matchKey={match.key} lang={lang} />
       <MiniPlay matchKey={match.key} lang={lang} />
@@ -92,6 +117,13 @@ export function MatchPage({ lang }: { lang: string }) {
       </div>
       {tab === "line" && live && (
         <>
+          <Vote matchKey={match.key} open={!!match.voteOpen} />
+          {(match.moments || []).length > 0 && (
+            <>
+              <h2>Key moments</h2>
+              {match.moments!.slice(0, 4).map((m, i) => <div key={i} className="small">{m.over} {m.kind} {m.text}</div>)}
+            </>
+          )}
           <div className="kpis">
             <div className="kpi"><span className="small">{t(lang, "partner")}</span><b>{live.partnership.runs}</b><span className="small">{live.partnership.balls} balls</span></div>
             <div className="kpi"><span className="small">{t(lang, "crr")}</span><b>{live.crr}</b></div>
@@ -113,6 +145,11 @@ export function MatchPage({ lang }: { lang: string }) {
           <h2>Points</h2>
           {(match.points || []).map((row) => <div key={row.team} className="board"><b>{row.team}</b><span>{row.pts}</span><span>{row.nrr}</span></div>)}
           <h2>Playing XI</h2>
+          <AdSlot slot="fan_xi" matchKey={match.key} />
+          <button className="ghost" onClick={async () => {
+            const ids = [...(match.xi?.a || []), ...(match.xi?.b || [])].slice(0, 11).map((p) => p.id);
+            if (ids.length === 11) await api(`/api/matches/${match.key}/xi`, { method: "POST", body: JSON.stringify({ playerIds: ids }) });
+          }}>Save fan XI</button>
           <div className="chips">
             {match.xi?.a.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
           </div>
@@ -248,6 +285,32 @@ function MiniPlay({ matchKey, lang }: { matchKey: string; lang: string }) {
         </div>
       )}
       {note && <p className="small">{note}</p>}
+    </section>
+  );
+}
+
+function Vote({ matchKey, open }: { matchKey: string; open: boolean }) {
+  const [data, setData] = useState<any>(null);
+  useEffect(() => { if (open) api(`/api/matches/${matchKey}/vote`).then(setData).catch(() => undefined); }, [matchKey, open]);
+  if (!open || !data) return null;
+  return (
+    <section className="card">
+      <h2>Fan vote</h2>
+      <AdSlot slot="fan_vote" matchKey={matchKey} />
+      <p className="small">Opens late. The result is fans versus the stats card. Points only.</p>
+      {data.categories.map((c: any) => (
+        <div key={c.id}>
+          <div className="small">{c.emoji} {c.label}{c.fan ? ` · fans ${c.fan} · stats ${c.stats}` : ""}</div>
+          {!c.yours && (
+            <div className="chips">
+              {data.players.slice(0, 6).map((p: { id: string; name: string }) => (
+                <button key={p.id} className="chip" onClick={async () => setData(await api(`/api/matches/${matchKey}/vote`, { method: "POST", body: JSON.stringify({ category: c.id, playerId: p.id }) }))}>{p.name.split(" ").slice(-1)}</button>
+              ))}
+            </div>
+          )}
+          {c.yours && <p className="small">Locked</p>}
+        </div>
+      ))}
     </section>
   );
 }

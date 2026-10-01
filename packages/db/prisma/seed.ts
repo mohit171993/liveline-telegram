@@ -22,6 +22,13 @@ async function main() {
       streakFreeze: 1,
       fanTeamKey: "ind",
       lastActiveDay: istDay(),
+      ageStatus: "adult",
+      birthYear: 1993,
+      streakSavers: 1,
+      doubleDown: 1,
+      friendCode: "LL4481",
+      leagueTier: 5,
+      predStreak: 2,
     },
     create: {
       telegramId: adminId,
@@ -42,6 +49,13 @@ async function main() {
       streakFreeze: 1,
       fanTeamKey: "ind",
       lastActiveDay: istDay(),
+      ageStatus: "adult",
+      birthYear: 1993,
+      streakSavers: 1,
+      doubleDown: 1,
+      friendCode: "LL4481",
+      leagueTier: 5,
+      predStreak: 2,
       streak: 2,
       bestStreak: 4,
       bonusSpins: 1,
@@ -61,7 +75,7 @@ async function main() {
   for (const [telegramId, username, firstName, points] of rivals) {
     const user = await prisma.user.upsert({
       where: { telegramId },
-      update: { points },
+      update: { points, ageStatus: "adult", leagueTier: 5, leaguePoints: points },
       create: {
         telegramId,
         username,
@@ -73,6 +87,9 @@ async function main() {
         termsAcceptedAt: new Date(),
         status: "ACTIVE",
         points,
+        ageStatus: "adult",
+        leagueTier: 5,
+        leaguePoints: points,
         isDemo: true,
         streak: 1,
       },
@@ -118,8 +135,8 @@ async function main() {
 
   const brand = await prisma.advertiser.upsert({
     where: { id: "seed_harbour" },
-    update: {},
-    create: { id: "seed_harbour", name: "Harbour Audio", brand: "Harbour Audio", contact: "hello@harbour.example" },
+    update: { category: "audio" },
+    create: { id: "seed_harbour", name: "Harbour Audio", brand: "Harbour Audio", category: "audio", contact: "hello@harbour.example" },
   });
 
   const existing = await prisma.campaign.findFirst({ where: { name: "Harbour night line" } });
@@ -177,6 +194,19 @@ async function main() {
       ["cheer", "Cheer with Harbour"],
       ["nudge", "Harbour on the night line"],
       ["avatar", "Kit night"],
+      ["live_pin", "Pinned score"],
+      ["inline_card", "Drop a score"],
+      ["squad", "Squad night"],
+      ["fan_vote", "Fan vote"],
+      ["danmaku", "On the line"],
+      ["chip", "Earned chips"],
+      ["pred_streak", "Streak night"],
+      ["puzzle", "Daily puzzle"],
+      ["album", "Sticker album"],
+      ["ticket", "Match ticket"],
+      ["luck", "Luck index"],
+      ["league", "The ladder"],
+      ["fan_xi", "Fan XI"],
     ] as const;
     for (const [slot, headline] of slots) {
       const have = await prisma.creative.findFirst({ where: { campaignId: harbour.id, slot } });

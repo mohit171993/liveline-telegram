@@ -50,6 +50,15 @@ export function Home({ me }: { me: Me }) {
           else window.open(url, "_blank", "noopener");
         }}>{t(lang, "join")} · @{me.channelUrl.replace(/^https?:\/\/t\.me\//, "")}</button>
       )}
+      <button className="ghost w-full" onClick={() => nav("/play")}>Play · puzzles, squads, album</button>
+      <div className="row">
+        <button className="ghost" onClick={() => window.Telegram?.WebApp?.addToHomeScreen?.()}>Add to home</button>
+        <button className="ghost" onClick={() => {
+          const share = window.Telegram?.WebApp?.shareToStory;
+          if (share) share(`${location.origin}/media/story.png`, { text: "LiveLine · points only" });
+          else if (me.channelUrl && window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(me.channelUrl);
+        }}>Story</button>
+      </div>
       <button className="ghost w-full" style={{ boxShadow: `inset 3px 0 0 ${fanColor(me.user.fanTeamKey)}` }} onClick={() => nav("/pass")}>
         {me.user.rank?.name || t(lang, "pass")} · {me.user.dailyStreak || 0} day streak
       </button>

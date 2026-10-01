@@ -17,6 +17,7 @@ The cricket feed sits behind a provider interface. With `USE_MOCK_PROVIDER=true`
 - Rewards: one free spin a day, bonus spins from streaks and referrals, scratch cards, free giveaways. Prizes are points, boosts, themes, badges, or sponsor vouchers. GiftPort issues vouchers. Redeem codes are encrypted.
 - Ops: health checks, structured logs, migrations, seed, admin DAU, registration alerts, daily summary.
 - Engagement: full-screen SIX / FOUR / WICKET / FIFTY / HUNDRED / win moments with canvas confetti, a short crowd roar and a mute toggle, XP ranks from Gully Player to Legend, a daily streak with one-day streak freeze, daily and weekly missions, a free season track, fan colours and a live fan meter, break trivia and a 10-over score guess, throttled cheers, and bot nudges. Each of those surfaces has an ad slot: `celebration`, `fan_meter`, `minigame`, `mission`, `season_pass`, `cheer`, `nudge`.
+- Play: a pinned live score the bot keeps editing, inline score cards, squads, a late fan vote with a fans-versus-stats card, scrolling comments, earned prediction chips, a prediction streak with a saver and double down, a daily puzzle, a two-pack sticker album, match tickets, a luck index and next-over forecast, a 10-tier weekly league, friend streaks, a moments timeline, a fan XI, Add to home screen, and Share to story. Slots: `live_pin`, `inline_card`, `squad`, `fan_vote`, `danmaku`, `chip`, `pred_streak`, `puzzle`, `album`, `ticket`, `luck`, `league`, `fan_xi`.
 
 ## Local setup
 
@@ -154,6 +155,10 @@ Covers initData HMAC and staleness, prediction settlement, ad eligibility and de
 - Big moments play a short roar. Mute is stored on the device. `prefers-reduced-motion` skips the confetti.
 - The season track and missions cannot be bought. Streak freeze covers one missed day.
 - Players and fans use cartoon SVG avatars (emoji face, jersey, number, role icon). There are no photos. The avatar builder unlocks faces, jerseys, caps, and frames with XP and rewards.
+- Chips, streak savers, double downs, sticker packs, and match tickets are earned. They cannot be bought with money or Telegram Stars, and packs are not transferable. Sticker swaps need a duplicate on both sides.
+- An age gate asks for a birth year only: 18+, or 13–17 with parental consent under the DPDP Act. Under 13 is refused.
+- Sponsor creation rejects betting, real-money gaming, and Stars categories, and any copy that mentions odds.
+- The bot pins one live score per group or channel and edits it at most every 5 seconds. Inline mode inserts a score card. `/squad` turns that chat into a squad.
 - AI answers are grounded in the live match until `OPENAI_API_KEY` is set.
 - GiftPort HTTP calls are implemented. Missing credentials or `USE_MOCK_GIFTPORT=true` uses the mock catalogue and balance.
 - Score cards are SVG. A PNG is produced only if `@resvg/resvg-js` is installed.

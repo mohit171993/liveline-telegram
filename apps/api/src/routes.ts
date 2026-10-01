@@ -10,9 +10,9 @@ import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
 import type { authenticate as AuthFn } from "./server";
-import { acceptTerms, avatarShop, listUsers, publicUser, saveAvatar, setBlocked, setLanguage, usersCsv } from "./services/users";
+import { acceptTerms, avatarShop, listUsers, publicUser, saveAvatar, setAge, setBlocked, setLanguage, usersCsv } from "./services/users";
 import { leaderboard, placePrediction, predictionState } from "./services/game";
-import { assertCleanCopy, recordAdEvent, reportCsv, reportRows, serveSlot } from "./services/ads";
+import { assertCleanCopy, assertSponsorCategory, recordAdEvent, reportCsv, reportRows, serveSlot } from "./services/ads";
 import { createReminder, deleteReminder, listReminders, updateReminder } from "./services/alerts";
 import { askBuddy } from "./services/ai";
 import { createPoll, listChat, moderate, postChat, react, votePoll } from "./services/chat";
@@ -20,6 +20,29 @@ import { claimVoucher, drawGiveaway, enterGiveaway, openScratch, presentVoucher,
 import { scoreCardSvg, svgToPng } from "./cards";
 import { bumpMission, cheer, claimMission, claimSeasonTier, engagementHome, fanMeter, grantXp, playState, setFanTeam, submitPlay } from "./services/engage";
 import { sendTelegramMessage, sendTelegramPhoto } from "./telegram";
+import {
+  albumHome,
+  answerPuzzle,
+  castVote,
+  claimTicket,
+  createSquad,
+  fanXiBoard,
+  fansCardSvg,
+  joinSquad,
+  listDanmaku,
+  listTickets,
+  openPack,
+  pinLive,
+  playHome,
+  postDanmaku,
+  puzzleHome,
+  saveFanXi,
+  scoreText,
+  squadBoard,
+  swapSticker,
+  voteState,
+  linkFriend,
+} from "./services/play";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const uploads = path.resolve(process.cwd(), "uploads");
@@ -37,6 +60,13 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     const body = z.object({ accepted: z.literal(true) }).parse(req.body);
     if (!body.accepted) throw httpError(400, "TERMS");
     return { user: publicUser(await acceptTerms(user.id)) };
+  });
+
+  app.post("/api/auth/age", async (req, reply) => {
+    const user = await authenticate(req, reply, { registered: false });
+    if (!user) return;
+    const body = z.object({ birthYear: z.number().int(), parentConsent: z.boolean().default(false) }).parse(req.body);
+    return { user: publicUser(await setAge(user.id, body.birthYear, body.parentConsent)) };
   });
 
   app.post("/api/auth/language", async (req, reply) => {
@@ -117,8 +147,9 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
       matchKey: z.string(),
       kind: z.enum(["BALL", "OVER", "MATCH"]),
       pick: z.string(),
+      chip: z.enum(["triple", "freehit", "boost", "doubledown"]).optional(),
     }).parse(req.body);
-    return placePrediction(user.id, body.matchKey, body.kind, body.pick);
+    return placePrediction(user.id, body.matchKey, body.kind, body.pick, body.chip);
   });
 
   app.get("/api/leaderboard", async (req, reply) => {
@@ -317,6 +348,147 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     return saveAvatar(user.id, body);
   });
 
+  app.get("/api/play", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const seriesKey = String((req.query as { seriesKey?: string }).seriesKey || "floodlight_t20");
+    return playHome(user.id, seriesKey);
+  });
+
+  app.post("/api/squads", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ title: z.string().min(2).max(40) }).parse(req.body);
+    return createSquad(user.id, body.title);
+  });
+
+  app.post("/api/squads/join", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ code: z.string().min(2) }).parse(req.body);
+    return joinSquad(user.id, body.code);
+  });
+
+  app.get("/api/squads", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return squadBoard(user.id);
+  });
+
+  app.post("/api/live/pin", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ chatId: z.string().min(2), matchKey: z.string().min(2) }).parse(req.body);
+    return pinLive(body.chatId, body.matchKey);
+  });
+
+  app.get("/api/live/card", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const matchKey = String((req.query as { matchKey?: string }).matchKey || "");
+    return { text: await scoreText(matchKey, user.id) };
+  });
+
+  app.get("/api/matches/:key/vote", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return voteState(user.id, (req.params as { key: string }).key);
+  });
+
+  app.post("/api/matches/:key/vote", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ category: z.string(), playerId: z.string() }).parse(req.body);
+    return castVote(user.id, (req.params as { key: string }).key, body.category, body.playerId);
+  });
+
+  app.get("/api/matches/:key/vote/card", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const key = (req.params as { key: string }).key;
+    const state = await voteState(user.id, key);
+    const svg = fansCardSvg(key, state.categories.map((c) => ({ label: `${c.emoji} ${c.label}`, fan: c.fan || "hidden", stats: c.stats || "hidden", agree: c.agree })));
+    return { svg };
+  });
+
+  app.get("/api/matches/:key/danmaku", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return { notes: await listDanmaku((req.params as { key: string }).key) };
+  });
+
+  app.post("/api/matches/:key/danmaku", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ body: z.string() }).parse(req.body);
+    return postDanmaku(user.id, (req.params as { key: string }).key, body.body);
+  });
+
+  app.get("/api/puzzle", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return puzzleHome(user.id);
+  });
+
+  app.post("/api/puzzle", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ key: z.string(), answer: z.string() }).parse(req.body);
+    return answerPuzzle(user.id, body.key, body.answer);
+  });
+
+  app.get("/api/album", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return albumHome(user.id);
+  });
+
+  app.post("/api/album/pack", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return openPack(user.id);
+  });
+
+  app.post("/api/album/swap", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ offer: z.string(), want: z.string(), friendCode: z.string() }).parse(req.body);
+    return swapSticker(user.id, body.offer, body.want, body.friendCode);
+  });
+
+  app.get("/api/tickets", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return { tickets: await listTickets(user.id) };
+  });
+
+  app.post("/api/tickets", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ matchKey: z.string(), teamKey: z.string() }).parse(req.body);
+    return claimTicket(user.id, body.matchKey, body.teamKey);
+  });
+
+  app.post("/api/matches/:key/xi", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ playerIds: z.array(z.string()).length(11) }).parse(req.body);
+    return saveFanXi(user.id, (req.params as { key: string }).key, body.playerIds);
+  });
+
+  app.get("/api/matches/:key/xi", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return fanXiBoard((req.params as { key: string }).key);
+  });
+
+  app.post("/api/friends", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ code: z.string().min(2) }).parse(req.body);
+    return linkFriend(user.id, body.code);
+  });
+
   app.get("/api/engage", async (req, reply) => {
     const user = await authenticate(req, reply);
     if (!user) return;
@@ -493,6 +665,7 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
     const body = z.object({
       advertiserId: z.string().optional(),
       brand: z.string().optional(),
+      category: z.string().default("other"),
       name: z.string().min(2),
       status: z.enum(["draft", "active", "paused", "ended"]).default("active"),
       startAt: z.string().optional(),
@@ -515,10 +688,11 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
       }),
     }).parse(req.body);
     assertCleanCopy(body.name, body.creative.headline, body.creative.body);
+    assertSponsorCategory(body.category, body.brand, body.name, body.creative.headline, body.creative.body);
     let advertiserId = body.advertiserId;
     if (!advertiserId) {
       const advertiser = await prisma.advertiser.create({
-        data: { name: body.brand || body.name, brand: body.brand || body.name },
+        data: { name: body.brand || body.name, brand: body.brand || body.name, category: body.category },
       });
       advertiserId = advertiser.id;
     }

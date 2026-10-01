@@ -42,6 +42,7 @@ export function CreateCampaign() {
         method: "POST",
         body: JSON.stringify({
           brand: fd.get("brand"),
+          category: fd.get("category"),
           name: fd.get("name"),
           status: "active",
           flatFee: Number(fd.get("fee") || 0),
@@ -60,6 +61,18 @@ export function CreateCampaign() {
     }}>
       <h2>New campaign</h2>
       <input className="field" name="brand" placeholder="Brand" required defaultValue="Monsoon Chai" />
+      <select className="field" name="category" defaultValue="beverage">
+        <option value="audio">Audio</option>
+        <option value="fmcg">FMCG</option>
+        <option value="beverage">Beverage</option>
+        <option value="apparel">Apparel</option>
+        <option value="telecom">Telecom</option>
+        <option value="auto">Auto</option>
+        <option value="finance">Finance</option>
+        <option value="retail">Retail</option>
+        <option value="other">Other</option>
+        <option value="betting">Betting (blocked)</option>
+      </select>
       <input className="field" name="name" placeholder="Campaign name" required defaultValue="Monsoon over break" />
       <input className="field" name="headline" placeholder="Headline" required defaultValue="Monsoon Chai" />
       <input className="field" name="body" placeholder="Line" defaultValue="A clean cup at the innings break." />
@@ -77,6 +90,19 @@ export function CreateCampaign() {
         <option value="cheer">Cheers</option>
         <option value="nudge">Bot nudge</option>
         <option value="avatar">Avatar kit</option>
+        <option value="live_pin">Pinned score</option>
+        <option value="inline_card">Inline card</option>
+        <option value="squad">Squad</option>
+        <option value="fan_vote">Fan vote</option>
+        <option value="danmaku">Comments</option>
+        <option value="chip">Chips</option>
+        <option value="pred_streak">Prediction streak</option>
+        <option value="puzzle">Puzzle</option>
+        <option value="album">Sticker album</option>
+        <option value="ticket">Match ticket</option>
+        <option value="luck">Luck index</option>
+        <option value="league">League</option>
+        <option value="fan_xi">Fan XI</option>
       </select>
       <select className="field" name="type" defaultValue="native">
         <option value="native">Native card</option>

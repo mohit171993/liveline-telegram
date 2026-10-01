@@ -30,6 +30,21 @@ export async function sendTelegramMessage(
   }
 }
 
+export async function editTelegramMessage(chatId: string | number, messageId: number, text: string): Promise<void> {
+  if (telegramDryRun()) {
+    await prisma.outboundMessage.create({
+      data: { chatId: String(chatId), kind: "edit", payload: JSON.stringify({ messageId, text }) },
+    });
+    return;
+  }
+  const res = await fetch(`https://api.telegram.org/bot${env.botToken}/editMessageText`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, disable_web_page_preview: true }),
+  });
+  if (res.status === 429) return;
+}
+
 export async function sendTelegramPhoto(chatId: string | number, png: Buffer, caption: string): Promise<void> {
   if (telegramDryRun()) {
     await prisma.outboundMessage.create({

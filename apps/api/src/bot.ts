@@ -1,11 +1,12 @@
 import http from "http";
 import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import { prisma } from "@liveline/db";
-import { isAdmin, parseAdminList, projectMatch } from "@liveline/shared";
+import { isAdmin, liveScoreCard, parseAdminList, projectMatch, squadCode } from "@liveline/shared";
 import { env, telegramDryRun, channelUrl } from "./env";
 import { readUniverse } from "./feed";
 import { redis } from "./redis";
 import { verifyPhone, touchFromInit } from "./services/users";
+import { pinLive, upsertSquad } from "./services/play";
 import { signInitData } from "@liveline/shared";
 
 const admins = () => parseAdminList(env.adminRaw);
@@ -99,6 +100,45 @@ export function createBot() {
     await ctx.reply(body);
   });
 
+  bot.command("pin", async (ctx) => {
+    if (ctx.chat.type === "private") return ctx.reply("Add me to a group or channel, then send /pin. I will keep one pinned score and edit it.");
+    const matches = await readUniverse();
+    const query = ctx.match?.trim().toLowerCase();
+    const match = matches.find((m) => (query && m.name.toLowerCase().includes(query)) || m.status === "live") || matches[0];
+    if (!match) return ctx.reply("No match to pin.");
+    const pinned = await pinLive(String(ctx.chat.id), match.key);
+    await ctx.reply(`Pinned. I will edit that score about every ${5} seconds, inside Telegram's limit.\n\n${pinned.text}`);
+  });
+
+  bot.command("squad", async (ctx) => {
+    if (ctx.chat.type === "private") return ctx.reply("Add me to the group or channel that should become a squad.");
+    const kind = ctx.chat.type === "channel" ? "channel" : "group";
+    const squad = await upsertSquad(String(ctx.chat.id), ctx.chat.title || "Squad", kind);
+    const link = `https://t.me/LiveLineProBot?start=sq_${squad.referralCode || squadCode(String(ctx.chat.id))}`;
+    await ctx.reply(`Squad ready. Points from members add up here. Share ${link}`);
+  });
+
+  bot.on("inline_query", async (ctx) => {
+    const matches = await readUniverse();
+    const q = ctx.inlineQuery.query.trim().toLowerCase();
+    const picked = matches.filter((m) => !q || m.name.toLowerCase().includes(q)).slice(0, 6);
+    await ctx.answerInlineQuery(
+      picked.map((m) => {
+        const view = projectMatch(m, false);
+        const line = view.live ? `${view.teams[view.live.batting].code} ${view.live.runs}/${view.live.wickets} (${view.live.overs})` : view.result || view.toss;
+        const text = liveScoreCard({ name: view.name, status: view.status, line, need: view.live?.need });
+        return {
+          type: "article" as const,
+          id: m.key,
+          title: view.name,
+          description: line,
+          input_message_content: { message_text: text },
+        };
+      }),
+      { cache_time: 5 },
+    );
+  });
+
   bot.command("stats", async (ctx) => {
     if (!ctx.from || !isAdmin(admins(), ctx.from.id, ctx.from.username)) return ctx.reply("Admins only.");
     const users = await prisma.user.count({ where: { status: "ACTIVE" } });
@@ -167,6 +207,8 @@ async function main() {
     { command: "start", description: "Open LiveLine" },
     { command: "live", description: "Matches in play" },
     { command: "score", description: "Score summary" },
+    { command: "pin", description: "Pin a live score in this chat" },
+    { command: "squad", description: "Turn this chat into a squad" },
     { command: "stats", description: "Admin stats" },
     { command: "ads", description: "Sponsor manager" },
     { command: "broadcast", description: "Message users" },

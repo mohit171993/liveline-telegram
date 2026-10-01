@@ -39,6 +39,30 @@ export function Gate({ mode, me, message, onDone }: { mode: "outside" | "registe
   );
 }
 
+export function AgeGate({ onDone }: { me?: Me; onDone?: (me: Me) => void }) {
+  const [year, setYear] = useState(2000);
+  const [parent, setParent] = useState(false);
+  const [note, setNote] = useState("");
+  return (
+    <div className="app">
+      <h1 className="font-display text-5xl">Age check</h1>
+      <p className="small">LiveLine is 18+. If you are 13 to 17, a parent has to consent. We store the birth year only, under India's DPDP Act. Points, chips, packs and tickets cannot be bought.</p>
+      <label className="small">Birth year</label>
+      <input className="field" type="number" min={1920} max={2026} value={year} onChange={(e) => setYear(Number(e.target.value))} />
+      <label className="flex gap-2 items-start mt-3"><input type="checkbox" checked={parent} onChange={(e) => setParent(e.target.checked)} /> <span>A parent or guardian consents for a player under 18</span></label>
+      <button className="primary" onClick={async () => {
+        try {
+          const next = await api<Me>("/api/auth/age", { method: "POST", body: JSON.stringify({ birthYear: year, parentConsent: parent }) });
+          onDone?.(next);
+        } catch (err) {
+          setNote(err instanceof Error ? err.message : "Could not confirm age");
+        }
+      }}>Continue</button>
+      {note && <p className="err">{note}</p>}
+    </div>
+  );
+}
+
 export function AdvertisePage() {
   const [done, setDone] = useState(false);
   return (

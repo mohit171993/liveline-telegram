@@ -130,4 +130,61 @@ assert(kit.status === 200 && kit.body.look.icon === "🧤", "avatar kit saved");
 const locked = await call("/api/avatar", admin, { method: "POST", body: JSON.stringify({ face: "lion", jersey: "lime", cap: "cap", frame: "lime", role: "bat", number: 7 }) });
 assert(locked.status === 409, "locked avatar piece refused");
 
+const banned = await call("/api/admin/campaigns", admin, {
+  method: "POST",
+  body: JSON.stringify({
+    brand: "Odds House",
+    category: "betting",
+    name: "No odds",
+    status: "active",
+    creative: { type: "native", slot: "home_native", headline: "Odds", body: "Prices", cta: "Bet" },
+  }),
+});
+assert(banned.status === 400, "betting sponsor refused");
+
+const play = await call("/api/play", admin);
+assert(play.status === 200 && play.body.chips?.chips?.length === 3, "earned chips");
+const puzzle = play.body.puzzle.puzzles[0];
+let solved = false;
+for (const opt of puzzle.options) {
+  const ans = await call("/api/puzzle", admin, { method: "POST", body: JSON.stringify({ key: puzzle.key, answer: opt.id }) });
+  if (ans.status === 409) { solved = true; break; }
+  if (ans.status === 200 && (ans.body.attempts || []).some((a) => a.key === puzzle.key && a.correct)) { solved = true; break; }
+}
+assert(solved, "puzzle answered");
+
+const packs = [];
+for (let i = 0; i < 3; i++) packs.push(await call("/api/album/pack", admin, { method: "POST" }));
+assert(packs.some((p) => p.status === 409), "sticker packs cap at two a day");
+
+const squad = await call("/api/squads", admin, { method: "POST", body: JSON.stringify({ title: "Night Watch" }) });
+assert(squad.status === 200 && squad.body.referralCode, "squad created");
+const boardSq = await call("/api/squads", admin);
+assert((boardSq.body.yours || []).length > 0, "squad board");
+
+const note = await call(`/api/matches/${live.key}/danmaku`, admin, { method: "POST", body: JSON.stringify({ body: "Shot!" }) });
+assert(note.status === 200, "danmaku");
+const odds = await call(`/api/matches/${live.key}/danmaku`, admin, { method: "POST", body: JSON.stringify({ body: "give me odds" }) });
+assert(odds.status === 400, "danmaku blocks betting");
+
+const vote = await call(`/api/matches/${live.key}/vote`, admin);
+if (vote.body?.open && vote.body.players?.[0]) {
+  const cast = await call(`/api/matches/${live.key}/vote`, admin, { method: "POST", body: JSON.stringify({ category: "potm", playerId: vote.body.players[0].id }) });
+  assert(cast.status === 200, "fan vote");
+} else {
+  assert(vote.status === 200, "fan vote state");
+}
+
+const pin = await call("/api/live/pin", admin, { method: "POST", body: JSON.stringify({ chatId: "-1004458549838", matchKey: live.key }) });
+assert(pin.status === 200 && pin.body.text.includes("LIVE"), "pinned live score");
+const card = await call(`/api/live/card?matchKey=${live.key}`, admin);
+assert(card.status === 200 && card.body.text, "inline score card text");
+
+const upcomingTicket = home.body.matches.find((m) => m.status === "upcoming");
+const ticket = await call("/api/tickets", admin, { method: "POST", body: JSON.stringify({ matchKey: upcomingTicket.key, teamKey: upcomingTicket.teams.a.key }) });
+assert(ticket.status === 200 || ticket.body?.error === "TOO_EARLY" || ticket.body?.error === "CLOSED", "ticket gate");
+
+const young = await call("/api/auth/age", admin, { method: "POST", body: JSON.stringify({ birthYear: 2016, parentConsent: true }) });
+assert(young.status === 403, "under 13 refused");
+
 console.log("e2e passed");

@@ -11,6 +11,7 @@ export function PredictPage({ lang }: { lang: string }) {
   const [state, setState] = useState<any>(null);
   const [pick, setPick] = useState("4");
   const [msg, setMsg] = useState("");
+  const [pickChip, setPickChip] = useState("");
   const [matches, setMatches] = useState<any[]>([]);
 
   useEffect(() => {
@@ -34,6 +35,15 @@ export function PredictPage({ lang }: { lang: string }) {
       </div>
       <p className="small">Points only. No cash, no odds. The server locks the pick before the ball.</p>
       <AdSlot slot="prediction_slot" matchKey={key} />
+      <AdSlot slot="chip" matchKey={key} />
+      <div className="chips">
+        <span className="chip">Streak {state?.predStreak || 0}</span>
+        <span className="chip">Saver {state?.savers || 0}</span>
+        {(state?.chips || []).map((c: { kind: string; used: boolean }) => (
+          <button key={c.kind} className={`chip ${pickChip === c.kind ? "on" : ""}`} disabled={c.used} onClick={() => setPickChip(pickChip === c.kind ? "" : c.kind)}>{c.kind}</button>
+        ))}
+        <button className={`chip ${pickChip === "doubledown" ? "on" : ""}`} disabled={!state?.doubleDown} onClick={() => setPickChip(pickChip === "doubledown" ? "" : "doubledown")}>double down</button>
+      </div>
       <div className="gridpick mt-3">
         {PICKS.map((p) => (
           <button key={p} className={`pick ${pick === p ? "on" : ""}`} onClick={() => { setPick(p); haptic("light"); window.Telegram?.WebApp?.HapticFeedback?.selectionChanged(); }}>{p === "dot" ? "·" : p === "wicket" ? "W" : p}</button>
@@ -41,7 +51,7 @@ export function PredictPage({ lang }: { lang: string }) {
       </div>
       <button className="primary" disabled={!state?.open?.ball} onClick={async () => {
         try {
-          await api("/api/predictions", { method: "POST", body: JSON.stringify({ matchKey: key, kind: "BALL", pick }) });
+          await api("/api/predictions", { method: "POST", body: JSON.stringify({ matchKey: key, kind: "BALL", pick, ...(pickChip ? { chip: pickChip } : {}) }) });
           haptic("medium");
           setMsg("Locked.");
           load(key);

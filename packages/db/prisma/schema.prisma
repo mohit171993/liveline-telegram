@@ -42,6 +42,16 @@ model User {
   avatarFrame     String    @default("lime")
   avatarRole      String    @default("bat")
   avatarNumber    Int       @default(7)
+  ageStatus       String    @default("pending")
+  birthYear       Int?
+  predStreak      Int       @default(0)
+  bestPredStreak  Int       @default(0)
+  streakSavers    Int       @default(0)
+  doubleDown      Int       @default(0)
+  friendCode      String?   @unique
+  leagueTier      Int       @default(1)
+  leaguePoints    Int       @default(0)
+  leagueWeek      String?
   theme           String    @default("floodlight")
   unlockedThemes  String    @default("floodlight")
   status          String    @default("PENDING")
@@ -69,6 +79,16 @@ model User {
   missions        MissionProgress[]
   seasonClaims    SeasonClaim[]
   plays           PlayEntry[]
+  chips           SeriesChip[]
+  votes           FanVote[]
+  danmaku         DanmakuNote[]
+  puzzles         PuzzleAttempt[]
+  stickers        StickerHolding[]
+  packs           StickerPackOpen[]
+  tickets         MatchTicket[]
+  fanXis          FanXi[]
+  friends         FriendLink[] @relation("friendA")
+  friendOf        FriendLink[] @relation("friendB")
 
   @@index([status, createdAt])
 }
@@ -140,6 +160,7 @@ model Prediction {
   settledAt DateTime?
   correct   Boolean?
   points    Int       @default(0)
+  chip      String    @default("")
   detail    String    @default("")
 
   @@unique([userId, matchKey, kind, targetKey])
@@ -157,10 +178,13 @@ model Badge {
 }
 
 model GroupChat {
-  id        String        @id
-  title     String?
-  createdAt DateTime      @default(now())
-  members   GroupMember[]
+  id           String        @id
+  title        String?
+  kind         String        @default("group")
+  points       Int           @default(0)
+  referralCode String?       @unique
+  createdAt    DateTime      @default(now())
+  members      GroupMember[]
 }
 
 model GroupMember {
@@ -232,6 +256,7 @@ model Advertiser {
   id        String     @id @default(cuid())
   name      String
   brand     String
+  category  String     @default("other")
   contact   String?
   notes     String?
   createdAt DateTime   @default(now())
@@ -499,6 +524,109 @@ model PlayEntry {
 
   @@unique([userId, matchKey, kind, targetKey])
   @@index([matchKey, kind, settledAt])
+}
+
+model SeriesChip {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seriesKey String
+  kind      String
+  used      Boolean @default(false)
+
+  @@unique([userId, seriesKey, kind])
+}
+
+model LivePin {
+  chatId    String   @id
+  matchKey  String
+  messageId Int
+  updatedAt DateTime @updatedAt
+}
+
+model FanVote {
+  matchKey  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  @@id([matchKey, userId, category])
+}
+
+model DanmakuNote {
+  id        String   @id @default(cuid())
+  matchKey  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([matchKey, createdAt])
+}
+
+model PuzzleAttempt {
+  userId    String
+  day       String
+  puzzleKey String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answer    String
+  correct   Boolean
+  points    Int      @default(0)
+
+  @@id([userId, day, puzzleKey])
+}
+
+model StickerHolding {
+  userId     String
+  stickerKey String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  count      Int    @default(1)
+
+  @@id([userId, stickerKey])
+}
+
+model StickerPackOpen {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String
+  createdAt DateTime @default(now())
+
+  @@index([userId, day])
+}
+
+model MatchTicket {
+  userId    String
+  matchKey  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamKey   String
+  badge     String
+  stub      Boolean  @default(false)
+  claimedAt DateTime @default(now())
+
+  @@id([userId, matchKey])
+}
+
+model FanXi {
+  matchKey  String
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playerIds String
+
+  @@id([matchKey, userId])
+}
+
+model FriendLink {
+  userId   String
+  friendId String
+  user     User   @relation("friendA", fields: [userId], references: [id], onDelete: Cascade)
+  friend   User   @relation("friendB", fields: [friendId], references: [id], onDelete: Cascade)
+  streak   Int    @default(0)
+  lastDay  String @default("")
+
+  @@id([userId, friendId])
 }
 
 model MatchViewStat {

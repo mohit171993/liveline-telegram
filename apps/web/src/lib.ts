@@ -11,6 +11,8 @@ export type Live = {
   nonStriker: { id: string; name: string; runs: number; balls: number; look?: Look } | null;
   bowler: { id: string; name: string; overs: string; runs: number; wickets: number; economy: number; look?: Look } | null;
   mood?: { emoji: string; label: string; labelHi: string };
+  luck?: { score: number; emoji: string; label: string; labelHi: string };
+  forecast?: { runs: number; low: number; high: number; wicketChance: number };
   partnership: { runs: number; balls: number };
   thisOver: string[];
   recent: string[];
@@ -28,6 +30,8 @@ export type Match = {
   points?: { team: string; p: number; w: number; l: number; nrr: string; pts: number }[];
   predictionOpen?: { ball: boolean; over: boolean; match: boolean };
   nextBallAt?: number;
+  voteOpen?: boolean;
+  moments?: { over: string; text: string; kind: string }[];
 };
 export type Innings = {
   team: "a" | "b"; title: string; runs: number; wickets: number; overs: string; extras: number;
@@ -41,8 +45,8 @@ export type Player = { id: string; name: string; role: string; style: string; lo
 export type Me = {
   user: {
     id: string; telegramId: string; username: string | null; firstName: string | null; language: string;
-    registered: boolean; needsPhone: boolean; needsTerms: boolean; blocked: boolean; admin: boolean;
-    points: number; xp: number; streak: number; dailyStreak: number; streakFreeze: number;
+    registered: boolean; needsPhone: boolean; needsTerms: boolean; needsAge?: boolean; ageStatus?: string; blocked: boolean; admin: boolean;
+    points: number; xp: number; streak: number; predStreak?: number; streakSavers?: number; doubleDown?: number; leagueTier?: number; friendCode?: string | null; dailyStreak: number; streakFreeze: number;
     fanTeamKey: string | null;
     look: Look;
     rank: { id: string; name: string; progress: number; next: { name: string; min: number } | null };
@@ -164,6 +168,8 @@ declare global {
         requestContact?: (cb?: (ok: boolean) => void) => void;
         openTelegramLink: (url: string) => void;
         openLink: (url: string) => void;
+        addToHomeScreen?: () => void;
+        shareToStory?: (mediaUrl: string, params?: { text?: string }) => void;
       };
     };
   }

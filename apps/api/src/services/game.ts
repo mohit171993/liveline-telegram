@@ -6,6 +6,7 @@ import {
   settleBallPick,
   settleMatchPick,
   settleOverPick,
+  settleWithKit,
   type AdvanceResult,
   type Ball,
   type CricketMatchState,
@@ -16,6 +17,7 @@ import { getMatch } from "../feed";
 import { grantScratch } from "./rewards";
 import { bumpMission, grantXp, nudgeRank } from "./engage";
 import { userCartoon } from "./users";
+import { addSquadPoints, consumeChip, ensureChips, takeChip, useFreeHit } from "./play";
 
 const BALL_PICKS = new Set(["dot", "1", "2", "3", "4", "6", "wicket", "extra"]);
 
@@ -27,10 +29,21 @@ export async function predictionState(userId: string, matchKey: string) {
     orderBy: { lockedAt: "desc" },
     take: 30,
   });
-  return { open: found.view.predictionOpen, nextBallAt: found.view.nextBallAt, nextBallIndex: found.view.nextBallIndex, mine };
+  const kit = await ensureChips(userId, found.state.seriesKey);
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  return {
+    open: found.view.predictionOpen,
+    nextBallAt: found.view.nextBallAt,
+    nextBallIndex: found.view.nextBallIndex,
+    mine,
+    chips: kit,
+    savers: user?.streakSavers || 0,
+    doubleDown: user?.doubleDown || 0,
+    predStreak: user?.predStreak || 0,
+  };
 }
 
-export async function placePrediction(userId: string, matchKey: string, kind: "BALL" | "OVER" | "MATCH", pick: string) {
+export async function placePrediction(userId: string, matchKey: string, kind: "BALL" | "OVER" | "MATCH", pick: string, chip?: string) {
   const found = await getMatch(matchKey);
   if (!found) throw httpError(404, "NOT_FOUND");
   const { state } = found;
@@ -42,7 +55,8 @@ export async function placePrediction(userId: string, matchKey: string, kind: "B
     }
     const inn = state.innings[state.current];
     const targetKey = String(inn?.balls.length || 0);
-    const row = await createPrediction(userId, matchKey, "BALL", targetKey, pick);
+    if (chip === "freehit") await useFreeHit(userId, state.seriesKey, matchKey, "BALL", targetKey);
+    const row = await createPrediction(userId, matchKey, "BALL", targetKey, pick, chip, state.seriesKey);
     await bumpMission(userId, "predict").catch(() => undefined);
     await grantXp(userId, 2).catch(() => undefined);
     return row;
@@ -55,19 +69,25 @@ export async function placePrediction(userId: string, matchKey: string, kind: "B
       throw httpError(409, "LOCKED", "Over predictions lock once the over starts.");
     }
     const overNumber = Math.floor(inn.legalBalls / 6) + 1;
-    return createPrediction(userId, matchKey, "OVER", `over:${state.current}:${overNumber}`, String(runs));
+    return createPrediction(userId, matchKey, "OVER", `over:${state.current}:${overNumber}`, String(runs), chip, state.seriesKey);
   }
   if (pick !== "a" && pick !== "b" && pick !== "tie") throw httpError(400, "BAD_PICK");
   if (state.status !== "upcoming" || now >= state.startAt) {
     throw httpError(409, "LOCKED", "Match result locks at the first ball.");
   }
-  return createPrediction(userId, matchKey, "MATCH", "match", pick);
+  return createPrediction(userId, matchKey, "MATCH", "match", pick, chip, state.seriesKey);
 }
 
-async function createPrediction(userId: string, matchKey: string, kind: string, targetKey: string, pick: string) {
+async function createPrediction(userId: string, matchKey: string, kind: string, targetKey: string, pick: string, chip?: string, seriesKey?: string) {
+  let used = "";
+  if (chip && seriesKey) {
+    const ok = await takeChip(userId, seriesKey, chip);
+    if (!ok) throw httpError(409, "NO_CHIP", "That chip is earned once a series and already used.");
+    used = chip;
+  }
   try {
     return await prisma.prediction.create({
-      data: { userId, matchKey, kind, targetKey, pick },
+      data: { userId, matchKey, kind, targetKey, pick, chip: used },
     });
   } catch {
     throw httpError(409, "ALREADY_LOCKED", "You already locked a pick for that.");
@@ -90,7 +110,7 @@ async function settleBall(match: CricketMatchState, ball: Ball) {
   });
   for (const row of rows) {
     const result = settleBallPick(row.pick, ball);
-    await applySettlement(row.id, row.userId, result, `Ball ${ball.over}.${ball.ballInOver || "wd"} was ${result.actual}`);
+    await applySettlement(row.id, row.userId, result, `Ball ${ball.over}.${ball.ballInOver || "wd"} was ${result.actual}`, match.seriesKey, row.chip);
   }
 }
 
@@ -104,7 +124,7 @@ async function settleOver(match: CricketMatchState, eventName: string) {
   });
   for (const row of rows) {
     const result = settleOverPick(row.pick, over.runs);
-    await applySettlement(row.id, row.userId, result, `Over ${overNumber} went for ${over.runs}`);
+    await applySettlement(row.id, row.userId, result, `Over ${overNumber} went for ${over.runs}`, match.seriesKey, row.chip);
   }
 }
 
@@ -115,7 +135,7 @@ async function settleMatch(match: CricketMatchState) {
   });
   for (const row of rows) {
     const result = settleMatchPick(row.pick, match.winner);
-    await applySettlement(row.id, row.userId, result, match.result || result.actual);
+    await applySettlement(row.id, row.userId, result, match.result || result.actual, match.seriesKey, row.chip);
   }
 }
 
@@ -124,24 +144,44 @@ async function applySettlement(
   userId: string,
   result: { correct: boolean; points: number; actual: string },
   detail: string,
+  seriesKey: string,
+  chip: string,
 ) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
-  const boosted = applyBoost(result.points, user.predictionBoost);
+  const boosted = chip ? { points: result.points, boostsLeft: user.predictionBoost } : applyBoost(result.points, user.predictionBoost);
+  const kit = settleWithKit({
+    correct: result.correct,
+    points: boosted.points,
+    chip: chip || null,
+    savers: user.streakSavers,
+    predStreak: user.predStreak,
+  });
   const streak = result.correct ? user.streak + 1 : 0;
   await prisma.prediction.update({
     where: { id: predictionId },
-    data: { settledAt: new Date(), correct: result.correct, points: boosted.points, detail },
+    data: { settledAt: new Date(), correct: result.correct, points: kit.points, detail },
   });
+  if (kit.chipConsumed && chip !== "doubledown") await consumeChip(userId, seriesKey, chip);
+  const predStreak = kit.predStreak;
+  let savers = user.streakSavers - (kit.saverUsed ? 1 : 0);
+  let doubleDown = user.doubleDown - (chip === "doubledown" && kit.chipConsumed ? 1 : 0);
+  if (predStreak > 0 && predStreak % 5 === 0 && savers < 3) savers += 1;
+  if (predStreak > 0 && predStreak % 3 === 0 && doubleDown < 2) doubleDown += 1;
   await prisma.user.update({
     where: { id: userId },
     data: {
-      points: { increment: boosted.points },
+      points: { increment: kit.points },
       predictionBoost: boosted.boostsLeft,
       streak,
       bestStreak: Math.max(user.bestStreak, streak),
+      predStreak,
+      bestPredStreak: Math.max(user.bestPredStreak, predStreak),
+      streakSavers: savers,
+      doubleDown,
     },
   });
+  await addSquadPoints(userId, kit.points).catch(() => undefined);
   if (result.correct) {
     await grantScratch(userId, "prediction", predictionId).catch(() => undefined);
     await grantXp(userId, 8).catch(() => undefined);

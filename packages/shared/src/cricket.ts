@@ -1,5 +1,6 @@
 import { currentRunRate, oversLabel, projectedScore, requiredRunRate, winProbability, type WinProb } from "./winprob";
 import { castLook, teamMood, type Cartoon, type RoleId } from "./avatar";
+import { keyMoments, luckIndex, nextOverForecast, voteIsOpen } from "./play";
 
 export type Sport = "cricket" | "football" | "kabaddi";
 export type MatchStatus = "live" | "upcoming" | "completed";
@@ -163,6 +164,8 @@ export interface MatchView {
     thisOver: string[];
     recent: string[];
     mood: { emoji: string; label: string; labelHi: string };
+    luck: { score: number; emoji: string; label: string; labelHi: string };
+    forecast: { runs: number; low: number; high: number; wicketChance: number };
   };
   innings?: InningsView[];
   commentary?: { over: string; text: string; textHi: string; kind: string }[];
@@ -177,6 +180,8 @@ export interface MatchView {
   predictionOpen?: { ball: boolean; over: boolean; match: boolean };
   break?: { kind: "innings" | "timeout"; until: number } | null;
   overs10?: { open: boolean; innings: number; actual: number | null };
+  voteOpen?: boolean;
+  moments?: { over: string; text: string; textHi: string; kind: string }[];
 }
 
 export interface InningsView {
@@ -637,7 +642,7 @@ export function buildDemoUniverse(now = Date.now()): CricketMatchState[] {
     name: "England vs South Africa",
     format: "T20",
     status: "upcoming",
-    startAt: now + 1000 * 60 * 95,
+    startAt: now + 1000 * 60 * 20,
     venue: "Eden Gardens",
     city: "Kolkata",
     pitch: "Even grass, little swing after the first hour. Toss will matter.",
@@ -828,6 +833,8 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
             thisOver: (inn.overs[inn.overs.length - 1]?.balls || []).slice(-12),
             recent: inn.balls.slice(-12).map(ballToken),
             mood: teamMood(win[inn.team], inn.balls.slice(-6).map(ballToken)),
+            luck: luckIndex(inn.balls.slice(-12).map(ballToken)),
+            forecast: nextOverForecast(crr, inn.wickets),
           };
         })()
       : null;
@@ -851,6 +858,7 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
     scoreline: { a: scoreLine(match, "a"), b: scoreLine(match, "b") },
     live,
     break: match.breakUntil && match.breakKind && now < match.breakUntil ? { kind: match.breakKind, until: match.breakUntil } : null,
+    voteOpen: voteIsOpen(match.status, inn?.legalBalls || match.innings.at(-1)?.legalBalls || 0, match.maxOvers),
   };
 
   if (!detail) return view;
@@ -872,12 +880,14 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
     })),
   }));
   const lastBalls = (inn?.balls || []).slice(-18).reverse();
+  view.moments = [];
   view.commentary = lastBalls.map((ball) => ({
     over: ball.extraType ? `${ball.over}.${ball.ballInOver || "wd"}` : `${ball.over}.${ball.ballInOver}`,
     text: ball.text,
     textHi: ball.textHi,
     kind: ball.wicket ? "WICKET" : ball.batRuns >= 6 ? "SIX" : ball.batRuns === 4 ? "FOUR" : "BALL",
   }));
+  view.moments = keyMoments(view.commentary).slice(0, 8);
   view.wagon = (inn?.balls || []).slice(-36).filter((b) => !b.extraType).map((b) => ({
     x: b.wagonX,
     y: b.wagonY,

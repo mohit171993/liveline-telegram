@@ -20,6 +20,8 @@ import {
   type RoleId,
 } from "@liveline/shared";
 import { rollDailyStreak } from "./engage";
+import { ageFromBirthYear } from "@liveline/shared";
+import { bumpFriendStreaks, joinSquad } from "./play";
 import { env } from "../env";
 import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
@@ -121,7 +123,9 @@ export async function touchFromInit(data: InitDataResult) {
       ...(existing.languageLocked ? {} : { languageCode: (data.user.language_code || existing.languageCode).startsWith("hi") ? "hi" : existing.languageCode }),
     },
   });
-  return rollDailyStreak(updated);
+  const rolled = await rollDailyStreak(updated);
+  if (rolled.status === "ACTIVE") await bumpFriendStreaks(rolled.id).catch(() => undefined);
+  return rolled;
 }
 
 export async function touchSession(userId: string, matchKey?: string) {
@@ -212,6 +216,8 @@ async function maybeActivate(userId: string) {
   if (referredById) {
     await prisma.scratchCard.create({ data: { userId: user.id, source: "referral" } });
   }
+  const squad = parseSquad(user.startParam);
+  if (squad) await joinSquad(user.id, squad).catch(() => undefined);
   const groupId = parseGroup(user.startParam);
   if (groupId) {
     await prisma.groupChat.upsert({ where: { id: groupId }, update: {}, create: { id: groupId } });
@@ -232,6 +238,20 @@ function parseReferrer(startParam?: string | null): string | null {
 function parseGroup(startParam?: string | null): string | null {
   const match = (startParam || "").match(/^grp_(.+)$/);
   return match ? match[1] : null;
+}
+
+function parseSquad(startParam?: string | null): string | null {
+  const match = (startParam || "").match(/^sq_(.+)$/);
+  return match ? match[1] : null;
+}
+
+export async function setAge(userId: string, birthYear: number, parentConsent: boolean) {
+  const year = new Date().getFullYear();
+  const status = ageFromBirthYear(birthYear, parentConsent, year);
+  if (status === "denied") {
+    throw httpError(403, "AGE_DENIED", "LiveLine is 18+, or 13+ with a parent's consent. We store the birth year only.");
+  }
+  return prisma.user.update({ where: { id: userId }, data: { birthYear, ageStatus: status } });
 }
 
 async function alertAdmins(userId: string) {
@@ -345,6 +365,12 @@ export function publicUser(user: {
   startParam: string | null;
   termsAcceptedAt: Date | null;
   phoneVerifiedAt: Date | null;
+  ageStatus: string;
+  predStreak: number;
+  streakSavers: number;
+  doubleDown: number;
+  leagueTier: number;
+  friendCode: string | null;
 }) {
   const registered = user.status === "ACTIVE";
   return {
@@ -361,11 +387,18 @@ export function publicUser(user: {
     needsPhone: !user.phoneVerifiedAt,
     needsTerms: !user.termsAcceptedAt,
     blocked: user.status === "BLOCKED",
+    ageStatus: user.ageStatus,
+    needsAge: user.ageStatus !== "adult" && user.ageStatus !== "consent",
     points: user.points,
     xp: user.xp,
     seasonXp: user.seasonXp,
     rank: rankFor(user.xp),
     streak: user.streak,
+    predStreak: user.predStreak,
+    streakSavers: user.streakSavers,
+    doubleDown: user.doubleDown,
+    leagueTier: user.leagueTier,
+    friendCode: user.friendCode,
     dailyStreak: user.dailyStreak,
     streakFreeze: user.streakFreeze,
     fanTeamKey: user.fanTeamKey,

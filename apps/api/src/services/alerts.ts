@@ -8,6 +8,7 @@ import { sendTelegramMessage } from "../telegram";
 import { httpError } from "../httpError";
 import { settleFeed } from "./game";
 import { maybeStreakNudges, nudgePredictionWindow, settleOversGuess } from "./engage";
+import { alertVoteOpen, settleLeagueWeek, syncLivePins } from "./play";
 
 const ALERTS = ["start", "wicket", "fifty", "hundred", "innings", "result", "prediction"] as const;
 
@@ -26,7 +27,11 @@ export async function handleFeed(events: AdvanceResult[]) {
     if (over) await nudgePredictionWindow(event.match, over).catch(() => undefined);
     await dispatch(event);
     await channelPost(event);
+    const legal = event.match.innings[event.match.current]?.legalBalls || 0;
+    await syncLivePins(event.match.key).catch(() => undefined);
+    await alertVoteOpen(event.match.key, event.match.status, legal, event.match.maxOvers, event.match.name).catch(() => undefined);
   }
+  await settleLeagueWeek().catch(() => undefined);
 }
 
 export { maybeStreakNudges };

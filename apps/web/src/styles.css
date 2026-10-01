@@ -214,6 +214,11 @@ a { color: inherit; }
 h1, h2, h3 { font-weight: 600; }
 h2 { font-size: 18px; margin: 16px 0 6px; }
 .err { color: var(--wicket); font-size: 13px; }
+.lane { position: relative; overflow: hidden; height: 28px; margin-top: 8px; }
+.fly { position: absolute; white-space: nowrap; animation: fly 8s linear; font-size: 13px; }
+@keyframes fly { from { left: 100%; } to { left: -70%; } }
+.grid5 { letter-spacing: 0.2em; font-size: 22px; margin: 6px 0; }
 @media (prefers-reduced-motion: reduce) {
-  .dot, .skel, .wheel { animation: none; transition: none; }
+  .dot, .skel, .wheel, .fly { animation: none; transition: none; }
+  .fly { position: static; }
 }

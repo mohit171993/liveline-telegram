@@ -9,7 +9,8 @@ import { RewardsPage } from "./screens/Rewards";
 import { AlertsPage } from "./screens/Alerts";
 import { BuddyPage } from "./screens/Buddy";
 import { CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
-import { AdvertisePage, Gate } from "./screens/Gate";
+import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
+import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
 import { AvatarBuilder } from "./screens/AvatarBuilder";
 
@@ -33,6 +34,7 @@ export function App() {
   if (err && !me) return <Gate mode="error" message={err} />;
   if (me?.user.blocked) return <Gate mode="blocked" />;
   if (me && !me.user.registered) return <Gate mode="register" me={me} onDone={setMe} />;
+  if (me?.user.needsAge) return <AgeGate me={me} onDone={setMe} />;
 
   return (
     <div className="app">
@@ -45,6 +47,7 @@ export function App() {
         <Route path="/rewards" element={<RewardsPage lang={lang} />} />
         <Route path="/pass" element={<PassPage lang={lang} />} />
         <Route path="/avatar" element={<AvatarBuilder lang={lang} onSaved={(look) => setMe((cur) => cur ? { ...cur, user: { ...cur.user, look } } : cur)} />} />
+        <Route path="/play" element={<PlayPage lang={lang} />} />
         <Route path="/alerts" element={<AlertsPage lang={lang} />} />
         <Route path="/ai/:key" element={<BuddyPage lang={lang} />} />
         <Route path="/advertise" element={<AdvertisePage />} />

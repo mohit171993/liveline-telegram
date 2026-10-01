@@ -1,5 +1,5 @@
 import { prisma } from "@liveline/db";
-import { clickDedupeKey, containsBetting, impressionDedupeKey, selectAd, type AdCandidate } from "@liveline/shared";
+import { clickDedupeKey, containsBetting, impressionDedupeKey, selectAd, sponsorAllowed, type AdCandidate } from "@liveline/shared";
 import { httpError } from "../httpError";
 import { redis } from "../redis";
 
@@ -81,6 +81,11 @@ export function assertCleanCopy(...parts: (string | undefined | null)[]) {
   if (containsBetting(text)) {
     throw httpError(400, "BETTING_COPY", "Ads cannot promote betting, odds, sessions, or real-money gaming.");
   }
+}
+
+export function assertSponsorCategory(category: string, ...parts: (string | undefined | null)[]) {
+  const verdict = sponsorAllowed(category, ...parts.map((p) => p || ""));
+  if (!verdict.ok) throw httpError(400, "SPONSOR_CATEGORY", verdict.reason || "That sponsor category is not allowed.");
 }
 
 export async function reportRows(campaignId?: string) {

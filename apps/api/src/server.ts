@@ -101,6 +101,11 @@ export async function buildServer() {
             socket.close();
             return;
           }
+          if (row.ageStatus !== "adult" && row.ageStatus !== "consent") {
+            socket.send(JSON.stringify({ type: "error", error: "AGE_GATE" }));
+            socket.close();
+            return;
+          }
           user = row;
           clearTimeout(timer);
           await touchSession(row.id);
@@ -226,6 +231,10 @@ export async function authenticate(
       needsPhone: !user.phoneVerifiedAt,
       needsTerms: !user.termsAcceptedAt,
     });
+    return null;
+  }
+  if (opts.registered !== false && user.ageStatus !== "adult" && user.ageStatus !== "consent") {
+    await reply.code(403).send({ error: "AGE_GATE", message: "Confirm you are 18, or a parent must consent." });
     return null;
   }
   if (opts.registered !== false) await touchSession(user.id);

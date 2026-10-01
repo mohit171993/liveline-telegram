@@ -9,6 +9,24 @@ import { amountAllowed, parseBalance, parseBuy, parseCatalogue, parseStatus, typ
 import { advanceMatch, buildDemoUniverse, projectMatch } from "./cricket";
 import { celebrations, cheerAllowed, fanLoudness, nextDailyStreak, rankFor, scoreGuessPoints, shiftIstDay, triviaFor } from "./engage";
 import { assertAvatar, castLook, teamMood } from "./avatar";
+import {
+  ageFromBirthYear,
+  applyLeagueMove,
+  chipMultiplier,
+  dailyPuzzles,
+  danmakuOk,
+  gradePuzzle,
+  leagueOutcome,
+  luckIndex,
+  nextOverForecast,
+  resultGrid,
+  settleWithKit,
+  sponsorAllowed,
+  stickerPull,
+  swapOk,
+  ticketWindow,
+  voteIsOpen,
+} from "./play";
 import { containsProfanity, maskProfanity } from "./profanity";
 import { winProbability } from "./winprob";
 
@@ -241,6 +259,53 @@ describe("cricket model", () => {
     expect(moderationDecision("give me the session odds")).toBe("betting");
     expect(containsProfanity("what a chutiya shot")).toBe(true);
     expect(maskProfanity("what a chutiya shot")).not.toContain("chutiya");
+  });
+});
+
+describe("play rules", () => {
+  it("blocks betting sponsors and confirms age", () => {
+    expect(sponsorAllowed("betting", "Odds house").ok).toBe(false);
+    expect(sponsorAllowed("audio", "Harbour", "session odds").ok).toBe(false);
+    expect(sponsorAllowed("audio", "Harbour Audio").ok).toBe(true);
+    expect(ageFromBirthYear(1990, false, 2026)).toBe("adult");
+    expect(ageFromBirthYear(2010, true, 2026)).toBe("consent");
+    expect(ageFromBirthYear(2015, true, 2026)).toBe("denied");
+  });
+
+  it("scores chips, streaks, luck, and the ticket gate", () => {
+    expect(chipMultiplier("triple")).toBe(3);
+    const held = settleWithKit({ correct: false, points: 12, chip: null, savers: 1, predStreak: 4 });
+    expect(held.predStreak).toBe(4);
+    expect(held.saverUsed).toBe(true);
+    const triple = settleWithKit({ correct: true, points: 10, chip: "triple", savers: 0, predStreak: 1 });
+    expect(triple.points).toBe(30);
+    expect(triple.predStreak).toBe(2);
+    expect(luckIndex(["6", "4", "6"]).score).toBeGreaterThan(60);
+    expect(nextOverForecast(8, 2).wicketChance).toBeGreaterThan(0);
+    const start = 1_000_000;
+    expect(ticketWindow(start - 40 * 60_000, start)).toBe("early");
+    expect(ticketWindow(start - 10 * 60_000, start)).toBe("open");
+    expect(ticketWindow(start + 1000, start)).toBe("closed");
+    expect(voteIsOpen("live", 100, 20)).toBe(true);
+    expect(voteIsOpen("upcoming", 0, 20)).toBe(false);
+  });
+
+  it("makes rarer puzzle answers worth more and keeps packs free", () => {
+    const puzzles = dailyPuzzles("2026-10-01");
+    expect(puzzles).toHaveLength(4);
+    const bowl = puzzles.find((p) => p.rarity > 0.8);
+    const common = puzzles.find((p) => p.rarity < 0.4);
+    if (bowl && common) expect(bowl.points).toBeGreaterThan(common.points);
+    expect(gradePuzzle(puzzles[0], puzzles[0].answer).correct).toBe(true);
+    expect(resultGrid(["hit", "miss", "open"])).toBe("🟩⬛⬜");
+    expect(stickerPull("user:day:0")).toHaveLength(3);
+    expect(swapOk(2, 2)).toBe(true);
+    expect(swapOk(1, 2)).toBe(false);
+    expect(leagueOutcome(1, 10)).toBe("promote");
+    expect(leagueOutcome(10, 10)).toBe("relegate");
+    expect(applyLeagueMove(10, "promote")).toBe(10);
+    expect(danmakuOk("what a shot")).toBe("ok");
+    expect(danmakuOk("give me odds")).toBe("betting");
   });
 });
 
