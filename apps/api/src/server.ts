@@ -68,14 +68,15 @@ export async function buildServer() {
       connection: "keep-alive",
     });
     const sub = redis.duplicate();
-    await sub.subscribe("ll:live");
+    sub.on("error", () => undefined);
+    await sub.subscribe("ll:live").catch(() => undefined);
     sub.on("message", (_channel, message) => {
       reply.raw.write(`data: ${message}\n\n`);
     });
     const beat = setInterval(() => reply.raw.write(": ping\n\n"), 15000);
     req.raw.on("close", () => {
       clearInterval(beat);
-      void sub.quit();
+      sub.quit().catch(() => sub.disconnect());
     });
   });
 
@@ -124,17 +125,26 @@ export async function buildServer() {
         socket.send(JSON.stringify({ type: "error", error: "BAD_MESSAGE" }));
       }
     });
+    // A socket can close before the Redis subscriber is ready (fast navigation). Never let that
+    // reject unhandled: in production it crashed the whole API and blanked every screen.
     const sub = redis.duplicate();
-    void sub.subscribe("ll:live");
-    sub.on("pmessage", () => undefined);
+    let closed = false;
+    sub.on("error", () => undefined);
+    sub.subscribe("ll:live").catch(() => undefined);
     sub.on("message", (channel, message) => {
-      if (channel !== "ll:live") return;
-      const payload = JSON.parse(message) as { key?: string };
-      if (!payload.key || payload.key === "*" || subs.has(payload.key)) socket.send(message);
+      if (closed || channel !== "ll:live") return;
+      try {
+        const payload = JSON.parse(message) as { key?: string };
+        if (!payload.key || payload.key === "*" || subs.has(payload.key)) socket.send(message);
+      } catch {
+        /* ignore a bad payload or a closing socket */
+      }
     });
+    socket.on("error", () => undefined);
     socket.on("close", () => {
+      closed = true;
       clearTimeout(timer);
-      void sub.quit();
+      sub.quit().catch(() => sub.disconnect());
     });
   });
 

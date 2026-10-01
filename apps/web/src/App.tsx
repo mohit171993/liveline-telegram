@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Route, Routes, useNavigate } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, bootTelegram, inTelegram, type Me } from "./lib";
 import { Home } from "./screens/Home";
 import { MatchPage } from "./screens/Match";
@@ -15,7 +15,7 @@ import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
 import { AvatarBuilder } from "./screens/AvatarBuilder";
 import { Splash } from "./brand/Brand";
-import { AppHeader, TabBar } from "./ui";
+import { AppHeader, ErrorBoundary, TabBar, Toaster } from "./ui";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -33,27 +33,31 @@ export function App() {
     api<Me>("/api/me").then(setMe).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, []);
 
+  // Points pill stays current: refresh the profile after any successful action.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const on = (event: Event) => {
+      if ((event as CustomEvent<{ kind: string }>).detail?.kind !== "ok") return;
+      clearTimeout(timer);
+      timer = setTimeout(() => { api<Me>("/api/me").then(setMe).catch(() => undefined); }, 600);
+    };
+    window.addEventListener("ll-toast", on);
+    return () => { window.removeEventListener("ll-toast", on); clearTimeout(timer); };
+  }, []);
+
   // Deep link: t.me/LiveLineProBot?startapp=match_<key> opens that match.
   const nav = useNavigate();
+  const location = useLocation();
   const ready = Boolean(me?.user.registered && !me?.user.needsAge && !me?.user.blocked);
   useEffect(() => {
     if (!ready) return;
     const param = window.Telegram?.WebApp?.initDataUnsafe?.start_param || "";
-    if (!param || sessionStorage.getItem("ll:deeplink")) return;
-    // Bot buttons open t.me/LiveLineProBot?startapp=<param>.
-    const routes: Record<string, string> = {
-      live: "/live",
-      predict: "/predict",
-      spin: "/rewards",
-      rewards: "/rewards",
-      board: "/board",
-      alerts: "/alerts",
-      lino: "/live",
-      play: "/play",
-    };
-    const target = param.startsWith("match_") ? `/match/${param.slice("match_".length)}` : routes[param];
+    // Handle each launch once (keyed by the signed launch), so a later deep link in the same webview still works.
+    const launch = `ll:deeplink:${window.Telegram?.WebApp?.initData?.slice(-24) || ""}`;
+    if (!param || sessionStorage.getItem(launch)) return;
+    const target = deepLinkRoute(param);
     if (target) {
-      sessionStorage.setItem("ll:deeplink", "1");
+      sessionStorage.setItem(launch, "1");
       nav(target, { replace: true });
     }
   }, [ready, nav]);
@@ -68,7 +72,9 @@ export function App() {
   return (
     <div className="app">
       {splash && <Splash onDone={() => setSplash(false)} />}
+      <Toaster />
       <AppHeader me={me!} onMe={setMe} />
+      <ErrorBoundary resetKey={location.pathname}>
       <Routes>
         <Route path="/" element={<Home me={me!} />} />
         <Route path="/live" element={<LiveRedirect />} />
@@ -89,7 +95,10 @@ export function App() {
         <Route path="/admin/users" element={<Users />} />
         <Route path="/admin/admins" element={<Admins />} />
         <Route path="/admin/fulfilment" element={<Fulfilment />} />
+        <Route path="/ai" element={<BuddyPage lang={lang} />} />
+        <Route path="*" element={<Home me={me!} />} />
       </Routes>
+      </ErrorBoundary>
       <TabBar lang={lang} />
     </div>
   );
@@ -111,4 +120,35 @@ function LiveRedirect() {
       .catch(() => nav("/", { replace: true }));
   }, [nav]);
   return <div className="skel" />;
+}
+
+/** startapp=<param> from bot buttons and shared links → Mini App screen. */
+export function deepLinkRoute(param: string): string | null {
+  const routes: Record<string, string> = {
+    home: "/",
+    live: "/live",
+    scores: "/live",
+    predict: "/predict",
+    spin: "/rewards",
+    rewards: "/rewards",
+    board: "/board",
+    leaderboard: "/board",
+    league: "/board",
+    alerts: "/alerts",
+    reminders: "/alerts",
+    lino: "/ai",
+    buddy: "/ai",
+    ai: "/ai",
+    play: "/play",
+    puzzle: "/play",
+    album: "/play",
+    pass: "/pass",
+    season: "/pass",
+    avatar: "/avatar",
+    admin: "/admin",
+  };
+  if (param.startsWith("match_")) return `/match/${param.slice("match_".length)}`;
+  if (param.startsWith("predict_")) return `/predict/${param.slice("predict_".length)}`;
+  if (param.startsWith("lino_")) return `/ai/${param.slice("lino_".length)}`;
+  return routes[param] || null;
 }

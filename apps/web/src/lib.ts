@@ -120,12 +120,36 @@ export async function api<T = any>(path: string, opts: RequestInit = {}): Promis
   const res = await fetch(`${apiBase()}${path}`, { ...opts, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || data.error || "error") as Error & { code?: string; status?: number };
+    const err = new Error(friendlyError(data.error, data.message, res.status)) as Error & { code?: string; status?: number };
     err.code = data.error;
     err.status = res.status;
     throw err;
   }
   return data as T;
+}
+
+const FRIENDLY: Record<string, string> = {
+  REGISTRATION_REQUIRED: "Verify your phone in the bot to unlock this.",
+  AGE_GATE: "Confirm your age to continue.",
+  SLOW_DOWN: "Easy! Try again in a few seconds.",
+  NOT_FOUND: "That isn't available right now.",
+  NO_WHEEL: "The wheel is being set up. Try again in a minute.",
+  BLOCKED: "This account is blocked.",
+  ADMIN_ONLY: "Admins only.",
+};
+
+export function friendlyError(code?: string, message?: string, status?: number): string {
+  if (code && FRIENDLY[code]) return message && message !== code && !/^[A-Z_]+$/.test(message) ? message : FRIENDLY[code];
+  if (message && !/^[A-Z_]+$/.test(message)) return message;
+  if (status && status >= 500) return "Our server hiccupped. Try again.";
+  if (code) return code.toLowerCase().split("_").join(" ").replace(/^./, (c) => c.toUpperCase()) + ".";
+  return "Something went wrong. Try again.";
+}
+
+/** Small toast for every action. Rendered by <Toaster /> in ui.tsx. */
+export function toast(text: string, kind: "ok" | "err" = "ok") {
+  window.dispatchEvent(new CustomEvent("ll-toast", { detail: { text, kind } }));
+  if (kind === "err") window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred("error");
 }
 
 export function haptic(kind: "light" | "medium" | "heavy" = "light") {

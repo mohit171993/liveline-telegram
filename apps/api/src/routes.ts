@@ -44,6 +44,7 @@ import {
   swapSticker,
   voteState,
   linkFriend,
+  leagueHome,
 } from "./services/play";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
@@ -153,8 +154,11 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     if (!user) return;
     const q = req.query as { scope?: string; matchKey?: string; groupId?: string };
     const rows = await leaderboard(q.scope || "daily", { matchKey: q.matchKey, groupId: q.groupId, userId: user.id });
-    const badges = await prisma.badge.findMany({ where: { userId: user.id } });
-    return { rows, badges, you: { points: user.points, streak: user.streak } };
+    const [badges, league] = await Promise.all([
+      prisma.badge.findMany({ where: { userId: user.id } }),
+      leagueHome(user.id).catch(() => null),
+    ]);
+    return { rows, badges, league, you: { points: user.points, streak: user.streak } };
   });
 
   app.post("/api/ai/chat", async (req, reply) => {

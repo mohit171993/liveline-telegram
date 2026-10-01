@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib";
+import { toast, api } from "../lib";
 import { Avatar, type Look } from "../Avatar";
 import { AdSlot } from "./Ad";
 
@@ -29,6 +29,7 @@ export function AvatarBuilder({ lang, onSaved }: { lang: string; onSaved?: (look
   function choose(group: string, item: Item) {
     if (!item.unlocked) {
       setNote(item.badge ? `Unlocks with ${item.badge.split("_").join(" ")}` : `Needs ${item.xp} XP`);
+      toast(item.badge ? `🔒 Unlocks with ${item.badge.split("_").join(" ")}` : `🔒 Needs ${item.xp} XP`, "err");
       return;
     }
     setPick({ ...pick, [group]: item.id });
@@ -83,8 +84,9 @@ export function AvatarBuilder({ lang, onSaved }: { lang: string; onSaved?: (look
         try {
           const saved = await api<{ look: Look }>("/api/avatar", { method: "POST", body: JSON.stringify(pick) });
           setNote(lang === "hi" ? "सेव हो गया" : "Kit saved");
+          toast(lang === "hi" ? "✅ सेव हो गया" : "✅ Kit saved");
           onSaved?.(saved.look);
-        } catch (err: any) { setNote(err.message); }
+        } catch (err: any) { setNote(err.message); toast(err.message, "err"); }
       }}>{lang === "hi" ? "सेव" : "Save kit"}</button>
       {note && <p className="small">{note}</p>}
     </>

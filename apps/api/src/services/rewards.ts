@@ -26,7 +26,7 @@ export async function rewardsHome(userId: string) {
   const day = istDay();
   const [user, tables, scratches, spins, giveaways, vouchers, daily] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: userId } }),
-    prisma.prizeTable.findMany({ where: { active: true }, include: { prizes: { where: { active: true }, orderBy: { weight: "desc" } } } }),
+    prisma.prizeTable.findMany({ where: { active: true }, include: { prizes: { where: { active: true }, orderBy: [{ weight: "desc" }, { id: "asc" }] } } }),
     prisma.scratchCard.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.spin.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.giveaway.findMany({ where: { status: { in: ["open", "drawn"] } }, orderBy: { endsAt: "asc" }, include: { entries: { where: { userId } } } }),
@@ -138,13 +138,13 @@ export async function spinWheel(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   let table = await prisma.prizeTable.findFirst({
     where: { kind: "wheel", active: true },
-    include: { prizes: { orderBy: { weight: "desc" } } },
+    include: { prizes: { orderBy: [{ weight: "desc" }, { id: "asc" }] } },
   });
   if (!table) {
     await ensureRewardTables();
     table = await prisma.prizeTable.findFirst({
       where: { kind: "wheel", active: true },
-      include: { prizes: { orderBy: { weight: "desc" } } },
+      include: { prizes: { orderBy: [{ weight: "desc" }, { id: "asc" }] } },
     });
   }
   if (!table) throw httpError(404, "NO_WHEEL", "The wheel is not set up yet.");
@@ -185,7 +185,9 @@ export async function spinWheel(userId: string) {
     data: { userId, action: "spin", detail: JSON.stringify({ source, prize: prize?.id || null, capped: spunToday >= table.dailyCap }) },
   });
   const segments = table.prizes.filter((p) => p.active);
-  const index = Math.max(0, segments.findIndex((p) => p.id === prize?.id));
+  // Land on the prize slice; a capped or empty draw lands on "Try again".
+  const hit = prize ? segments.findIndex((p) => p.id === prize.id) : segments.findIndex((p) => p.kind === "none");
+  const index = Math.max(0, hit);
   return { index, segmentCount: segments.length, source, prize: applied };
 }
 

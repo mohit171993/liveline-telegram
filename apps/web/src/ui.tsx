@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { api, haptic, t, type Match, type Me } from "./lib";
@@ -90,6 +90,7 @@ const ICONS = {
   play: "M8 5v14l12-7z",
   spin: "M12 4a8 8 0 1 1-7.5 5",
   channel: "M4 12h10M10 8l4 4-4 4M14 6h6v12h-6",
+  lino: "M5 6h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM9 11h.01M15 11h.01",
 };
 
 export function TabBar({ lang }: { lang: string }) {
@@ -118,6 +119,7 @@ export function QuickRow({ channelUrl }: { channelUrl: string | null }) {
     { label: "Play", icon: ICONS.play, go: () => nav("/play") },
     { label: "Predict", icon: ICONS.predict, go: () => nav("/predict") },
     { label: "Spin", icon: ICONS.spin, go: () => nav("/rewards") },
+    { label: "Ask Lino", icon: ICONS.lino, go: () => nav("/ai") },
     { label: "Channel", icon: ICONS.channel, go: () => {
       if (!channelUrl) return;
       if (window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(channelUrl);
@@ -237,4 +239,58 @@ export function MatchCard({ match }: { match: Match }) {
       </div>
     </button>
   );
+}
+
+/** Toasts from toast() in lib.ts, so every tap gets visible feedback. */
+export function Toaster() {
+  const [items, setItems] = useState<{ id: number; text: string; kind: string }[]>([]);
+  useEffect(() => {
+    const on = (event: Event) => {
+      const detail = (event as CustomEvent<{ text: string; kind: string }>).detail;
+      const id = Date.now() + Math.random();
+      setItems((cur) => [...cur.slice(-2), { id, ...detail }]);
+      setTimeout(() => setItems((cur) => cur.filter((x) => x.id !== id)), 2800);
+    };
+    window.addEventListener("ll-toast", on);
+    return () => window.removeEventListener("ll-toast", on);
+  }, []);
+  return (
+    <div className="toasts" role="status" aria-live="polite">
+      {items.map((item) => <div key={item.id} className={`toast ${item.kind}`}>{item.text}</div>)}
+    </div>
+  );
+}
+
+/** Friendly empty state with an optional call to action. */
+export function Empty({ icon, title, text, cta, onCta }: { icon: string; title: string; text?: string; cta?: string; onCta?: () => void }) {
+  return (
+    <div className="empty">
+      <div className="empty-icon" aria-hidden="true">{icon}</div>
+      <b>{title}</b>
+      {text && <p className="small">{text}</p>}
+      {cta && onCta && <button className="primary" onClick={onCta}>{cta}</button>}
+    </div>
+  );
+}
+
+/** No screen is ever blank: a crash in one screen shows this card, not a white page. */
+export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error) { console.error("screen crashed", error); }
+  componentDidUpdate(prev: { resetKey?: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null });
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="empty">
+        <div className="empty-icon" aria-hidden="true">🏏</div>
+        <b>This screen hit a no-ball</b>
+        <p className="small">Something went wrong while loading it. Your points are safe.</p>
+        <button className="primary" onClick={() => this.setState({ error: null })}>Try again</button>
+        <button className="ghost" onClick={() => { window.location.href = "/"; }}>Go home</button>
+      </div>
+    );
+  }
 }

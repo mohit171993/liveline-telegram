@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api, haptic, t, type Match, type Me } from "../lib";
 import { AdSlot } from "./Ad";
 import { Flag } from "../flags";
-import { HeroCard, MatchCard, QuickRow, StreakBanner } from "../ui";
+import { Empty, HeroCard, MatchCard, QuickRow, StreakBanner } from "../ui";
+import { useNavigate } from "react-router-dom";
 
 export function Home({ me }: { me: Me }) {
   const [matches, setMatches] = useState<Match[] | null>(null);
@@ -10,6 +11,7 @@ export function Home({ me }: { me: Me }) {
   const [series, setSeries] = useState<{ key: string; name: string }[]>([]);
   const [fav, setFav] = useState<string[]>([]);
   const lang = me.user.language === "hi" ? "hi" : "en";
+  const nav = useNavigate();
 
   async function load() {
     const data = await api<{ matches: Match[]; series: { key: string; name: string }[]; favorites: { refKey: string }[] }>("/api/home");
@@ -17,7 +19,7 @@ export function Home({ me }: { me: Me }) {
     setSeries(data.series);
     setFav(data.favorites.map((f) => f.refKey));
   }
-  useEffect(() => { load().catch(() => setMatches([])); const id = setInterval(load, 5000); return () => clearInterval(id); }, []);
+  useEffect(() => { load().catch(() => setMatches([])); const id = setInterval(() => load().catch(() => undefined), 5000); return () => clearInterval(id); }, []);
 
   const featured = [
     ...(matches || []).filter((m) => m.status === "live"),
@@ -59,6 +61,7 @@ export function Home({ me }: { me: Me }) {
           }}><Flag code={team.code} size={22} /> {team.code}</button>
         ))}
       </div>
+      {matches && matches.length === 0 && <Empty icon="🏏" title="No matches on right now" text="Live and upcoming matches show up here as soon as they're scheduled." cta="🔔 Set reminders" onCta={() => nav("/alerts")} />}
       {shown.filter((m) => !featured.some((f) => f.key === m.key) || filter !== "all").map((m) => (
         <MatchCard key={m.key} match={m} />
       ))}

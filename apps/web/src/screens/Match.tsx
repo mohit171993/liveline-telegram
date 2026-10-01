@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, initData, t, wsBase, type Match } from "../lib";
-import { kickoff, pillClass, placeOf } from "../ui";
+import { api, initData, t, toast, wsBase, type Match } from "../lib";
+import { Empty, kickoff, pillClass, placeOf } from "../ui";
 import { Flag } from "../flags";
 import { AdSlot } from "./Ad";
 import { Celebrate, muted, setMuted } from "./Celebrate";
@@ -18,10 +18,11 @@ export function MatchPage({ lang }: { lang: string }) {
   const [laneOn, setLaneOn] = useState(localStorage.getItem("ll-lane") !== "off");
   const [lane, setLane] = useState<{ id: string; body: string }[]>([]);
 
+  const [failed, setFailed] = useState("");
   async function load() {
-    setMatch(await api<Match>(`/api/matches/${key}`));
+    try { setMatch(await api<Match>(`/api/matches/${key}`)); setFailed(""); } catch (e: any) { setFailed(e.message || "error"); }
   }
-  useEffect(() => { load().catch(() => undefined); const id = setInterval(load, 4000); return () => clearInterval(id); }, [key]);
+  useEffect(() => { load(); const id = setInterval(load, 4000); return () => clearInterval(id); }, [key]);
   useEffect(() => {
     if (!moments[0]) return;
     const id = setTimeout(() => setMoments((cur) => cur.slice(1)), 2600);
@@ -56,16 +57,19 @@ export function MatchPage({ lang }: { lang: string }) {
         load();
       }
       if (msg.type === "cheer" && msg.key === key) {
-        setCheers((cur) => [...cur, { id: msg.id || String(Date.now()), emoji: msg.emoji, x: 16 + Math.random() * 70 }].slice(-12));
+        const id = String(msg.id || `${Date.now()}-${Math.random()}`);
+        setCheers((cur) => cur.some((c) => c.id === id) ? cur : [...cur, { id, emoji: msg.emoji, x: 16 + Math.random() * 70 }].slice(-12));
       }
       if (msg.type === "danmaku" && msg.key === key) {
-        setLane((cur) => [...cur, { id: msg.id || String(Date.now()), body: msg.body }].slice(-8));
+        const id = String(msg.id || `${Date.now()}-${Math.random()}`);
+        setLane((cur) => cur.some((c) => c.id === id) ? cur : [...cur, { id, body: msg.body }].slice(-8));
       }
     };
     return () => ws.close();
   }, [key]);
 
-  if (!match) return <div className="skel" />;
+  if (!match && failed) return <Empty icon="🏏" title="This match isn't available" text={failed} cta="See all matches" onCta={() => nav("/")} />;
+  if (!match) return <><div className="skel hero-skel" /><div className="skel" /></>;
   const live = match.live;
   const bat = live ? match.teams[live.batting] : match.teams.a;
   const winText = live?.win ? `${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%` : "";
@@ -125,9 +129,11 @@ export function MatchPage({ lang }: { lang: string }) {
         const body = String(new FormData(e.currentTarget).get("body") || "");
         e.currentTarget.reset();
         const note = await api<{ id: string; body: string }>(`/api/matches/${match.key}/danmaku`, { method: "POST", body: JSON.stringify({ body }) });
-        setLane((cur) => [...cur, note].slice(-8));
-      }}>
-        <input className="field" name="body" maxLength={42} placeholder="Short comment" aria-label="Comment" />
+        setLane((cur) => cur.some((c) => c.id === note.id) ? cur : [...cur, note].slice(-8));
+        toast("💬 Comment sent");
+      }} className="flex gap-2">
+        <input className="field" name="body" maxLength={42} required placeholder="Short comment on the match" aria-label="Comment" />
+        <button className="ghost" style={{ flex: "none" }} aria-label="Send comment">Send</button>
       </form>
       <FanMeter matchKey={match.key} lang={lang} />
       <MiniPlay matchKey={match.key} lang={lang} />
@@ -187,6 +193,7 @@ export function MatchPage({ lang }: { lang: string }) {
               <button className="ghost" onClick={async () => {
                 const ids = [...(match.xi?.a || []), ...(match.xi?.b || [])].slice(0, 11).map((p) => p.id);
                 if (ids.length === 11) await api(`/api/matches/${match.key}/xi`, { method: "POST", body: JSON.stringify({ playerIds: ids }) });
+                toast(ids.length === 11 ? "⭐ Fan XI saved" : "XI not announced yet");
               }}>Save fan XI</button>
               <div className="chips">
                 {match.xi?.a.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
@@ -218,7 +225,7 @@ function Charts({ match }: { match: Match }) {
   const worm = match.worm || [];
   const maxW = Math.max(1, ...worm.map((w) => w.runs));
   const wagon = match.wagon || [];
-  if (!mans.length && !worm.length && !wagon.length) return null;
+  if (!mans.length && !worm.length && !wagon.length) return <Empty icon="📊" title="Charts arrive with the first over" text="Manhattan, worm and wagon wheel fill in as the match is played." />;
   return (
     <>
       {mans.length > 0 && (
@@ -257,18 +264,20 @@ function FanMeter({ matchKey, lang }: { matchKey: string; lang: string }) {
   const [data, setData] = useState<any>(null);
   const [note, setNote] = useState("");
   async function load() { setData(await api(`/api/matches/${matchKey}/fans`)); }
-  useEffect(() => { load().catch(() => undefined); const id = setInterval(load, 4000); return () => clearInterval(id); }, [matchKey]);
+  useEffect(() => { load().catch(() => undefined); const id = setInterval(() => load().catch(() => undefined), 4000); return () => clearInterval(id); }, [matchKey]);
   if (!data) return null;
   const total = Math.max(1, data.a + data.b);
   async function pick(teamKey: string) {
     await api("/api/fan", { method: "POST", body: JSON.stringify({ teamKey }) });
+    toast("📣 You picked your side");
     load();
   }
   async function cheer(emoji: string) {
     try {
       await api(`/api/matches/${matchKey}/cheer`, { method: "POST", body: JSON.stringify({ emoji }) });
+      toast(`${emoji} Cheer sent`);
       load();
-    } catch (err: any) { setNote(err.message); }
+    } catch (err: any) { setNote(err.message); toast(err.message, "err"); }
   }
   return (
     <section className="card" aria-label={t(lang, "fans")}>
@@ -296,7 +305,7 @@ function MiniPlay({ matchKey, lang }: { matchKey: string; lang: string }) {
   const [guess, setGuess] = useState("90");
   const [note, setNote] = useState("");
   async function load() { setData(await api(`/api/matches/${matchKey}/play`)); }
-  useEffect(() => { load().catch(() => undefined); const id = setInterval(load, 5000); return () => clearInterval(id); }, [matchKey]);
+  useEffect(() => { load().catch(() => undefined); const id = setInterval(() => load().catch(() => undefined), 5000); return () => clearInterval(id); }, [matchKey]);
   if (!data || (!data.trivia && !data.overs10)) return null;
   return (
     <section className="card">
@@ -311,6 +320,7 @@ function MiniPlay({ matchKey, lang }: { matchKey: string; lang: string }) {
                 <button key={opt} className="chip" onClick={async () => {
                   const res = await api<any>(`/api/matches/${matchKey}/play`, { method: "POST", body: JSON.stringify({ kind: "trivia", pick: opt }) });
                   setNote(res.correct ? `Correct · ${res.points} pts` : `Answer: ${res.answer}`);
+                  toast(res.correct ? `✅ Correct · +${res.points}` : `❌ Answer: ${res.answer}`);
                   load();
                 }}>{opt}</button>
               ))}
@@ -326,6 +336,7 @@ function MiniPlay({ matchKey, lang }: { matchKey: string; lang: string }) {
               e.preventDefault();
               await api(`/api/matches/${matchKey}/play`, { method: "POST", body: JSON.stringify({ kind: "overs10", pick: guess }) });
               setNote("Guess locked");
+              toast("🔒 Guess locked");
               load();
             }}>
               <label className="small" htmlFor="overs10">Score after 10 overs</label>
@@ -355,11 +366,11 @@ function Vote({ matchKey, open }: { matchKey: string; open: boolean }) {
           {!c.yours && (
             <div className="chips">
               {data.players.slice(0, 6).map((p: { id: string; name: string }) => (
-                <button key={p.id} className="chip" onClick={async () => setData(await api(`/api/matches/${matchKey}/vote`, { method: "POST", body: JSON.stringify({ category: c.id, playerId: p.id }) }))}>{p.name.split(" ").slice(-1)}</button>
+                <button key={p.id} className="chip" onClick={async () => { setData(await api(`/api/matches/${matchKey}/vote`, { method: "POST", body: JSON.stringify({ category: c.id, playerId: p.id }) })); toast(`🗳️ Vote locked: ${p.name}`); }}>{p.name.split(" ").slice(-1)}</button>
               ))}
             </div>
           )}
-          {c.yours && <p className="small">Locked</p>}
+          {c.yours && <p className="small">✅ Your vote is locked</p>}
         </div>
       ))}
     </section>
@@ -370,9 +381,10 @@ function Chat({ matchKey }: { matchKey: string }) {
   const [data, setData] = useState<any>(null);
   const [text, setText] = useState("");
   async function load() { setData(await api(`/api/chat/${matchKey}`)); }
-  useEffect(() => { load(); const id = setInterval(load, 3000); return () => clearInterval(id); }, [matchKey]);
+  useEffect(() => { load().catch(() => undefined); const id = setInterval(() => load().catch(() => undefined), 3000); return () => clearInterval(id); }, [matchKey]);
   async function sendReaction(emoji: string) {
     await api(`/api/chat/${matchKey}/react`, { method: "POST", body: JSON.stringify({ emoji }) });
+    toast(`${emoji} Reaction sent`);
     await load();
   }
   return (
@@ -381,11 +393,12 @@ function Chat({ matchKey }: { matchKey: string }) {
         {Object.entries(data?.reactions || {}).map(([emoji, n]) => (
           <button key={emoji} className="pill" onClick={() => sendReaction(emoji)}>{emoji} {String(n)}</button>
         ))}
-        {["🔥", "👏", "😱"].map((emoji) => (
+        {["🔥", "👏", "😱"].filter((emoji) => !(emoji in (data?.reactions || {}))).map((emoji) => (
           <button key={emoji} className="pill" onClick={() => sendReaction(emoji)}>{emoji}</button>
         ))}
       </div>
       <div className="chat mt-3">
+        {data && !(data.messages || []).length && <Empty icon="🎉" title="Start the watch party" text="Be the first to say something about this match. Keep it friendly." />}
         {(data?.messages || []).map((m: any) => (
           <div key={m.id} className="who">{m.look && <Avatar look={m.look} size={32} />}<div><b className="small">{m.name}</b><div>{m.body}</div></div></div>
         ))}
@@ -395,9 +408,11 @@ function Chat({ matchKey }: { matchKey: string }) {
         if (!text.trim()) return;
         await api(`/api/chat/${matchKey}`, { method: "POST", body: JSON.stringify({ body: text }) });
         setText("");
+        toast("💬 Sent to the watch party");
         load();
-      }}>
-        <input className="field" value={text} onChange={(e) => setText(e.target.value)} placeholder="Watch party" />
+      }} className="flex gap-2 mt-2">
+        <input className="field" value={text} onChange={(e) => setText(e.target.value)} placeholder="Say something to the watch party" />
+        <button className="primary" style={{ width: "auto", padding: "0 18px" }} disabled={!text.trim()}>Send</button>
       </form>
     </div>
   );

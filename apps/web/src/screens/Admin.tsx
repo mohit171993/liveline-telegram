@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib";
+import { api, toast } from "../lib";
+import { Empty } from "../ui";
 
 export function Dash() {
   const [data, setData] = useState<any>(null);
@@ -223,17 +224,19 @@ export function Admins() {
 }
 
 export function Fulfilment() {
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<any[] | null>(null);
   async function load() { setRows((await api<{ orders: any[] }>("/api/admin/fulfilment")).orders); }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load().catch(() => setRows([])); }, []);
   return (
     <>
       <h2>Fulfilment</h2>
-      {rows.map((o) => (
+      {!rows && <div className="skel" />}
+      {rows && rows.length === 0 && <Empty icon="📦" title="No voucher orders yet" text="Voucher wins from the wheel and draws show up here for delivery and retries." />}
+      {(rows || []).map((o) => (
         <div key={o.id} className="card">
           <b>{o.brandName}</b> ₹{o.amountInr} · {o.status}
           <div className="small">{o.orderId} {o.redeemCode || ""}</div>
-          <button className="ghost" onClick={async () => { await api(`/api/admin/fulfilment/${o.id}/retry`, { method: "POST" }); load(); }}>Retry</button>
+          <button className="ghost" onClick={async () => { await api(`/api/admin/fulfilment/${o.id}/retry`, { method: "POST" }); toast("Retry queued"); load(); }}>Retry</button>
         </div>
       ))}
     </>
