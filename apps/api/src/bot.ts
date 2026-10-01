@@ -43,8 +43,31 @@ async function ensureUser(from: { id: number; first_name?: string; last_name?: s
   return touchFromInit(parsed);
 }
 
+/** Verification keyboard: stays visible (persistent, not one-time) until the phone is verified. */
+function verifyKeyboard() {
+  return new Keyboard().requestContact("Share phone to verify").resized().persistent().oneTime(false);
+}
+
+async function isVerified(telegramId: number): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { telegramId: String(telegramId) }, select: { phoneVerifiedAt: true } });
+  return Boolean(user?.phoneVerifiedAt);
+}
+
 export function createBot() {
   const bot = new Bot(env.botToken || "0:MOCK");
+
+  // Gate: in a private chat, an unverified user gets the verify keyboard again on any
+  // message, command (except /start, handled below) or button tap. Contacts pass through.
+  bot.use(async (ctx, next) => {
+    if (ctx.chat?.type !== "private" || !ctx.from || ctx.from.is_bot) return next();
+    if (ctx.message?.contact) return next();
+    const text = ctx.message?.text || "";
+    if (/^\/start(@\w+)?(\s|$)/.test(text)) return next();
+    if (!ctx.message && !ctx.callbackQuery) return next();
+    if (await isVerified(ctx.from.id)) return next();
+    if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => undefined);
+    await ctx.reply("Verify your phone to continue.", { reply_markup: verifyKeyboard() });
+  });
 
   bot.command("start", async (ctx) => {
     const param = ctx.match?.trim();
@@ -55,7 +78,7 @@ export function createBot() {
         // Unverified: verification first, nothing else. No Mini App entry points yet.
         await setChatMenu(ctx.api, ctx.chat.id, false);
         await ctx.reply("Welcome to LiveLine Pro. Verify your phone to get started.", {
-          reply_markup: new Keyboard().requestContact("Share phone to verify").resized().oneTime(),
+          reply_markup: verifyKeyboard(),
         });
         return;
       }
@@ -77,15 +100,17 @@ export function createBot() {
       await ensureUser(ctx.from);
       const user = await verifyPhone(String(ctx.from.id), Number(ctx.message.contact.user_id), ctx.message.contact.phone_number);
       await setChatMenu(ctx.api, ctx.chat.id, true);
+      // Only now remove the verification keyboard.
       await ctx.reply(
-        user.status === "ACTIVE"
-          ? "You're in."
-          : "You're in. Open LiveLine and accept the terms to finish.",
-        { reply_markup: new InlineKeyboard().webApp("Open LiveLine", webApp("/")) },
+        user.status === "ACTIVE" ? "You're in." : "You're in. Accept the terms in the app to finish.",
+        { reply_markup: { remove_keyboard: true } },
       );
+      await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
+        reply_markup: new InlineKeyboard().webApp("Open LiveLine", webApp("/")),
+      });
     } catch (err) {
       await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.", {
-        reply_markup: new Keyboard().requestContact("Share phone to verify").resized().oneTime(),
+        reply_markup: verifyKeyboard(),
       });
     }
   });
