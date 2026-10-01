@@ -118,7 +118,7 @@ async function channelPost(event: AdvanceResult) {
   const line = `${view.teams[view.live.batting].flag} <b>${view.teams[view.live.batting].code} ${view.live.runs}/${view.live.wickets}</b> (${view.live.overs})\n${view.live.need || `CRR ${view.live.crr}`}`;
   const text = `🔴 LIVE · ${view.name}\n${line}`;
   const messageId = await sendTelegramMessage(env.channelId, text, {
-    reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: matchLink(event.match.key) }]] },
+    reply_markup: { inline_keyboard: [[{ text: "🏏 Open LiveLine", url: matchLink(event.match.key), style: "primary" }]] },
   }).catch(() => null);
   if (messageId) {
     await rememberChannelPost({
@@ -211,7 +211,7 @@ export async function fireReminder(id: string) {
     return;
   }
   await sendTelegramMessage(reminder.user.telegramId, `⏰ <b>LiveLine reminder</b>\n${body}`, {
-    reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: reminder.matchKey ? matchLink(reminder.matchKey) : miniAppLink() }]] },
+    reply_markup: { inline_keyboard: [[{ text: "🏏 Open LiveLine", url: reminder.matchKey ? matchLink(reminder.matchKey) : miniAppLink(), style: "primary" }]] },
   });
   if (reminder.minutesBefore) await prisma.reminder.update({ where: { id }, data: { status: "fired" } });
 }

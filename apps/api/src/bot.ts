@@ -46,7 +46,14 @@ async function ensureUser(from: { id: number; first_name?: string; last_name?: s
 
 /** Verification keyboard: stays visible (persistent, not one-time) until the phone is verified. */
 function verifyKeyboard() {
-  return new Keyboard().requestContact("Share phone to verify").resized().persistent().oneTime(false);
+  return new Keyboard().requestContact("✅ Share phone to verify").success().resized().persistent().oneTime(false);
+}
+
+function openLiveLine(url: string, kind: "web" | "url") {
+  const keyboard = new InlineKeyboard();
+  if (kind === "web") keyboard.webApp("🏏 Open LiveLine", url);
+  else keyboard.url("🏏 Open LiveLine", url);
+  return keyboard.primary();
 }
 
 async function isVerified(telegramId: number): Promise<boolean> {
@@ -85,13 +92,13 @@ export function createBot() {
       }
       await setChatMenu(ctx.api, ctx.chat.id, true);
       await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
-        reply_markup: new InlineKeyboard().webApp("Open LiveLine", webApp("/")),
+        reply_markup: openLiveLine(webApp("/"), "web"),
       });
       return;
     }
     const link = miniAppLink(`grp_${ctx.chat.id}`);
     await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
-      reply_markup: new InlineKeyboard().url("Open LiveLine", link),
+      reply_markup: openLiveLine(link, "url"),
     });
   });
 
@@ -107,7 +114,7 @@ export function createBot() {
         { reply_markup: { remove_keyboard: true } },
       );
       await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
-        reply_markup: new InlineKeyboard().webApp("Open LiveLine", webApp("/")),
+        reply_markup: openLiveLine(webApp("/"), "web"),
       });
     } catch (err) {
       await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.", {
@@ -209,7 +216,7 @@ export function createBot() {
 
   bot.command("ads", async (ctx) => {
     if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.reply("Admins only.");
-    await ctx.reply("Sponsor manager", { reply_markup: new InlineKeyboard().webApp("Open ad manager", webApp("/admin")) });
+    await ctx.reply("Sponsor manager", { reply_markup: new InlineKeyboard().webApp("🏏 Open ad manager", webApp("/admin")).primary() });
   });
 
   bot.command("broadcast", async (ctx) => {
@@ -218,7 +225,7 @@ export function createBot() {
     if (!text) return ctx.reply("Usage: /broadcast your message");
     await redis.set(`ll:botbcast:${ctx.from.id}`, text, "EX", 120);
     await ctx.reply(`Send this to every verified user?\n\n${text}`, {
-      reply_markup: new InlineKeyboard().text("Confirm", "bcast:yes").text("Cancel", "bcast:no"),
+      reply_markup: new InlineKeyboard().text("✅ Confirm", "bcast:yes").success().text("Cancel", "bcast:no").danger(),
     });
   });
 

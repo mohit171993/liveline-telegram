@@ -318,7 +318,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     const png = await svgToPng(svg);
     const caption = `${found.view.name}\n${found.view.live ? found.view.live.need || found.view.live.overs : found.view.result || ""}`;
     if (png) await sendTelegramPhoto(user.telegramId, png, caption);
-    else await sendTelegramMessage(user.telegramId, `🏏 ${caption}`, { reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: matchLink(body.matchKey) }]] } });
+    else await sendTelegramMessage(user.telegramId, `🏏 ${caption}`, { reply_markup: { inline_keyboard: [[{ text: "🏏 Open LiveLine", url: matchLink(body.matchKey), style: "primary" }]] } });
     await bumpMission(user.id, "share").catch(() => undefined);
     await grantXp(user.id, 5).catch(() => undefined);
     return { ok: true };
