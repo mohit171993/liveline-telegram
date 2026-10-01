@@ -39,9 +39,22 @@ export function App() {
   useEffect(() => {
     if (!ready) return;
     const param = window.Telegram?.WebApp?.initDataUnsafe?.start_param || "";
-    if (param.startsWith("match_") && !sessionStorage.getItem("ll:deeplink")) {
+    if (!param || sessionStorage.getItem("ll:deeplink")) return;
+    // Bot buttons open t.me/LiveLineProBot?startapp=<param>.
+    const routes: Record<string, string> = {
+      live: "/live",
+      predict: "/predict",
+      spin: "/rewards",
+      rewards: "/rewards",
+      board: "/board",
+      alerts: "/alerts",
+      lino: "/live",
+      play: "/play",
+    };
+    const target = param.startsWith("match_") ? `/match/${param.slice("match_".length)}` : routes[param];
+    if (target) {
       sessionStorage.setItem("ll:deeplink", "1");
-      nav(`/match/${param.slice("match_".length)}`, { replace: true });
+      nav(target, { replace: true });
     }
   }, [ready, nav]);
 

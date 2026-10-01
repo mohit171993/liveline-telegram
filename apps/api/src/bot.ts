@@ -1,5 +1,6 @@
 import http from "http";
-import { Bot, InlineKeyboard, Keyboard } from "grammy";
+import path from "path";
+import { Bot, InlineKeyboard, InputFile, Keyboard } from "grammy";
 import { prisma } from "@liveline/db";
 import { liveScoreCard, projectMatch, squadCode } from "@liveline/shared";
 import { env, telegramDryRun, channelUrl, miniAppLink } from "./env";
@@ -56,6 +57,84 @@ function openLiveLine(url: string, kind: "web" | "url") {
   return keyboard.primary();
 }
 
+// ---------- Welcome card ----------
+const WELCOME_IMAGE = path.resolve(__dirname, "../assets/welcome.jpg");
+const WELCOME_FILE_KEY = "ll:bot:welcome-file:v1";
+
+export const WELCOME_CAPTION = [
+  "<b>🏏 Welcome to LiveLine Pro</b>",
+  "<i>The live line, without the noise.</i>",
+  "",
+  "⚡ <b>Live line</b>, ball by ball",
+  "🎯 <b>Free predictions</b> and a live leaderboard",
+  "🎡 <b>Free daily spin</b> and rewards",
+  "🤖 <b>Lino</b>, your AI match buddy",
+  "",
+  "<b>18+ · Free to play · No betting</b>",
+].join("\n");
+
+const HOW_IT_WORKS = [
+  "<b>ℹ️ How LiveLine Pro works</b>",
+  "",
+  "1️⃣ Tap <b>✅ Share phone to verify</b> below. One tap, Telegram sends it.",
+  "2️⃣ Accept the terms in the app (18+).",
+  "3️⃣ Follow live matches ball by ball, predict for free, climb the leaderboard.",
+  "4️⃣ Spin the free daily wheel for points and perks. Ask Lino anything about the match.",
+  "",
+  "No deposits, no betting, no cash. Points are free and have no money value.",
+].join("\n");
+
+function channelLink() {
+  return channelUrl() || "https://t.me/LiveLine_Pro";
+}
+
+function inviteLink(telegramId: number) {
+  const ref = `https://t.me/${env.botUsername}?start=ref_${telegramId}`;
+  const text = "Join me on LiveLine Pro: live cricket line, free predictions and a free daily spin. 18+, no betting.";
+  return `https://t.me/share/url?url=${encodeURIComponent(ref)}&text=${encodeURIComponent(text)}`;
+}
+
+function guestKeyboard() {
+  return new InlineKeyboard()
+    .url("📢 Join @LiveLine_Pro", channelLink())
+    .row()
+    .text("ℹ️ How it works", "howto");
+}
+
+/** Verified home grid: 2 columns, every button opens the Mini App deep link. */
+function homeKeyboard(telegramId: number) {
+  return new InlineKeyboard()
+    .url("🏏 Live Scores", miniAppLink("live")).primary()
+    .url("🎯 Predict", miniAppLink("predict")).success()
+    .row()
+    .url("🎡 Free Spin", miniAppLink("spin")).success()
+    .url("🏆 Leaderboard", miniAppLink("board"))
+    .row()
+    .url("🔔 Reminders", miniAppLink("alerts"))
+    .url("🤖 Ask Lino", miniAppLink("lino"))
+    .row()
+    .url("📢 Channel", channelLink())
+    .url("👥 Invite friends", inviteLink(telegramId)).primary();
+}
+
+/** Send the welcome card; upload once, then reuse Telegram's file_id. */
+async function sendWelcome(api: Bot["api"], chatId: number, replyMarkup: InlineKeyboard) {
+  const cached = await redis.get(WELCOME_FILE_KEY).catch(() => null);
+  try {
+    const msg = await api.sendPhoto(chatId, cached || new InputFile(WELCOME_IMAGE), {
+      caption: WELCOME_CAPTION,
+      parse_mode: "HTML",
+      reply_markup: replyMarkup,
+    });
+    const fileId = msg.photo?.[msg.photo.length - 1]?.file_id;
+    if (!cached && fileId) await redis.set(WELCOME_FILE_KEY, fileId).catch(() => undefined);
+  } catch (err) {
+    if (cached) await redis.del(WELCOME_FILE_KEY).catch(() => undefined);
+    console.error(JSON.stringify({ level: "warn", msg: "welcome-photo", err: String(err) }));
+    await api.sendMessage(chatId, WELCOME_CAPTION, { parse_mode: "HTML", reply_markup: replyMarkup });
+  }
+}
+
 async function isVerified(telegramId: number): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { telegramId: String(telegramId) }, select: { phoneVerifiedAt: true } });
   return Boolean(user?.phoneVerifiedAt);
@@ -69,6 +148,8 @@ export function createBot() {
   bot.use(async (ctx, next) => {
     if (ctx.chat?.type !== "private" || !ctx.from || ctx.from.is_bot) return next();
     if (ctx.message?.contact) return next();
+    if (ctx.callbackQuery?.data === "howto") return next();
+    if (/^\/help(@\w+)?(\s|$)/.test(ctx.message?.text || "")) return next();
     const text = ctx.message?.text || "";
     if (/^\/start(@\w+)?(\s|$)/.test(text)) return next();
     if (!ctx.message && !ctx.callbackQuery) return next();
@@ -85,15 +166,15 @@ export function createBot() {
       if (!user || !user.phoneVerifiedAt) {
         // Unverified: verification first, nothing else. No Mini App entry points yet.
         await setChatMenu(ctx.api, ctx.chat.id, false);
-        await ctx.reply("Welcome to LiveLine Pro. Verify your phone to get started.", {
+        await sendWelcome(ctx.api, ctx.chat.id, guestKeyboard());
+        await ctx.reply("👇 <b>Verify your phone to unlock LiveLine.</b>", {
+          parse_mode: "HTML",
           reply_markup: verifyKeyboard(),
         });
         return;
       }
       await setChatMenu(ctx.api, ctx.chat.id, true);
-      await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
-        reply_markup: openLiveLine(webApp("/"), "web"),
-      });
+      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from!.id));
       return;
     }
     const link = miniAppLink(`grp_${ctx.chat.id}`);
@@ -113,15 +194,39 @@ export function createBot() {
         user.status === "ACTIVE" ? "You're in." : "You're in. Accept the terms in the app to finish.",
         { reply_markup: { remove_keyboard: true } },
       );
-      await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
-        reply_markup: openLiveLine(webApp("/"), "web"),
-      });
+      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from.id));
     } catch (err) {
       await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.", {
         reply_markup: verifyKeyboard(),
       });
     }
   });
+
+  bot.callbackQuery("howto", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const verified = ctx.from ? await isVerified(ctx.from.id) : false;
+    await ctx.reply(HOW_IT_WORKS, {
+      parse_mode: "HTML",
+      ...(verified || ctx.chat?.type !== "private" ? {} : { reply_markup: verifyKeyboard() }),
+    });
+  });
+
+  bot.command("help", async (ctx) => {
+    const verified = ctx.from ? await isVerified(ctx.from.id) : false;
+    await ctx.reply(HOW_IT_WORKS, {
+      parse_mode: "HTML",
+      reply_markup: verified || ctx.chat.type !== "private" ? homeKeyboard(ctx.from?.id || 0) : verifyKeyboard(),
+    });
+  });
+
+  const shortcut = (command: string, label: string, param: string, text: string) =>
+    bot.command(command, async (ctx) => {
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: new InlineKeyboard().url(label, miniAppLink(param)).primary() });
+    });
+  shortcut("predict", "🎯 Predict", "predict", "🎯 <b>Free predictions</b>. Call the next ball, the over and the result.");
+  shortcut("spin", "🎡 Free Spin", "spin", "🎡 <b>Your free daily spin</b> is waiting. Points and perks, no cash.");
+  shortcut("leaderboard", "🏆 Leaderboard", "board", "🏆 <b>Leaderboard</b>. See where you rank today.");
+  shortcut("reminders", "🔔 Reminders", "alerts", "🔔 <b>Reminders</b>. Get pinged for toss, wickets and results.");
 
   bot.command("live", async (ctx) => {
     if (ctx.chat.type !== "private" && ctx.chat.id) {
@@ -266,16 +371,33 @@ async function main() {
   const bot = createBot();
   // Default menu is plain commands; verified users get the Mini App per chat (setChatMenu).
   await bot.api.setChatMenuButton({ menu_button: { type: "commands" } });
+  await bot.api.setMyDescription(
+    "🏏 LiveLine Pro: the live cricket line, without the noise.\n\n" +
+      "⚡ Live line, ball by ball\n🎯 Free predictions and a live leaderboard\n🎡 Free daily spin and rewards\n🤖 Lino, your AI match buddy\n\n" +
+      "18+ · Free to play · No betting. Tap Start to verify and jump in.",
+  ).catch((err) => console.error(JSON.stringify({ level: "warn", msg: "setMyDescription", err: String(err) })));
+  await bot.api.setMyShortDescription(
+    "🏏 Live cricket line, free predictions, a free daily spin and Lino the AI buddy. 18+ · No betting.",
+  ).catch((err) => console.error(JSON.stringify({ level: "warn", msg: "setMyShortDescription", err: String(err) })));
   await bot.api.setMyCommands([
-    { command: "start", description: "Open LiveLine" },
-    { command: "live", description: "Matches in play" },
-    { command: "score", description: "Score summary" },
-    { command: "pin", description: "Pin a live score in this chat" },
-    { command: "squad", description: "Turn this chat into a squad" },
-    { command: "stats", description: "Admin stats" },
-    { command: "ads", description: "Sponsor manager" },
-    { command: "broadcast", description: "Message users" },
+    { command: "start", description: "🏠 Home" },
+    { command: "live", description: "🔴 Matches in play" },
+    { command: "predict", description: "🎯 Free predictions" },
+    { command: "spin", description: "🎡 Free daily spin" },
+    { command: "leaderboard", description: "🏆 Leaderboard" },
+    { command: "reminders", description: "🔔 Match reminders" },
+    { command: "help", description: "ℹ️ How it works" },
   ]);
+  await bot.api.setMyCommands(
+    [
+      { command: "live", description: "🔴 Matches in play" },
+      { command: "score", description: "📊 Score summary" },
+      { command: "pin", description: "📌 Pin a live score here" },
+      { command: "squad", description: "👥 Turn this chat into a squad" },
+      { command: "help", description: "ℹ️ How it works" },
+    ],
+    { scope: { type: "all_group_chats" } },
+  ).catch(() => undefined);
   await bot.start();
 }
 
