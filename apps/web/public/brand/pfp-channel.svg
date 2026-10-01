@@ -1,34 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-label="LiveLine Pro channel">
   <defs>
-    <linearGradient id="bg" x1="80" y1="0" x2="520" y2="640" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#16305C"/>
-      <stop offset="0.55" stop-color="#0C1830"/>
+    <linearGradient id="bg" x1="40" y1="0" x2="600" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12203A"/>
       <stop offset="1" stop-color="#070B14"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="48%" r="42%">
-      <stop stop-color="#3DFFE8" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#3DFFE8" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="ball" cx="36%" cy="32%" r="70%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="55%" stop-color="#E7EEF6"/>
-      <stop offset="100%" stop-color="#B7C3D1"/>
-    </radialGradient>
-    <linearGradient id="pulse" x1="60" y1="340" x2="580" y2="320" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3DFFE8"/>
-      <stop offset="0.55" stop-color="#E7FF4D"/>
-      <stop offset="1" stop-color="#FF7A18"/>
+    <linearGradient id="body" x1="180" y1="120" x2="460" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4FF9A"/>
+      <stop offset="0.5" stop-color="#E7FF4D"/>
+      <stop offset="1" stop-color="#3DFFE8"/>
     </linearGradient>
-    <clipPath id="ballclip">
-      <circle cx="320" cy="320" r="232"/>
-    </clipPath>
   </defs>
   <rect width="640" height="640" fill="url(#bg)"/>
-  <circle cx="320" cy="320" r="220" fill="url(#glow)"/>
-  <circle cx="320" cy="320" r="240" fill="url(#ball)"/>
-  <g clip-path="url(#ballclip)" fill="none" stroke="#3DFFE8" stroke-width="18" stroke-linecap="round">
-    <path d="M150 250c70-90 270-90 340 0"/>
-    <path d="M150 390c70 90 270 90 340 0"/>
-  </g>
-  <path d="M70 352h150l48-92 78 176 52-108h172" fill="none" stroke="url(#pulse)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="320" cy="250" r="210" fill="#E7FF4D" opacity="0.08"/>
+  <path d="M230 168c16-48 150-58 188-12 14 20 6 36-16 40-42-28-120-20-150 8-12-14-24-22-22-36z" fill="#0C1220"/>
+  <circle cx="470" cy="150" r="22" fill="#E7FF4D" stroke="#0C1220" stroke-width="6"/>
+  <circle cx="320" cy="300" r="168" fill="url(#body)" stroke="#0C1220" stroke-width="10"/>
+  <path d="M246 262c14-22 36-30 50-30M430 360c-18 26-46 36-64 36" fill="none" stroke="#0C1220" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <circle cx="262" cy="292" r="28" fill="#F7FAFF"/>
+  <circle cx="392" cy="292" r="28" fill="#F7FAFF"/>
+  <circle cx="272" cy="298" r="14" fill="#0C1220"/>
+  <circle cx="402" cy="298" r="14" fill="#0C1220"/>
+  <path d="M274 360c18 28 74 28 96 0" fill="none" stroke="#0C1220" stroke-width="10" stroke-linecap="round"/>
+  <path d="M120 470h90l40-70 70 130 48-80h150" fill="none" stroke="#3DFFE8" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

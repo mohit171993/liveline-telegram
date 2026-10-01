@@ -136,6 +136,13 @@ function Particles() {
   );
 }
 
+function fitSize(text: string, size: number, maxWidth: number, caps: boolean) {
+  const unit = caps ? 0.47 : 0.52;
+  const natural = Math.max(1, text.length) * size * unit;
+  if (natural <= maxWidth) return size;
+  return Math.max(26, Math.floor((size * maxWidth) / natural));
+}
+
 function Kinetic({
   text,
   size,
@@ -143,6 +150,7 @@ function Kinetic({
   delay = 0,
   tracking = true,
   caps = true,
+  maxWidth,
 }: {
   text: string;
   size: number;
@@ -150,19 +158,21 @@ function Kinetic({
   delay?: number;
   tracking?: boolean;
   caps?: boolean;
+  maxWidth: number;
 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 140, mass: 0.55 } });
-  const shift = tracking ? interpolate(enter, [0, 1], [0.12, caps ? -0.02 : 0]) : 0;
+  const shift = tracking ? interpolate(enter, [0, 1], [0.04, caps ? -0.02 : 0]) : 0;
+  const fitted = fitSize(text, size, maxWidth, caps);
   return (
     <div
       style={{
         fontFamily: "BarlowCondensed, Impact, sans-serif",
         fontStyle: "italic",
         fontWeight: 900,
-        fontSize: size,
-        lineHeight: 0.9,
+        fontSize: fitted,
+        lineHeight: 0.92,
         color,
         letterSpacing: `${shift}em`,
         textTransform: caps ? "uppercase" : "none",
@@ -170,6 +180,9 @@ function Kinetic({
         transform: `translateY(${(1 - enter) * 36}px)`,
         opacity: Math.min(1, Math.max(0, enter)),
         whiteSpace: "nowrap",
+        maxWidth,
+        marginLeft: "auto",
+        marginRight: "auto",
       }}
     >
       {text}
@@ -212,26 +225,56 @@ function Phone({ src, width }: { src: string; width: number }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame, fps, config: { damping: 16, stiffness: 90, mass: 0.7 } });
-  const tilt = interpolate(enter, [0, 1], [16, 4]);
+  const tilt = interpolate(enter, [0, 1], [14, 3]);
   const height = Math.round(width * 1.72);
-  const drift = 1.04 + Math.sin(frame / 40) * 0.008;
+  const pan = Math.sin(frame / 32) * Math.round(width * 0.028);
+  const bezel = Math.max(8, Math.round(width * 0.018));
   return (
     <div
       style={{
         width,
         height,
-        borderRadius: width * 0.08,
-        padding: 8,
-        background: "linear-gradient(160deg, rgba(255,255,255,0.42), rgba(255,255,255,0.06) 42%, rgba(61,255,232,0.18))",
-        boxShadow: "0 30px 80px rgba(0,0,0,0.55), 0 0 48px rgba(61,255,232,0.22)",
-        transform: `perspective(1100px) rotateY(${tilt}deg) rotateX(6deg) scale(${0.92 + enter * 0.08})`,
+        borderRadius: width * 0.09,
+        padding: bezel,
+        background: "linear-gradient(160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.08) 42%, rgba(61,255,232,0.28))",
+        boxShadow: "0 36px 90px rgba(0,0,0,0.55), 0 0 64px rgba(61,255,232,0.32), inset 0 0 0 1px rgba(255,255,255,0.28)",
+        transform: `perspective(1200px) rotateY(${tilt}deg) rotateX(5deg) scale(${0.94 + enter * 0.06})`,
         opacity: enter,
       }}
     >
-      <div style={{ width: "100%", height: "100%", borderRadius: width * 0.065, overflow: "hidden", background: navy }}>
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          borderRadius: width * 0.072,
+          overflow: "hidden",
+          background: navy,
+          position: "relative",
+          boxShadow: "inset 0 0 42px rgba(61,255,232,0.28), inset 0 0 16px rgba(231,255,77,0.16)",
+        }}
+      >
         <Img
           src={staticFile(src)}
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", transform: `scale(${drift})` }}
+          style={{
+            position: "absolute",
+            left: "-4%",
+            top: "-6%",
+            width: "108%",
+            height: "118%",
+            objectFit: "cover",
+            objectPosition: "center top",
+            transform: `translateY(${pan}px)`,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              "linear-gradient(180deg, rgba(61,255,232,0.2) 0%, rgba(231,255,77,0.05) 18%, transparent 42%, transparent 80%, rgba(7,11,20,0.35) 100%)",
+            mixBlendMode: "screen",
+          }}
         />
       </div>
     </div>
@@ -252,14 +295,15 @@ function Stage({
 }) {
   const { width, height } = useVideoConfig();
   const mode = modeOf(width, height);
-  const titleSize = mode === "tall" ? 118 : mode === "square" ? 78 : 104;
-  const phoneW = mode === "tall" ? 620 : mode === "square" ? 390 : 400;
+  const titleSize = mode === "tall" ? 108 : mode === "square" ? 72 : 96;
+  const phoneW = mode === "tall" ? 560 : mode === "square" ? 360 : 380;
+  const copyWidth = mode === "tall" ? width - 160 : mode === "square" ? 400 : 680;
   const copy = (
-    <div style={{ textAlign: mode === "tall" ? "center" : "left" }}>
-      <Kinetic text={title} size={titleSize} />
+    <div style={{ textAlign: mode === "tall" ? "center" : "left", width: copyWidth, maxWidth: "100%" }}>
+      <Kinetic text={title} size={titleSize} maxWidth={copyWidth} />
       {sub && (
         <div style={{ marginTop: 12 }}>
-          <Kinetic text={sub} size={Math.round(titleSize * 0.4)} color={cyan} delay={6} />
+          <Kinetic text={sub} size={Math.round(titleSize * 0.42)} color={cyan} delay={6} maxWidth={copyWidth} />
         </div>
       )}
     </div>
@@ -267,9 +311,9 @@ function Stage({
   if (mode === "tall") {
     return (
       <AbsoluteFill>
-        <div style={{ position: "absolute", top: 88, left: 48, right: 48, textAlign: "center" }}>{copy}</div>
+        <div style={{ position: "absolute", top: 108, left: 80, right: 80, textAlign: "center" }}>{copy}</div>
         {screen && (
-          <div style={{ position: "absolute", top: 340, left: (width - phoneW) / 2 }}>
+          <div style={{ position: "absolute", top: 380, left: (width - phoneW) / 2 }}>
             <Phone src={screen} width={phoneW} />
           </div>
         )}
@@ -284,14 +328,14 @@ function Stage({
   }
   return (
     <AbsoluteFill>
-      <div style={{ position: "absolute", left: 64, top: 0, bottom: 0, width: mode === "square" ? 460 : 760, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ position: "absolute", left: 80, top: 0, bottom: 0, width: copyWidth, display: "flex", flexDirection: "column", justifyContent: "center" }}>
         {copy}
         {mascot && (
           <Img src={staticFile(mascot)} style={{ width: mode === "square" ? 180 : 240, height: "auto", marginTop: 28, filter: "drop-shadow(0 16px 18px rgba(0,0,0,0.5))" }} />
         )}
       </div>
       {screen && (
-        <div style={{ position: "absolute", right: mode === "square" ? 48 : 72, top: (height - Math.round(phoneW * 1.72)) / 2 }}>
+        <div style={{ position: "absolute", right: 72, top: (height - Math.round(phoneW * 1.72)) / 2 }}>
           <Phone src={screen} width={phoneW} />
         </div>
       )}
@@ -322,7 +366,7 @@ function LogoReveal() {
       <Img
         src={staticFile("v2/wordmark.png")}
         style={{
-          width: mode === "tall" ? 860 : mode === "square" ? 640 : 720,
+          width: Math.min(mode === "tall" ? 820 : mode === "square" ? 620 : 700, width - 180),
           height: "auto",
           transform: `translateY(${(1 - pop) * 30}px)`,
           opacity: pop,
@@ -353,13 +397,13 @@ function EndCard() {
   const pop = spring({ frame, fps, config: { damping: 14, stiffness: 110 } });
   const cta = mode === "wide" ? 78 : mode === "square" ? 58 : 72;
   return (
-    <AbsoluteFill style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 48 }}>
-      <Img src={staticFile("v2/mark.png")} style={{ width: mode === "tall" ? 280 : 180, height: "auto", transform: `scale(${pop})` }} />
-      <Img src={staticFile("v2/wordmark.png")} style={{ width: mode === "tall" ? 780 : 560, height: "auto", opacity: pop }} />
-      <div style={{ marginTop: 12, textAlign: "center" }}>
-        <Kinetic text="Open @LiveLineProBot" size={cta} caps={false} />
+    <AbsoluteFill style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: "48px 80px" }}>
+      <Img src={staticFile("v2/mark.png")} style={{ width: mode === "tall" ? 260 : 170, height: "auto", transform: `scale(${pop})` }} />
+      <Img src={staticFile("v2/wordmark.png")} style={{ width: Math.min(mode === "tall" ? 760 : 540, width - 180), height: "auto", opacity: pop }} />
+      <div style={{ marginTop: 12, textAlign: "center", width: width - 180 }}>
+        <Kinetic text="Open @LiveLineProBot" size={cta} caps={false} maxWidth={width - 180} />
         <div style={{ marginTop: 16 }}>
-          <Kinetic text="t.me/LiveLine_Pro" size={Math.round(cta * 0.62)} color={cyan} delay={6} caps={false} />
+          <Kinetic text="t.me/LiveLine_Pro" size={Math.round(cta * 0.62)} color={cyan} delay={6} caps={false} maxWidth={width - 180} />
         </div>
       </div>
     </AbsoluteFill>
@@ -375,6 +419,8 @@ function Flash() {
 
 export const Promo = () => {
   useBrandFont();
+  const { width } = useVideoConfig();
+  const title = modeSize();
   return (
     <AbsoluteFill style={{ background: navy, color: ink, fontFamily: "BarlowCondensed, Impact, sans-serif" }}>
       <Stadium />
@@ -383,10 +429,10 @@ export const Promo = () => {
       <Audio src={staticFile("v2/bed.mp3")} />
       <Scene from={0} duration={170}>
         <AbsoluteFill style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ textAlign: "center" }}>
-            <Kinetic text="Tonight" size={modeSize()} />
+          <div style={{ textAlign: "center", width: width - 160 }}>
+            <Kinetic text="Tonight" size={title} maxWidth={width - 160} />
             <div style={{ marginTop: 8 }}>
-              <Kinetic text="Under the lights" size={Math.round(modeSize() * 0.42)} color={ink} delay={8} />
+              <Kinetic text="Under the lights" size={Math.round(title * 0.42)} color={ink} delay={8} maxWidth={width - 160} />
             </div>
           </div>
         </AbsoluteFill>

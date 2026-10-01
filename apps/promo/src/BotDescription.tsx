@@ -43,11 +43,14 @@ export const BotDescription = () => {
   const score = scoreIn * (1 - scoreOut);
   const markOn = 1 - score;
   const glow = 0.62 + 0.38 * Math.cos((frame / durationInFrames) * Math.PI * 2);
-  const markSize = 168;
+  const markSize = 148;
+  const safe = 48;
   const restX = (width - markSize) / 2;
-  const logoX = 28;
+  const logoX = safe;
   const markX = restX + (logoX - restX) * logo;
   const markY = (height - markSize) / 2;
+  const wordLeft = logoX + markSize + 18;
+  const wordWidth = width - wordLeft - safe;
 
   return (
     <AbsoluteFill style={{ background: navy, overflow: "hidden", fontFamily: "BarlowCondensed, Impact, sans-serif" }}>
@@ -85,22 +88,22 @@ export const BotDescription = () => {
         src={staticFile("v2/wordmark.png")}
         style={{
           position: "absolute",
-          left: 214,
-          top: (height - 118) / 2,
-          width: 400,
+          left: wordLeft,
+          top: (height - 96) / 2,
+          width: wordWidth,
           height: "auto",
           opacity: logo,
-          transform: `translateX(${(1 - logo) * 28}px)`,
+          transform: `translateX(${(1 - logo) * 16}px)`,
           filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.45))",
         }}
       />
       <div
         style={{
           position: "absolute",
-          left: 36,
-          top: 54,
-          width: 568,
-          height: 252,
+          left: safe,
+          top: 48,
+          width: width - safe * 2,
+          height: height - 96,
           borderRadius: 28,
           opacity: score,
           transform: `scale(${0.96 + score * 0.04})`,
