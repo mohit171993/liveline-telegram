@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { NavLink, Route, Routes, useNavigate } from "react-router-dom";
-import { api, bootTelegram, inTelegram, t, type Me } from "./lib";
+import { Route, Routes, useNavigate } from "react-router-dom";
+import { api, bootTelegram, inTelegram, type Me } from "./lib";
 import { Home } from "./screens/Home";
 import { MatchPage } from "./screens/Match";
 import { PredictPage } from "./screens/Predict";
@@ -14,13 +14,14 @@ import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
 import { AvatarBuilder } from "./screens/AvatarBuilder";
 import { Splash } from "./brand/Brand";
+import { AppHeader, TabBar } from "./ui";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [err, setErr] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [splash, setSplash] = useState(true);
-  const lang = me?.user.language || "en";
+  const lang = me?.user.language === "hi" ? "hi" : "en";
 
   useEffect(() => {
     bootTelegram();
@@ -53,6 +54,7 @@ export function App() {
   return (
     <div className="app">
       {splash && <Splash onDone={() => setSplash(false)} />}
+      <AppHeader me={me!} onMe={setMe} />
       <Routes>
         <Route path="/" element={<Home me={me!} />} />
         <Route path="/live" element={<LiveRedirect />} />
@@ -73,27 +75,8 @@ export function App() {
         <Route path="/admin/admins" element={<Admins />} />
         <Route path="/admin/fulfilment" element={<Fulfilment />} />
       </Routes>
-      <Nav lang={lang} admin={!!me?.user.admin} />
+      <TabBar lang={lang} />
     </div>
-  );
-}
-
-function Nav({ lang, admin }: { lang: string; admin: boolean }) {
-  const nav = useNavigate();
-  const item = (to: string, key: "home" | "live" | "predict" | "rewards" | "alerts", live?: boolean) => (
-    <NavLink to={to} className={({ isActive }) => (isActive ? "on" : "")} onClick={() => live && nav("/live")}>
-      <span>{t(lang, key)}</span>
-    </NavLink>
-  );
-  return (
-    <nav className="nav">
-      {item("/", "home")}
-      <NavLink to="/live">{t(lang, "live")}</NavLink>
-      {item("/predict", "predict")}
-      {item("/rewards", "rewards")}
-      {item("/alerts", "alerts")}
-      {admin ? null : null}
-    </nav>
   );
 }
 
@@ -112,5 +95,5 @@ function LiveRedirect() {
       })
       .catch(() => nav("/", { replace: true }));
   }, [nav]);
-  return <div className="app"><div className="skel" /></div>;
+  return <div className="skel" />;
 }

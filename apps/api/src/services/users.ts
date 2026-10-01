@@ -100,7 +100,7 @@ export async function touchFromInit(data: InitDataResult) {
         username: data.user.username || null,
         firstName: data.user.first_name || null,
         lastName: data.user.last_name || null,
-        languageCode: (data.user.language_code || "en").startsWith("hi") ? "hi" : "en",
+        languageCode: "en",
         isPremium: Boolean(data.user.is_premium),
         startParam: data.startParam,
         status: "PENDING",
@@ -117,7 +117,7 @@ export async function touchFromInit(data: InitDataResult) {
       lastName: data.user.last_name || null,
       isPremium: Boolean(data.user.is_premium),
       lastSeenAt: new Date(),
-      ...(existing.languageLocked ? {} : { languageCode: (data.user.language_code || existing.languageCode).startsWith("hi") ? "hi" : existing.languageCode }),
+      ...(existing.languageLocked ? {} : { languageCode: "en" }),
     },
   });
   const rolled = await rollDailyStreak(updated);

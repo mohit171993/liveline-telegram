@@ -30,10 +30,10 @@ export function PredictPage({ lang }: { lang: string }) {
   return (
     <>
       <h2>{t(lang, "predict")}</h2>
+      <p className="small">Points only. No cash, no odds. The server locks the pick before the ball.</p>
       <div className="chips">
         {matches.map((m) => <button key={m.key} className={`chip ${key === m.key ? "on" : ""}`} onClick={() => setKey(m.key)}>{m.teams.a.code} v {m.teams.b.code}</button>)}
       </div>
-      <p className="small">Points only. No cash, no odds. The server locks the pick before the ball.</p>
       <AdSlot slot="prediction_slot" matchKey={key} />
       <AdSlot slot="chip" matchKey={key} />
       <div className="chips">
@@ -44,6 +44,8 @@ export function PredictPage({ lang }: { lang: string }) {
         ))}
         <button className={`chip ${pickChip === "doubledown" ? "on" : ""}`} disabled={!state?.doubleDown} onClick={() => setPickChip(pickChip === "doubledown" ? "" : "doubledown")}>double down</button>
       </div>
+      <div className="card">
+      <div className="small">Next ball</div>
       <div className="gridpick mt-3">
         {PICKS.map((p) => (
           <button key={p} className={`pick ${pick === p ? "on" : ""}`} onClick={() => { setPick(p); haptic("light"); window.Telegram?.WebApp?.HapticFeedback?.selectionChanged(); }}>{p === "dot" ? "·" : p === "wicket" ? "W" : p}</button>
@@ -57,6 +59,7 @@ export function PredictPage({ lang }: { lang: string }) {
           load(key);
         } catch (e: any) { setMsg(e.message); }
       }}>{state?.open?.ball ? t(lang, "submit") : t(lang, "lock")}</button>
+      </div>
       {state?.open?.match && (
         <div className="mt-3">
           <div className="small">Match result</div>

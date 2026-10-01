@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, initData, t, wsBase, type Match } from "../lib";
-import { pillClass } from "./Home";
+import { pillClass } from "../ui";
+import { Flag } from "../flags";
 import { AdSlot } from "./Ad";
 import { Celebrate, muted, setMuted } from "./Celebrate";
 import { Avatar, STATUS_STICKER } from "../Avatar";
@@ -80,7 +81,10 @@ export function MatchPage({ lang }: { lang: string }) {
           <button className="iconbtn" aria-pressed={mute} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
           <span className="demo">{match.demo ? t(lang, "demo") : match.format}</span>
         </div>
-        <div className="small mt-2">{match.teams.a.flag} {match.teams.a.name} vs {match.teams.b.flag} {match.teams.b.name}</div>
+        <div className="versus compact">
+          <div className="side"><Flag code={match.teams.a.code} size={36} /><strong>{match.teams.a.code}</strong></div>
+          <div className="side"><Flag code={match.teams.b.code} size={36} /><strong>{match.teams.b.code}</strong></div>
+        </div>
         <div className="score" style={{ color: bat.color }}>{live ? `${live.runs}/${live.wickets}` : match.result || "—"}</div>
         <div className="need">{lang === "hi" ? live?.needHi : live?.need || match.toss}</div>
         {live && <div className="meta">{live.overs} · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"} · {t(lang, "proj")} {live.projected ?? "—"}</div>}
@@ -222,10 +226,10 @@ function FanMeter({ matchKey, lang }: { matchKey: string; lang: string }) {
         <i style={{ width: `${(data.a / total) * 100}%`, background: data.teams.a.color }} />
         <i style={{ width: `${(data.b / total) * 100}%`, background: data.teams.b.color }} />
       </div>
-      <div className="row small"><span>{data.teams.a.flag} {data.a}</span><span>{data.b} {data.teams.b.flag}</span></div>
+      <div className="row small"><span className="flagline"><Flag code={data.teams.a.code} size={20} /> {data.a}</span><span className="flagline">{data.b} <Flag code={data.teams.b.code} size={20} /></span></div>
       <div className="chips">
         {[data.teams.a, data.teams.b].map((team: any) => (
-          <button key={team.key} className={`chip ${(data.you === "a" && team.key === data.teams.a.key) || (data.you === "b" && team.key === data.teams.b.key) ? "on" : ""}`} style={{ borderColor: team.color }} onClick={() => pick(team.key)}>{team.flag} {team.code}</button>
+          <button key={team.key} className={`chip team ${(data.you === "a" && team.key === data.teams.a.key) || (data.you === "b" && team.key === data.teams.b.key) ? "on" : ""}`} style={{ borderColor: team.color }} onClick={() => pick(team.key)}><Flag code={team.code} size={18} /> {team.code}</button>
         ))}
       </div>
       <div className="pills" aria-label={t(lang, "cheer")}>

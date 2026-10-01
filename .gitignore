@@ -20,3 +20,4 @@ test-results
 !apps/promo/public/**
 !docs/brand-v2/**
 !docs/screenshots/**
+!docs/screenshots-v2/**
