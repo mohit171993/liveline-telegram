@@ -6,6 +6,8 @@ export function RewardsPage({ lang }: { lang: string }) {
   const [data, setData] = useState<any>(null);
   const [spin, setSpin] = useState(0);
   const [note, setNote] = useState("");
+  const [spinNote, setSpinNote] = useState("");
+  const [spinning, setSpinning] = useState(false);
   const [email, setEmail] = useState("");
   async function load() { setData(await api("/api/rewards")); }
   useEffect(() => { load().catch((e) => setNote(e.message)); }, []);
@@ -18,16 +20,26 @@ export function RewardsPage({ lang }: { lang: string }) {
       <p className="small">{data?.legal}</p>
       <div className="wheel" style={{ transform: `rotate(${spin}deg)` }} />
       <p className="text-center small">{sponsor ? `Spin by ${sponsor}` : t(lang, "spin")}</p>
-      <button className="primary" onClick={async () => {
+      <button className="primary" disabled={spinning} onClick={async () => {
+        if (spinning) return;
+        setSpinning(true);
+        setSpinNote("");
+        haptic("light");
+        // Start turning on tap so the wheel always reacts; land on the prize when the API answers.
+        setSpin((n) => n + 360 * 2);
         try {
           const res = await api<any>("/api/rewards/spin", { method: "POST" });
           const slice = 360 / Math.max(1, res.segmentCount);
-          setSpin((n) => n + 360 * 4 + res.index * slice);
+          setSpin((n) => n - (n % 360) + 360 * 4 + res.index * slice);
           haptic("medium");
-          setNote(`${res.prize.label} · ${res.source}`);
-          setTimeout(load, 1200);
-        } catch (e: any) { setNote(e.message); }
-      }}>{data?.dailySpinAvailable ? t(lang, "spin") : `Bonus spins ${data?.bonusSpins || 0}`}</button>
+          setSpinNote(`${res.prize.label} · ${res.source === "daily" ? "free spin" : "bonus spin"}`);
+          setTimeout(() => { load().catch(() => undefined); setSpinning(false); }, 1200);
+        } catch (e: any) {
+          setSpinNote(e.message || "Could not spin. Try again.");
+          setSpinning(false);
+        }
+      }}>{spinning ? "Spinning…" : data?.dailySpinAvailable ? t(lang, "spin") : `Bonus spins ${data?.bonusSpins || 0}`}</button>
+      {spinNote && <p className="small text-center">{spinNote}</p>}
       <h2>{t(lang, "scratch")}</h2>
       {(data?.scratches || []).map((card: any) => (
         <button key={card.id} className="listbtn" onClick={async () => {

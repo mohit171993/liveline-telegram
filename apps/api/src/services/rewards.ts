@@ -73,16 +73,81 @@ function publicTable(table: { id: string; name: string; sponsorName: string | nu
   };
 }
 
+/**
+ * Production has no seed data. Make sure one free wheel and one scratch table exist
+ * (points, perks, and a small capped voucher). Idempotent: does nothing if an active table exists.
+ * Free only: no purchase, no cash.
+ */
+export async function ensureRewardTables() {
+  const wheel = await prisma.prizeTable.findFirst({ where: { kind: "wheel", active: true } });
+  if (!wheel) {
+    await prisma.prizeTable.upsert({
+      where: { id: "default_wheel" },
+      update: { active: true },
+      create: {
+        id: "default_wheel",
+        name: "Daily wheel",
+        kind: "wheel",
+        dailyCap: 5000,
+        budgetInr: 2000,
+        prizes: {
+          create: [
+            { label: "10 pts", kind: "points", weight: 30, points: 10 },
+            { label: "25 pts", kind: "points", weight: 22, points: 25 },
+            { label: "50 pts", kind: "points", weight: 12, points: 50 },
+            { label: "Try again", kind: "none", weight: 10 },
+            { label: "Boost", kind: "boost", weight: 10 },
+            { label: "Monsoon", kind: "theme", weight: 8, themeKey: "monsoon" },
+            { label: "Nightwatch", kind: "badge", weight: 6, badgeKey: "nightwatch" },
+            { label: "₹100 Amazon Pay", kind: "voucher", weight: 2, operatorCode: "AMZN", amountInr: 100, inventory: 20 },
+          ],
+        },
+      },
+    });
+    console.log(JSON.stringify({ level: "info", msg: "rewards: created default wheel" }));
+  }
+  const scratch = await prisma.prizeTable.findFirst({ where: { kind: "scratch", active: true } });
+  if (!scratch) {
+    await prisma.prizeTable.upsert({
+      where: { id: "default_scratch" },
+      update: { active: true },
+      create: {
+        id: "default_scratch",
+        name: "Scratch",
+        kind: "scratch",
+        dailyCap: 5000,
+        budgetInr: 0,
+        prizes: {
+          create: [
+            { label: "15 pts", kind: "points", weight: 50, points: 15 },
+            { label: "40 pts", kind: "points", weight: 20, points: 40 },
+            { label: "Boost", kind: "boost", weight: 10 },
+            { label: "Nothing", kind: "none", weight: 20 },
+          ],
+        },
+      },
+    });
+    console.log(JSON.stringify({ level: "info", msg: "rewards: created default scratch table" }));
+  }
+}
+
 export async function spinWheel(userId: string) {
   const limited = await rate(`spin:${userId}`, 5, 60);
   if (!limited) throw httpError(429, "SLOW_DOWN");
   const day = istDay();
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const table = await prisma.prizeTable.findFirst({
+  let table = await prisma.prizeTable.findFirst({
     where: { kind: "wheel", active: true },
-    include: { prizes: true },
+    include: { prizes: { orderBy: { weight: "desc" } } },
   });
-  if (!table) throw httpError(404, "NO_WHEEL");
+  if (!table) {
+    await ensureRewardTables();
+    table = await prisma.prizeTable.findFirst({
+      where: { kind: "wheel", active: true },
+      include: { prizes: { orderBy: { weight: "desc" } } },
+    });
+  }
+  if (!table) throw httpError(404, "NO_WHEEL", "The wheel is not set up yet.");
   const daily = await prisma.spin.findFirst({ where: { userId, dayKey: day, source: "daily" } });
   const source = daily ? "bonus" : "daily";
   if (source === "bonus" && user.bonusSpins <= 0) throw httpError(409, "NO_SPIN", "Your free spin is used. Bonus spins come from streaks and referrals.");
