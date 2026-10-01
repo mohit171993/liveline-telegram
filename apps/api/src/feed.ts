@@ -13,6 +13,11 @@ import { mapPoints, mapRoanuzMatch, RoanuzClient } from "./roanuz";
 
 const UNIVERSE = "ll:universe";
 let memory: CricketMatchState[] | null = null;
+let memoryAt = 0;
+let ticking = false;
+let featuredUntil = 0;
+let featuredCache: any[] = [];
+const pointsCache = new Map<string, { at: number; rows: CricketMatchState["points"] }>();
 let lockToken: string | null = null;
 let timer: NodeJS.Timeout | null = null;
 const roanuz = new RoanuzClient();
@@ -27,12 +32,16 @@ export function onFeedEvents(fn: FeedHook) {
 }
 
 export async function readUniverse(): Promise<CricketMatchState[]> {
-  if (memory) return memory;
+  // The poller-lock holder owns the in-memory copy. Every other process (api, bot)
+  // re-reads Redis at most once a second so it never serves a stale universe.
+  if (memory && (lockToken || Date.now() - memoryAt < 1000)) return memory;
   const cached = await redis.get(UNIVERSE);
   if (cached) {
     memory = JSON.parse(cached) as CricketMatchState[];
+    memoryAt = Date.now();
     return memory;
   }
+  if (memory) return memory;
   memory = env.useMockProvider ? buildDemoUniverse(Date.now()) : [];
   await persist(memory);
   return memory;
@@ -40,6 +49,7 @@ export async function readUniverse(): Promise<CricketMatchState[]> {
 
 async function persist(matches: CricketMatchState[]) {
   memory = matches;
+  memoryAt = Date.now();
   await redis.set(UNIVERSE, JSON.stringify(matches));
 }
 
@@ -82,13 +92,19 @@ async function holdLock(): Promise<boolean> {
 }
 
 async function tick() {
-  if (!(await holdLock())) return;
-  const now = Date.now();
-  if (env.useMockProvider || !roanuz.configured()) {
-    await tickMock(now);
-    return;
+  if (ticking) return;
+  ticking = true;
+  try {
+    if (!(await holdLock())) return;
+    const now = Date.now();
+    if (env.useMockProvider || !roanuz.configured()) {
+      await tickMock(now);
+      return;
+    }
+    await tickRoanuz(now);
+  } finally {
+    ticking = false;
   }
-  await tickRoanuz(now);
 }
 
 async function tickMock(now: number) {
@@ -127,30 +143,51 @@ async function tickMock(now: number) {
 }
 
 async function tickRoanuz(now: number) {
-  const featured = await roanuz.get("/featured-matches/");
-  const list = extractMatches(featured.body);
+  if (now >= featuredUntil) {
+    const featured = await roanuz.get("/featured-matches-2/");
+    featuredCache = extractMatches(featured.body);
+    featuredUntil = now + Math.max(15_000, featured.cache.maxAgeMs);
+    console.log(JSON.stringify({
+      level: "info",
+      msg: "roanuz-featured",
+      count: featuredCache.length,
+      matches: featuredCache.map((m: any) => `${m?.name} [${m?.status}]`),
+    }));
+  }
+  const list = featuredCache;
   let matches = await readUniverse();
   const byKey = new Map(matches.map((match) => [match.key, match]));
   for (const raw of list) {
     const mapped = mapRoanuzMatch(raw);
     if (!mapped) continue;
     const prev = byKey.get(mapped.key);
-    if (prev && (nextFetch.get(mapped.key) || 0) > now && mapped.status !== "live") {
+    if (prev && (nextFetch.get(mapped.key) || 0) > now) {
       continue;
     }
-    let next = mapped;
-    if (mapped.status === "live" || !prev) {
-      try {
-        const detail = await roanuz.get(`/match/${mapped.key}/`);
-        next = mapRoanuzMatch(detail.body) || next;
-        nextFetch.set(mapped.key, now + detail.cache.maxAgeMs);
-        if (next.seriesKey) {
-          const table = await roanuz.get(`/tournament/${next.seriesKey}/points/`);
-          next.points = mapPoints(table.body);
+    let next = prev && mapped.status !== "live" ? { ...prev, status: mapped.status } : mapped;
+    try {
+      const detail = await roanuz.get(`/match/${mapped.key}/`);
+      next = mapRoanuzMatch(detail.body) || next;
+      // Upcoming/completed matches change slowly; do not spend the request budget on them.
+      const floor = next.status === "live" ? 3_000 : 120_000;
+      nextFetch.set(mapped.key, now + Math.max(floor, detail.cache.maxAgeMs));
+      if (next.seriesKey && next.seriesKey !== "series") {
+        const hit = pointsCache.get(next.seriesKey);
+        if (hit && now - hit.at < 10 * 60_000) {
+          next.points = hit.rows;
+        } else {
+          try {
+            const table = await roanuz.get(`/tournament/${next.seriesKey}/points/`);
+            next.points = mapPoints(table.body);
+          } catch {
+            next.points = [];
+          }
+          pointsCache.set(next.seriesKey, { at: now, rows: next.points });
         }
-      } catch (err) {
-        console.error(JSON.stringify({ level: "warn", msg: "roanuz-match", key: mapped.key, err: String(err) }));
       }
+    } catch (err) {
+      nextFetch.set(mapped.key, now + 30_000);
+      console.error(JSON.stringify({ level: "warn", msg: "roanuz-match", key: mapped.key, err: String(err) }));
     }
     const events: string[] = [];
     if (prev?.status !== "live" && next.status === "live") events.push(`start:${next.key}`);

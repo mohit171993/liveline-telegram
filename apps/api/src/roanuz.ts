@@ -121,12 +121,21 @@ function teamFrom(raw: any, side: "a" | "b"): Team {
 }
 
 function statusOf(raw: any): CricketMatchState["status"] {
-  const play = String(raw?.play_status || raw?.status || "").toLowerCase();
+  // Roanuz v5: status is not_started | started | completed; play_status is
+  // scheduled | in_play | innings_break | result | ... and may be absent on list endpoints.
+  const status = String(raw?.status || "").toLowerCase();
+  if (status === "completed") return "completed";
+  if (status === "started") return "live";
+  if (status === "not_started") return "upcoming";
+  const play = String(raw?.play_status || "").toLowerCase();
   if (play.includes("complete") || play === "result" || play === "finished") return "completed";
-  if (play.includes("start") || play.includes("live") || play === "in_play" || play === "innings_break") return "live";
-  if (String(raw?.status || "").toLowerCase() === "started") return "live";
-  if (String(raw?.status || "").toLowerCase() === "completed") return "completed";
+  if (play === "in_play" || play === "innings_break" || play === "live") return "live";
   return "upcoming";
+}
+
+function sideOf(value: unknown): "a" | "b" | undefined {
+  const v = String(value ?? "").toLowerCase();
+  return v === "a" || v === "b" ? v : undefined;
 }
 
 /** Best-effort map of a Roanuz match document into our sport-agnostic cricket state. */
@@ -138,14 +147,25 @@ export function mapRoanuzMatch(raw: any, demo = false): CricketMatchState | null
     b: teamFrom(data?.teams?.b || data?.teams?.[1], "b"),
   };
   const squads = {
-    a: mapSquad(data?.squad?.a, teams.a.key),
-    b: mapSquad(data?.squad?.b, teams.b.key),
+    a: mapSquad(data?.squad?.a, teams.a.key, data?.players),
+    b: mapSquad(data?.squad?.b, teams.b.key, data?.players),
   };
   const play = data?.play || {};
   const innings = mapInnings(play, teams);
   const status = statusOf(data);
+  const order: string[] = play?.innings_order || Object.keys(play?.innings || {});
   const liveInn = String(play?.live?.innings || "");
-  const current = Math.max(0, innings.findIndex((_, i) => liveInn.endsWith(String(i + 1))) );
+  const liveIdx = liveInn ? order.indexOf(liveInn) : -1;
+  const current = innings.length ? (liveIdx >= 0 ? liveIdx : innings.length - 1) : 0;
+  const fmt = String(data?.format || "t20").toLowerCase();
+  const isOdi = fmt.includes("odi") || fmt.includes("oneday") || fmt.includes("one_day");
+  const perInnings = Number(Array.isArray(play?.overs_per_innings) ? play.overs_per_innings[0] : play?.overs_per_innings);
+  const maxOvers = perInnings > 0 ? perInnings : isOdi ? 50 : fmt.includes("t10") ? 10 : 20;
+  const startRaw = Number(data?.start_at || data?.start_date || Date.now() / 1000);
+  const tossWinner = sideOf(data?.toss?.winner);
+  const tossName = tossWinner ? teams[tossWinner].name : String(data?.toss?.winner || "");
+  const winnerSide = sideOf(data?.winner ?? play?.result?.winner);
+  const targetRuns = Number(play?.target?.runs ?? play?.live?.required_score?.target ?? play?.live?.score?.target ?? 0);
   return {
     key: String(data.key),
     sport: "cricket",
@@ -153,32 +173,53 @@ export function mapRoanuzMatch(raw: any, demo = false): CricketMatchState | null
     seriesKey: String(data?.tournament?.key || "series"),
     seriesName: String(data?.tournament?.name || "Cricket"),
     name: String(data?.name || `${teams.a.name} vs ${teams.b.name}`),
-    format: String(data?.format || "T20").toUpperCase().includes("ODI") ? "ODI" : "T20",
+    format: isOdi ? "ODI" : "T20",
     status,
-    startAt: Number(data?.start_at || data?.start_date || Date.now() / 1000) * (Number(data?.start_at) > 10_000_000_000 ? 1 : 1000),
+    startAt: startRaw > 10_000_000_000 ? startRaw : startRaw * 1000,
     venue: String(data?.venue?.name || ""),
     city: String(data?.venue?.city || ""),
-    pitch: String(data?.toss?.elected ? `Toss: ${data.toss.winner || ""} elected to ${data.toss.elected}` : ""),
-    toss: data?.toss ? `${data.toss.winner || ""} elected to ${data.toss.elected || "bat"}` : "",
+    pitch: String(data?.toss?.elected ? `Toss: ${tossName} elected to ${data.toss.elected}` : ""),
+    toss: data?.toss?.elected ? `${tossName} elected to ${data.toss.elected}` : "",
     result: play?.result?.msg || play?.result?.text,
+    winner: status === "completed" ? winnerSide || (play?.result?.result_type === "tie" ? "tie" : undefined) : undefined,
     teams,
     squads,
     innings,
-    current: innings.length ? Math.min(current < 0 ? innings.length - 1 : current, innings.length - 1) : 0,
+    current,
     bowlerOrder: [],
     bowlerCursor: 0,
     nextBallAt: Date.now() + 8000,
-    maxOvers: String(data?.format || "").toUpperCase().includes("ODI") ? 50 : 20,
+    maxOvers,
     h2h: { played: 0, aWins: 0, bWins: 0, last: "" },
     points: [],
-    strikerId: play?.live?.striker?.key,
-    nonStrikerId: play?.live?.non_striker?.key,
-    bowlerId: play?.live?.bowler?.key,
-    target: play?.live?.required_score?.target || play?.live?.score?.target,
+    strikerId: play?.live?.striker_key || play?.live?.striker?.key,
+    nonStrikerId: play?.live?.non_striker_key || play?.live?.non_striker?.key,
+    bowlerId: play?.live?.bowler_key || play?.live?.bowler?.key,
+    target: current >= 1 && targetRuns > 0 ? targetRuns : undefined,
   };
 }
 
-function mapSquad(raw: any, teamKey: string): Player[] {
+function roleOf(raw: string): Player["role"] {
+  const role = raw.toLowerCase();
+  return role.includes("bowl") ? "bowl" : role.includes("all") ? "all" : role.includes("keep") || role.includes("wk") ? "wk" : "bat";
+}
+
+function mapSquad(raw: any, teamKey: string, playersById?: Record<string, any>): Player[] {
+  // Roanuz v5 match detail: squad.a = { player_keys, playing_xi, captain, keeper },
+  // with the player documents in data.players[key].player.
+  const keys: unknown = raw?.playing_xi?.length ? raw.playing_xi : raw?.player_keys;
+  if (Array.isArray(keys)) {
+    return keys.map((key: any) => {
+      const p = playersById?.[String(key)]?.player || {};
+      return {
+        id: String(key),
+        name: String(p.name || key),
+        role: roleOf(String(p.seasonal_role || (p.roles || [])[0] || "bat")),
+        style: String(p.batting_style || p.bowling_style || ""),
+        teamKey,
+      } as Player;
+    });
+  }
   const players = raw?.players || raw || {};
   if (Array.isArray(players)) {
     return players.map((p: any, i: number) => ({
@@ -189,17 +230,18 @@ function mapSquad(raw: any, teamKey: string): Player[] {
       teamKey,
     }));
   }
-  return Object.entries(players).map(([key, value]) => {
-    const p = value as any;
-    const role = String(p?.seasonal_role || p?.role || "bat").toLowerCase();
-    return {
-      id: key,
-      name: String(p?.name || key),
-      role: role.includes("bowl") ? "bowl" : role.includes("all") ? "all" : role.includes("keep") || role.includes("wk") ? "wk" : "bat",
-      style: String(p?.batting_style || p?.bowling_style || ""),
-      teamKey,
-    } as Player;
-  });
+  return Object.entries(players)
+    .filter(([, value]) => value && typeof value === "object" && !Array.isArray(value))
+    .map(([key, value]) => {
+      const p = value as any;
+      return {
+        id: key,
+        name: String(p?.name || key),
+        role: roleOf(String(p?.seasonal_role || p?.role || "bat")),
+        style: String(p?.batting_style || p?.bowling_style || ""),
+        teamKey,
+      } as Player;
+    });
 }
 
 function mapInnings(play: any, teams: { a: Team; b: Team }): CricketMatchState["innings"] {
@@ -212,7 +254,7 @@ function mapInnings(play: any, teams: { a: Team; b: Team }): CricketMatchState["
     return {
       team: side as "a" | "b",
       runs: Number(score.runs || 0),
-      wickets: Number(score.wickets || 0),
+      wickets: Number(inn.wickets ?? score.wickets ?? 0),
       legalBalls: Number(score.balls || 0),
       extras: Number(inn.extra_runs?.extra || inn.extras || 0),
       batters: [],
@@ -225,14 +267,28 @@ function mapInnings(play: any, teams: { a: Team; b: Team }): CricketMatchState["
 }
 
 export function mapPoints(raw: any): CricketMatchState["points"] {
-  const table = raw?.data?.table || raw?.data?.points || raw?.data || [];
-  const rows = Array.isArray(table) ? table : Object.values(table);
-  return rows.slice(0, 10).map((row: any) => ({
-    team: String(row.team?.name || row.team_name || row.name || "Team"),
-    p: Number(row.played || row.p || 0),
-    w: Number(row.won || row.w || 0),
-    l: Number(row.lost || row.l || 0),
-    nrr: String(row.net_run_rate || row.nrr || "0"),
-    pts: Number(row.points || row.pts || 0),
-  }));
+  const data = raw?.data || {};
+  let rows: any[] = [];
+  if (Array.isArray(data?.rounds)) {
+    // Roanuz v5: data.rounds[].groups[].points[] — prefer the group stage over knockouts.
+    for (const round of data.rounds) {
+      for (const group of round?.groups || []) {
+        if (Array.isArray(group?.points) && group.points.length > rows.length) rows = group.points;
+      }
+    }
+  } else {
+    const table = data?.table || data?.points || data;
+    rows = Array.isArray(table) ? table : Object.values(table || {});
+  }
+  return rows
+    .filter((row: any) => row && typeof row === "object")
+    .slice(0, 10)
+    .map((row: any) => ({
+      team: String(row.team?.name || row.team_name || row.name || "Team"),
+      p: Number(row.played || row.p || 0),
+      w: Number(row.won || row.w || 0),
+      l: Number(row.lost || row.l || 0),
+      nrr: String(row.net_run_rate ?? row.nrr ?? "0"),
+      pts: Number(row.points || row.pts || 0),
+    }));
 }
