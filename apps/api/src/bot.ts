@@ -9,6 +9,17 @@ import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
 import { pinLive, upsertSquad } from "./services/play";
 import { signInitData } from "@liveline/shared";
 
+/** Per-chat menu button: the Mini App only after the phone is verified, plain commands before. */
+async function setChatMenu(api: Bot["api"], chatId: number, verified: boolean) {
+  if (telegramDryRun()) return;
+  await api
+    .setChatMenuButton({
+      chat_id: chatId,
+      menu_button: verified ? { type: "web_app", text: "Live scores", web_app: { url: env.webappUrl } } : { type: "commands" },
+    })
+    .catch(() => undefined);
+}
+
 function webApp(path = "") {
   return `${env.webappUrl}${path}`;
 }
@@ -39,21 +50,25 @@ export function createBot() {
     const param = ctx.match?.trim();
     if (ctx.from) await ensureUser(ctx.from, param || undefined);
     const user = ctx.from ? await prisma.user.findUnique({ where: { telegramId: String(ctx.from.id) } }) : null;
-    const kb = new InlineKeyboard().webApp("Open LiveLine", webApp("/"));
-    if (ctx.chat.type === "private" && (!user || !user.phoneVerifiedAt)) {
-      kb.row().text("Share phone to verify", "noop");
-      await ctx.reply(
-        "LiveLine Pro is the live line, without the noise.\n\nVerify with the phone button, accept the terms in the app, then the scores unlock. Points are free. No betting.",
-        {
-          reply_markup: new Keyboard().requestContact("Share my phone number").resized(),
-        },
-      );
+    if (ctx.chat.type === "private") {
+      if (!user || !user.phoneVerifiedAt) {
+        // Unverified: verification first, nothing else. No Mini App entry points yet.
+        await setChatMenu(ctx.api, ctx.chat.id, false);
+        await ctx.reply("Welcome to LiveLine Pro. Verify your phone to get started.", {
+          reply_markup: new Keyboard().requestContact("Share phone to verify").resized().oneTime(),
+        });
+        return;
+      }
+      await setChatMenu(ctx.api, ctx.chat.id, true);
+      await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
+        reply_markup: new InlineKeyboard().webApp("Open LiveLine", webApp("/")),
+      });
+      return;
     }
-    await ctx.reply("Open the mini app for the live line, predictions, and reminders.", { reply_markup: kb });
-    if (ctx.chat.type !== "private") {
-      const link = miniAppLink(`grp_${ctx.chat.id}`);
-      await ctx.reply(`Group board: ${link}`);
-    }
+    const link = miniAppLink(`grp_${ctx.chat.id}`);
+    await ctx.reply("Open LiveLine for the live line, predictions, and reminders.", {
+      reply_markup: new InlineKeyboard().url("Open LiveLine", link),
+    });
   });
 
   bot.on(":contact", async (ctx) => {
@@ -61,14 +76,17 @@ export function createBot() {
     try {
       await ensureUser(ctx.from);
       const user = await verifyPhone(String(ctx.from.id), Number(ctx.message.contact.user_id), ctx.message.contact.phone_number);
+      await setChatMenu(ctx.api, ctx.chat.id, true);
       await ctx.reply(
         user.status === "ACTIVE"
-          ? "Phone verified. You're in. Open LiveLine."
-          : "Phone saved. Open the app and accept the terms to finish.",
+          ? "You're in."
+          : "You're in. Open LiveLine and accept the terms to finish.",
         { reply_markup: new InlineKeyboard().webApp("Open LiveLine", webApp("/")) },
       );
     } catch (err) {
-      await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.");
+      await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.", {
+        reply_markup: new Keyboard().requestContact("Share phone to verify").resized().oneTime(),
+      });
     }
   });
 
@@ -198,9 +216,8 @@ async function main() {
     return;
   }
   const bot = createBot();
-  await bot.api.setChatMenuButton({
-    menu_button: { type: "web_app", text: "Live scores", web_app: { url: env.webappUrl } },
-  });
+  // Default menu is plain commands; verified users get the Mini App per chat (setChatMenu).
+  await bot.api.setChatMenuButton({ menu_button: { type: "commands" } });
   await bot.api.setMyCommands([
     { command: "start", description: "Open LiveLine" },
     { command: "live", description: "Matches in play" },
