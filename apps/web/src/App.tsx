@@ -55,6 +55,7 @@ export function App() {
       {splash && <Splash onDone={() => setSplash(false)} />}
       <Routes>
         <Route path="/" element={<Home me={me!} />} />
+        <Route path="/live" element={<LiveRedirect />} />
         <Route path="/match/:key" element={<MatchPage lang={lang} />} />
         <Route path="/predict" element={<PredictPage lang={lang} />} />
         <Route path="/predict/:key" element={<PredictPage lang={lang} />} />
@@ -80,18 +81,36 @@ export function App() {
 function Nav({ lang, admin }: { lang: string; admin: boolean }) {
   const nav = useNavigate();
   const item = (to: string, key: "home" | "live" | "predict" | "rewards" | "alerts", live?: boolean) => (
-    <NavLink to={to} className={({ isActive }) => (isActive ? "on" : "")} onClick={() => live && nav("/match/demo_ind_aus")}>
+    <NavLink to={to} className={({ isActive }) => (isActive ? "on" : "")} onClick={() => live && nav("/live")}>
       <span>{t(lang, key)}</span>
     </NavLink>
   );
   return (
     <nav className="nav">
       {item("/", "home")}
-      <NavLink to="/match/demo_ind_aus">{t(lang, "live")}</NavLink>
+      <NavLink to="/live">{t(lang, "live")}</NavLink>
       {item("/predict", "predict")}
       {item("/rewards", "rewards")}
       {item("/alerts", "alerts")}
       {admin ? null : null}
     </nav>
   );
+}
+
+/** Live tab: open the match in play now, else the next one up, else the most recent. */
+function LiveRedirect() {
+  const nav = useNavigate();
+  useEffect(() => {
+    api<{ matches: { key: string; status: string; startAt?: number }[] }>("/api/home")
+      .then(({ matches }) => {
+        const now = Date.now();
+        const pick =
+          matches.find((m) => m.status === "live") ||
+          [...matches].filter((m) => m.status === "upcoming").sort((a, b) => (a.startAt || 0) - (b.startAt || 0)).find((m) => (m.startAt || 0) >= now - 3600_000) ||
+          matches[0];
+        nav(pick ? `/match/${pick.key}` : "/", { replace: true });
+      })
+      .catch(() => nav("/", { replace: true }));
+  }, [nav]);
+  return <div className="app"><div className="skel" /></div>;
 }
