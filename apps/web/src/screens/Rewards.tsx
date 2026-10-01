@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, haptic, t } from "../lib";
 
 export function RewardsPage({ lang }: { lang: string }) {
@@ -13,6 +14,7 @@ export function RewardsPage({ lang }: { lang: string }) {
   return (
     <>
       <h2>{t(lang, "rewards")}</h2>
+      <Link className="ghost" to="/pass">{t(lang, "pass")}</Link>
       <p className="small">{data?.legal}</p>
       <div className="wheel" style={{ transform: `rotate(${spin}deg)` }} />
       <p className="text-center small">{sponsor ? `Spin by ${sponsor}` : t(lang, "spin")}</p>

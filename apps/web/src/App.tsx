@@ -10,6 +10,7 @@ import { AlertsPage } from "./screens/Alerts";
 import { BuddyPage } from "./screens/Buddy";
 import { CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
 import { AdvertisePage, Gate } from "./screens/Gate";
+import { PassPage } from "./screens/Pass";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -41,6 +42,7 @@ export function App() {
         <Route path="/predict/:key" element={<PredictPage lang={lang} />} />
         <Route path="/board" element={<BoardPage lang={lang} me={me!} />} />
         <Route path="/rewards" element={<RewardsPage lang={lang} />} />
+        <Route path="/pass" element={<PassPage lang={lang} />} />
         <Route path="/alerts" element={<AlertsPage lang={lang} />} />
         <Route path="/ai/:key" element={<BuddyPage lang={lang} />} />
         <Route path="/advertise" element={<AdvertisePage />} />

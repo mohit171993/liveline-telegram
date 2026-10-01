@@ -38,7 +38,10 @@ export type Me = {
   user: {
     id: string; telegramId: string; username: string | null; firstName: string | null; language: string;
     registered: boolean; needsPhone: boolean; needsTerms: boolean; blocked: boolean; admin: boolean;
-    points: number; streak: number; bonusSpins: number; phone: string | null; theme: string;
+    points: number; xp: number; streak: number; dailyStreak: number; streakFreeze: number;
+    fanTeamKey: string | null;
+    rank: { id: string; name: string; progress: number; next: { name: string; min: number } | null };
+    bonusSpins: number; phone: string | null; theme: string;
     referralLink: string;
   };
   channelUrl: string | null;
@@ -54,6 +57,7 @@ const dict = {
     verify: "Verify to enter", terms: "I agree to the terms and privacy notice",
     phone: "Share phone in Telegram", join: "Join our channel", demo: "Simulated feed",
     spin: "Free spin", scratch: "Scratch cards", give: "Free draws", ads: "Advertise",
+    pass: "Season", missions: "Missions", fans: "Fan meter", cheer: "Cheer", mute: "Mute", unmute: "Sound",
     users: "Users", campaigns: "Campaigns", create: "New campaign", dash: "Dashboard",
     lock: "Locked", submit: "Lock pick", points: "pts",
   },
@@ -66,6 +70,7 @@ const dict = {
     verify: "अंदर आने के लिए सत्यापन", terms: "मैं नियम और गोपनीयता सूचना मानता हूँ",
     phone: "टेलीग्राम से फ़ोन साझा करें", join: "चैनल से जुड़ें", demo: "डेमो फ़ीड",
     spin: "मुफ़्त स्पिन", scratch: "स्क्रैच कार्ड", give: "मुफ़्त ड्रॉ", ads: "विज्ञापन",
+    pass: "सीज़न", missions: "मिशन", fans: "फैन मीटर", cheer: "जयकार", mute: "म्यूट", unmute: "साउंड",
     users: "यूज़र", campaigns: "अभियान", create: "नया अभियान", dash: "डैशबोर्ड",
     lock: "लॉक", submit: "पिक लॉक करें", points: "अंक",
   },

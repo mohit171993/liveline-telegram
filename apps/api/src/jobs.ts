@@ -1,14 +1,17 @@
 import { Queue, Worker } from "bullmq";
 import { env } from "./env";
 import { bullConnection } from "./redis";
-import { dailySummary, fireReminder, requeueReminders } from "./services/alerts";
+import { dailySummary, fireReminder, maybeStreakNudges, requeueReminders } from "./services/alerts";
 import { refreshBalance } from "./services/rewards";
 
 export async function startWorkers() {
   const connection = bullConnection();
   new Worker("ll-reminders", async (job) => fireReminder(String(job.data.id)), { connection });
   new Worker("ll-summary", async () => dailySummary(), { connection });
-  new Worker("ll-balance", async () => { await refreshBalance().catch(() => undefined); }, { connection });
+  new Worker("ll-balance", async () => {
+    await refreshBalance().catch(() => undefined);
+    await maybeStreakNudges().catch(() => undefined);
+  }, { connection });
 
   const summary = new Queue("ll-summary", { connection });
   const balance = new Queue("ll-balance", { connection });

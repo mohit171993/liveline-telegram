@@ -24,8 +24,16 @@ model User {
   referredById    String?
   referralCount   Int       @default(0)
   points          Int       @default(0)
+  xp              Int       @default(0)
+  seasonXp        Int       @default(0)
   streak          Int       @default(0)
   bestStreak      Int       @default(0)
+  dailyStreak     Int       @default(0)
+  bestDailyStreak Int       @default(0)
+  lastActiveDay   String?
+  streakFreeze    Int       @default(0)
+  fanTeamKey      String?
+  lastBoardRank   Int?
   bonusSpins      Int       @default(0)
   predictionBoost Int       @default(0)
   theme           String    @default("floodlight")
@@ -52,6 +60,9 @@ model User {
   giveawayEntries GiveawayEntry[]
   adEvents        AdEvent[]
   aiUsage         AiUsage[]
+  missions        MissionProgress[]
+  seasonClaims    SeasonClaim[]
+  plays           PlayEntry[]
 
   @@index([status, createdAt])
 }
@@ -444,6 +455,44 @@ model OutboundMessage {
   kind      String
   payload   String
   createdAt DateTime @default(now())
+}
+
+model MissionProgress {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionKey String
+  periodKey  String
+  progress   Int     @default(0)
+  claimed    Boolean @default(false)
+
+  @@unique([userId, missionKey, periodKey])
+}
+
+model SeasonClaim {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seasonKey String
+  tier      Int
+  claimedAt DateTime @default(now())
+
+  @@unique([userId, seasonKey, tier])
+}
+
+model PlayEntry {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchKey  String
+  kind      String
+  targetKey String
+  pick      String
+  points    Int       @default(0)
+  settledAt DateTime?
+
+  @@unique([userId, matchKey, kind, targetKey])
+  @@index([matchKey, kind, settledAt])
 }
 
 model MatchViewStat {

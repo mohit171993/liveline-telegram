@@ -150,6 +150,24 @@ export async function buildServer() {
     return { ok: true, live: matches.find((m) => m.status === "live")?.live || null };
   });
 
+  app.post("/internal/moment", async (req, reply) => {
+    if (isProd || !env.internalToken) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (req.headers["x-internal-token"] !== env.internalToken) return reply.code(401).send({ error: "UNAUTHORIZED" });
+    const body = req.body as { matchKey?: string; moment?: string };
+    const { publishMoment } = await import("./feed");
+    await publishMoment(String(body.matchKey || "demo_ind_aus"), String(body.moment || "SIX"));
+    return { ok: true };
+  });
+
+  app.post("/internal/break", async (req, reply) => {
+    if (isProd || !env.internalToken) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (req.headers["x-internal-token"] !== env.internalToken) return reply.code(401).send({ error: "UNAUTHORIZED" });
+    const body = req.body as { matchKey?: string };
+    const { forceBreak } = await import("./feed");
+    const until = await forceBreak(String(body.matchKey || "demo_ind_aus"));
+    return { ok: true, until };
+  });
+
   await registerRoutes(app, authenticate);
   return app;
 }

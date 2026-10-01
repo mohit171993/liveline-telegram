@@ -6,8 +6,10 @@ import {
   normalizePhone,
   parseAdminList,
   phoneHash,
+  rankFor,
   type InitDataResult,
 } from "@liveline/shared";
+import { rollDailyStreak } from "./engage";
 import { env } from "../env";
 import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
@@ -36,7 +38,7 @@ export async function touchFromInit(data: InitDataResult) {
       },
     });
   }
-  return prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: existing.id },
     data: {
       username: data.user.username || null,
@@ -47,6 +49,7 @@ export async function touchFromInit(data: InitDataResult) {
       ...(existing.languageLocked ? {} : { languageCode: (data.user.language_code || existing.languageCode).startsWith("hi") ? "hi" : existing.languageCode }),
     },
   });
+  return rollDailyStreak(updated);
 }
 
 export async function touchSession(userId: string, matchKey?: string) {
@@ -250,7 +253,12 @@ export function publicUser(user: {
   phone: string | null;
   status: string;
   points: number;
+  xp: number;
+  seasonXp: number;
   streak: number;
+  dailyStreak: number;
+  streakFreeze: number;
+  fanTeamKey: string | null;
   bonusSpins: number;
   predictionBoost: number;
   theme: string;
@@ -276,7 +284,13 @@ export function publicUser(user: {
     needsTerms: !user.termsAcceptedAt,
     blocked: user.status === "BLOCKED",
     points: user.points,
+    xp: user.xp,
+    seasonXp: user.seasonXp,
+    rank: rankFor(user.xp),
     streak: user.streak,
+    dailyStreak: user.dailyStreak,
+    streakFreeze: user.streakFreeze,
+    fanTeamKey: user.fanTeamKey,
     bonusSpins: user.bonusSpins,
     predictionBoost: user.predictionBoost,
     theme: user.theme,

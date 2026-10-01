@@ -1,6 +1,7 @@
 import {
   advanceMatch,
   buildDemoUniverse,
+  celebrations,
   projectMatch,
   type AdvanceResult,
   type CricketMatchState,
@@ -99,6 +100,10 @@ async function tickMock(now: number) {
       match = { ...match, status: "live", nextBallAt: now + env.simTickMs };
       events.push({ match, events: [`start:${match.key}`] });
     }
+    if (match.breakUntil && now < match.breakUntil) return match;
+    if (match.breakUntil && now >= match.breakUntil) {
+      match = { ...match, breakUntil: undefined, breakKind: undefined };
+    }
     if (match.status === "live" && now >= match.nextBallAt) {
       const stepped = advanceMatch(match, Math.random, now);
       stepped.match.nextBallAt = now + env.simTickMs;
@@ -187,15 +192,30 @@ function extractMatches(body: any): any[] {
 
 async function publish(events: AdvanceResult[]) {
   for (const event of events) {
+    const moments = celebrations(event.moment, event.events);
     await redis.publish(
       "ll:live",
       JSON.stringify({
         key: event.match.key,
-        moment: event.moment || null,
+        moment: moments[0] || null,
+        moments,
         ball: event.ball ? { runs: event.ball.batRuns, wicket: event.ball.wicket, text: event.ball.text } : null,
       }),
     );
   }
+}
+
+export async function forceBreak(matchKey: string, ms = 90_000) {
+  const matches = await readUniverse();
+  const until = Date.now() + ms;
+  const next = matches.map((match) => match.key === matchKey ? { ...match, breakUntil: until, breakKind: "timeout" as const } : match);
+  await persist(next);
+  await redis.publish("ll:live", JSON.stringify({ key: matchKey, moment: null, moments: [] }));
+  return until;
+}
+
+export async function publishMoment(matchKey: string, moment: string) {
+  await redis.publish("ll:live", JSON.stringify({ key: matchKey, moment, moments: [moment] }));
 }
 
 export async function forceTick(): Promise<MatchView[]> {

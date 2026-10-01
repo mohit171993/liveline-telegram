@@ -1,7 +1,7 @@
 import path from "path";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
-import { loadEncryptionKey, phoneHash } from "@liveline/shared";
+import { istDay, loadEncryptionKey, phoneHash } from "@liveline/shared";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
@@ -14,7 +14,15 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { telegramId: adminId },
-    update: { status: "ACTIVE" },
+    update: {
+      status: "ACTIVE",
+      xp: 140,
+      seasonXp: 140,
+      dailyStreak: 4,
+      streakFreeze: 1,
+      fanTeamKey: "ind",
+      lastActiveDay: istDay(),
+    },
     create: {
       telegramId: adminId,
       username: "fantzoSportsUpdates",
@@ -28,6 +36,12 @@ async function main() {
       termsAcceptedAt: new Date(),
       status: "ACTIVE",
       points: 180,
+      xp: 140,
+      seasonXp: 140,
+      dailyStreak: 4,
+      streakFreeze: 1,
+      fanTeamKey: "ind",
+      lastActiveDay: istDay(),
       streak: 2,
       bestStreak: 4,
       bonusSpins: 1,
@@ -150,6 +164,34 @@ async function main() {
         },
       },
     });
+  }
+
+  const harbour = await prisma.campaign.findFirst({ where: { name: "Harbour night line" } });
+  if (harbour) {
+    const slots = [
+      ["celebration", "Six, brought to you live"],
+      ["fan_meter", "The louder stand"],
+      ["minigame", "Break quiz"],
+      ["mission", "Tonight's missions"],
+      ["season_pass", "Free season track"],
+      ["cheer", "Cheer with Harbour"],
+      ["nudge", "Harbour on the night line"],
+    ] as const;
+    for (const [slot, headline] of slots) {
+      const have = await prisma.creative.findFirst({ where: { campaignId: harbour.id, slot } });
+      if (have) continue;
+      await prisma.creative.create({
+        data: {
+          campaignId: harbour.id,
+          type: "native",
+          slot,
+          headline,
+          body: "Harbour Audio. Points only, no buy-in.",
+          cta: "Sponsored",
+          frequencyCap: 12,
+        },
+      });
+    }
   }
 
   const wheel = await prisma.prizeTable.upsert({

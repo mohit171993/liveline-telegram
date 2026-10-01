@@ -101,6 +101,8 @@ export interface CricketMatchState {
   maxOvers: number;
   h2h: { played: number; aWins: number; bWins: number; last: string };
   points: { team: string; p: number; w: number; l: number; nrr: string; pts: number }[];
+  breakUntil?: number;
+  breakKind?: "innings" | "timeout";
 }
 
 export interface BatterView {
@@ -169,6 +171,8 @@ export interface MatchView {
   nextBallIndex?: number;
   nextBallAt?: number;
   predictionOpen?: { ball: boolean; over: boolean; match: boolean };
+  break?: { kind: "innings" | "timeout"; until: number } | null;
+  overs10?: { open: boolean; innings: number; actual: number | null };
 }
 
 export interface InningsView {
@@ -361,6 +365,11 @@ export function advanceMatch(input: CricketMatchState, rnd: () => number, now: n
   const match: CricketMatchState = structuredClone(input);
   const events: string[] = [];
   if (match.status !== "live") return { match, events };
+  if (match.breakUntil && now < match.breakUntil) return { match, events };
+  if (match.breakUntil && now >= match.breakUntil) {
+    match.breakUntil = undefined;
+    match.breakKind = undefined;
+  }
   const inn = match.innings[match.current];
   if (!inn || !match.strikerId || !match.bowlerId) return { match, events };
 
@@ -458,6 +467,11 @@ export function advanceMatch(input: CricketMatchState, rnd: () => number, now: n
       match.bowlerCursor = (match.bowlerCursor + 1) % Math.max(1, match.bowlerOrder.length);
       match.bowlerId = match.bowlerOrder[match.bowlerCursor];
       events.push(`over:${match.key}:${match.current}:${over.n}`);
+      if ((over.n === 6 || over.n === 15) && inn.wickets < 10 && inn.legalBalls < match.maxOvers * 6) {
+        match.breakUntil = now + 20_000;
+        match.breakKind = "timeout";
+        events.push(`timeout:${match.key}:${match.current}:${over.n}`);
+      }
     }
   }
 
@@ -474,6 +488,8 @@ export function advanceMatch(input: CricketMatchState, rnd: () => number, now: n
   if (finished) {
     if (match.current === 0 && !(match.target != null)) {
       match.target = inn.runs + 1;
+      match.breakUntil = now + 25_000;
+      match.breakKind = "innings";
       events.push(`innings_break:${match.key}`);
       const chase = emptyInnings(match.teams.a.key === match.teams[inn.team].key ? "b" : "b");
       chase.team = inn.team === "a" ? "b" : "a";
@@ -521,6 +537,8 @@ function playUntil(match: CricketMatchState, pred: (m: CricketMatchState) => boo
   while (pred(match) && guard < 500) {
     const step = advanceMatch(match, rnd, now);
     Object.assign(match, step.match);
+    match.breakUntil = undefined;
+    match.breakKind = undefined;
     guard += 1;
   }
 }
@@ -816,6 +834,7 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
     teams: match.teams,
     scoreline: { a: scoreLine(match, "a"), b: scoreLine(match, "b") },
     live,
+    break: match.breakUntil && match.breakKind && now < match.breakUntil ? { kind: match.breakKind, until: match.breakUntil } : null,
   };
 
   if (!detail) return view;
@@ -863,7 +882,14 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
   view.points = match.points;
   view.nextBallIndex = inn?.balls.length || 0;
   view.nextBallAt = match.nextBallAt;
-  const ballOpen = match.status === "live" && now + lockMs < match.nextBallAt;
+  const onBreak = Boolean(match.breakUntil && now < match.breakUntil);
+  const ballOpen = match.status === "live" && !onBreak && now + lockMs < match.nextBallAt;
+  const at10 = inn && inn.legalBalls >= 60 ? inn.overs.slice(0, 10).reduce((sum, over) => sum + over.runs, 0) : null;
+  view.overs10 = {
+    open: match.status === "live" && !!inn && inn.legalBalls < 60 && !onBreak,
+    innings: match.current,
+    actual: at10,
+  };
   const overOpen = ballOpen && !!inn && inn.legalBalls % 6 === 0;
   const matchOpen = match.status === "upcoming" && now < match.startAt;
   view.predictionOpen = { ball: ballOpen, over: overOpen, match: matchOpen };

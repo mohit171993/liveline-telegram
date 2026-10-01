@@ -16,6 +16,7 @@ The cricket feed sits behind a provider interface. With `USE_MOCK_PROVIDER=true`
 - Sponsor manager: advertisers, campaigns, creatives, slots, targeting, deduped impressions and clicks, CSV, shareable report, media upload, advertise lead form.
 - Rewards: one free spin a day, bonus spins from streaks and referrals, scratch cards, free giveaways. Prizes are points, boosts, themes, badges, or sponsor vouchers. GiftPort issues vouchers. Redeem codes are encrypted.
 - Ops: health checks, structured logs, migrations, seed, admin DAU, registration alerts, daily summary.
+- Engagement: full-screen SIX / FOUR / WICKET / FIFTY / HUNDRED / win moments with canvas confetti, a short crowd roar and a mute toggle, XP ranks from Gully Player to Legend, a daily streak with one-day streak freeze, daily and weekly missions, a free season track, fan colours and a live fan meter, break trivia and a 10-over score guess, throttled cheers, and bot nudges. Each of those surfaces has an ad slot: `celebration`, `fan_meter`, `minigame`, `mission`, `season_pass`, `cheer`, `nudge`.
 
 ## Local setup
 
@@ -150,6 +151,8 @@ Covers initData HMAC and staleness, prediction settlement, ad eligibility and de
 ## Limits
 
 - The home screen has a Join our channel button. It opens `https://t.me/$CHANNEL_USERNAME` (default [@LiveLine_Pro](https://t.me/LiveLine_Pro)). Auto-posts go to `CHANNEL_ID`.
+- Big moments play a short roar. Mute is stored on the device. `prefers-reduced-motion` skips the confetti.
+- The season track and missions cannot be bought. Streak freeze covers one missed day.
 - AI answers are grounded in the live match until `OPENAI_API_KEY` is set.
 - GiftPort HTTP calls are implemented. Missing credentials or `USE_MOCK_GIFTPORT=true` uses the mock catalogue and balance.
 - Score cards are SVG. A PNG is produced only if `@resvg/resvg-js` is installed.

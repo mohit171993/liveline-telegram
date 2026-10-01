@@ -7,6 +7,7 @@ import { applyBoost, predictionWindowOpen, settleBallPick, settleMatchPick, sett
 import { decideFulfilment, drawPrize, pickWeighted } from "./rewards";
 import { amountAllowed, parseBalance, parseBuy, parseCatalogue, parseStatus, type GiftCatalogueItem } from "./giftport";
 import { advanceMatch, buildDemoUniverse, projectMatch } from "./cricket";
+import { celebrations, cheerAllowed, fanLoudness, nextDailyStreak, rankFor, scoreGuessPoints, shiftIstDay, triviaFor } from "./engage";
 import { containsProfanity, maskProfanity } from "./profanity";
 import { winProbability } from "./winprob";
 
@@ -166,6 +167,37 @@ describe("rewards and giftport", () => {
   });
 });
 
+describe("engagement", () => {
+  it("ranks xp and protects a streak with one freeze", () => {
+    expect(rankFor(0).name).toBe("Gully Player");
+    expect(rankFor(80).name).toBe("Club Star");
+    expect(rankFor(1200).name).toBe("Legend");
+    expect(celebrations("SIX", ["fifty:m:p"])).toEqual(["SIX", "FIFTY"]);
+    expect(celebrations(undefined, ["result:m:a"])).toEqual(["WIN"]);
+    const today = "2026-10-01";
+    const kept = nextDailyStreak({
+      lastDay: shiftIstDay(shiftIstDay(today, -1), -1),
+      today,
+      yesterday: shiftIstDay(today, -1),
+      streak: 4,
+      freeze: 1,
+    });
+    expect(kept.usedFreeze).toBe(true);
+    expect(kept.streak).toBe(5);
+    expect(kept.freeze).toBe(0);
+    const reset = nextDailyStreak({ lastDay: "2026-09-20", today, yesterday: shiftIstDay(today, -1), streak: 4, freeze: 1 });
+    expect(reset.streak).toBe(1);
+    expect(cheerAllowed(1000, 1500, 1)).toBe(false);
+    expect(cheerAllowed(1000, 2000, 8)).toBe(false);
+    expect(cheerAllowed(1000, 2000, 2)).toBe(true);
+    expect(scoreGuessPoints(80, 80)).toBe(25);
+    expect(scoreGuessPoints(84, 80)).toBe(15);
+    expect(fanLoudness(2, 5)).toBe(11);
+    expect(triviaFor("demo").options).toHaveLength(4);
+    expect(triviaFor("demo").answer).toBeGreaterThanOrEqual(0);
+  });
+});
+
 describe("cricket model", () => {
   it("keeps the live demo consistent and moves the score", () => {
     const [live] = buildDemoUniverse(1_700_000_000_000);
@@ -180,6 +212,8 @@ describe("cricket model", () => {
     expect(view.live?.runs).toBeGreaterThanOrEqual(before);
     expect(view.live?.win.a).toBeGreaterThan(0);
     expect(view.predictionOpen?.ball).toBe(true);
+    const paused = { ...live, breakUntil: 1_700_000_000_000 + 5000, breakKind: "timeout" as const };
+    expect(advanceMatch(paused, () => 0.5, 1_700_000_000_000).ball).toBeUndefined();
   });
 
   it("does not look like a betting price", () => {

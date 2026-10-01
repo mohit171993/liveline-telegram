@@ -14,6 +14,7 @@ import { env } from "../env";
 import { httpError } from "../httpError";
 import { getMatch } from "../feed";
 import { grantScratch } from "./rewards";
+import { bumpMission, grantXp, nudgeRank } from "./engage";
 
 const BALL_PICKS = new Set(["dot", "1", "2", "3", "4", "6", "wicket", "extra"]);
 
@@ -40,7 +41,10 @@ export async function placePrediction(userId: string, matchKey: string, kind: "B
     }
     const inn = state.innings[state.current];
     const targetKey = String(inn?.balls.length || 0);
-    return createPrediction(userId, matchKey, "BALL", targetKey, pick);
+    const row = await createPrediction(userId, matchKey, "BALL", targetKey, pick);
+    await bumpMission(userId, "predict").catch(() => undefined);
+    await grantXp(userId, 2).catch(() => undefined);
+    return row;
   }
   if (kind === "OVER") {
     const runs = Number(pick);
@@ -137,7 +141,11 @@ async function applySettlement(
       bestStreak: Math.max(user.bestStreak, streak),
     },
   });
-  if (result.correct) await grantScratch(userId, "prediction", predictionId).catch(() => undefined);
+  if (result.correct) {
+    await grantScratch(userId, "prediction", predictionId).catch(() => undefined);
+    await grantXp(userId, 8).catch(() => undefined);
+  }
+  await nudgeRank(userId).catch(() => undefined);
   if (streak === 3 || streak === 7) {
     await prisma.user.update({ where: { id: userId }, data: { bonusSpins: { increment: 1 } } });
   }

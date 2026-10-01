@@ -18,6 +18,7 @@ import { askBuddy } from "./services/ai";
 import { createPoll, listChat, moderate, postChat, react, votePoll } from "./services/chat";
 import { claimVoucher, drawGiveaway, enterGiveaway, openScratch, presentVoucher, refreshBalance, rewardsHome, spinWheel, syncCatalogue } from "./services/rewards";
 import { scoreCardSvg, svgToPng } from "./cards";
+import { bumpMission, cheer, claimMission, claimSeasonTier, engagementHome, fanMeter, grantXp, playState, setFanTeam, submitPlay } from "./services/engage";
 import { sendTelegramMessage, sendTelegramPhoto } from "./telegram";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
@@ -271,6 +272,8 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     if (!found) throw httpError(404, "NOT_FOUND");
     const svg = scoreCardSvg(found.view, body.kind);
     const png = await svgToPng(svg);
+    await bumpMission(user.id, "share").catch(() => undefined);
+    await grantXp(user.id, 5).catch(() => undefined);
     if (!png) {
       reply.header("content-type", "image/svg+xml");
       return reply.send(svg);
@@ -290,7 +293,54 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     const caption = `${found.view.name}\n${found.view.live ? found.view.live.need || found.view.live.overs : found.view.result || ""}`;
     if (png) await sendTelegramPhoto(user.telegramId, png, caption);
     else await sendTelegramMessage(user.telegramId, `🏏 ${caption}\n${env.webappUrl}`);
+    await bumpMission(user.id, "share").catch(() => undefined);
+    await grantXp(user.id, 5).catch(() => undefined);
     return { ok: true };
+  });
+
+  app.get("/api/engage", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return engagementHome(user.id);
+  });
+  app.post("/api/fan", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ teamKey: z.string().min(2) }).parse(req.body);
+    return setFanTeam(user.id, body.teamKey);
+  });
+  app.get("/api/matches/:key/fans", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return fanMeter(user.id, (req.params as { key: string }).key);
+  });
+  app.post("/api/matches/:key/cheer", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ emoji: z.string() }).parse(req.body);
+    return cheer(user.id, (req.params as { key: string }).key, body.emoji);
+  });
+  app.get("/api/matches/:key/play", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return playState(user.id, (req.params as { key: string }).key);
+  });
+  app.post("/api/matches/:key/play", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ kind: z.enum(["trivia", "overs10"]), pick: z.string() }).parse(req.body);
+    return submitPlay(user.id, (req.params as { key: string }).key, body.kind, body.pick);
+  });
+  app.post("/api/missions/:key/claim", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return claimMission(user.id, (req.params as { key: string }).key);
+  });
+  app.post("/api/season/claim", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({ tier: z.number().int() }).parse(req.body);
+    return claimSeasonTier(user.id, body.tier);
   });
 
   app.get("/api/rewards", async (req, reply) => {

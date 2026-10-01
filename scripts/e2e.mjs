@@ -119,4 +119,11 @@ const rem = await call("/api/reminders", admin, {
 });
 assert(rem.status === 200, "reminder saved");
 
+const engage = await call("/api/engage", admin);
+assert(engage.status === 200 && engage.body.rank?.name, "xp rank");
+const cheer = await call(`/api/matches/${live.key}/cheer`, admin, { method: "POST", body: JSON.stringify({ emoji: "🔥" }) });
+assert(cheer.status === 200, "cheer");
+const fans = await call(`/api/matches/${live.key}/fans`, admin);
+assert((fans.body.a + fans.body.b) > 0, "fan meter");
+
 console.log("e2e passed");

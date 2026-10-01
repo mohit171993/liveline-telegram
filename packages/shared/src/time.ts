@@ -12,3 +12,12 @@ export function istNowParts(date = new Date()): { day: string; label: string } {
   }).format(date);
   return { day, label };
 }
+
+export function istHour(date = new Date()): number {
+  const hour = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+  return Number(hour);
+}

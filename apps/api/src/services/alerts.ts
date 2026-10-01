@@ -7,6 +7,7 @@ import { redis } from "../redis";
 import { sendTelegramMessage } from "../telegram";
 import { httpError } from "../httpError";
 import { settleFeed } from "./game";
+import { maybeStreakNudges, nudgePredictionWindow, settleOversGuess } from "./engage";
 
 const ALERTS = ["start", "wicket", "fifty", "hundred", "innings", "result", "prediction"] as const;
 
@@ -20,10 +21,15 @@ export function queues() {
 export async function handleFeed(events: AdvanceResult[]) {
   await settleFeed(events);
   for (const event of events) {
+    await settleOversGuess(event.match).catch(() => undefined);
+    const over = event.events.find((name) => name.startsWith("over:"));
+    if (over) await nudgePredictionWindow(event.match, over).catch(() => undefined);
     await dispatch(event);
     await channelPost(event);
   }
 }
+
+export { maybeStreakNudges };
 
 function kinds(event: AdvanceResult): string[] {
   const out: string[] = [];

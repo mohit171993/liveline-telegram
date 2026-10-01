@@ -49,6 +49,9 @@ export function Home({ me }: { me: Me }) {
           else window.open(url, "_blank", "noopener");
         }}>{t(lang, "join")} · @{me.channelUrl.replace(/^https?:\/\/t\.me\//, "")}</button>
       )}
+      <button className="ghost w-full" style={{ boxShadow: `inset 3px 0 0 ${fanColor(me.user.fanTeamKey)}` }} onClick={() => nav("/pass")}>
+        {me.user.rank?.name || t(lang, "pass")} · {me.user.dailyStreak || 0} day streak
+      </button>
       {!matches && <><div className="skel" /><div className="skel" /></>}
       {live && (
         <button className="hero w-full text-left" onClick={() => { haptic("medium"); nav(`/match/${live.key}`); }}>
@@ -96,6 +99,14 @@ export function Home({ me }: { me: Me }) {
       <button className="ghost w-full" onClick={() => nav("/advertise")}>{t(lang, "ads")}</button>
     </>
   );
+}
+
+const FAN_COLOR: Record<string, string> = {
+  ind: "#ff7a18", aus: "#ffd200", eng: "#1a3cff", sa: "#007a4d", nz: "#c8c8c8", pak: "#1f8a4c",
+};
+function fanColor(key: string | null | undefined): string {
+  if (!key) return "#e7ff4d";
+  return FAN_COLOR[key] || "#e7ff4d";
 }
 
 export function pillClass(ball: string) {

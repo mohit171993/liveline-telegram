@@ -69,6 +69,13 @@ export function CreateCampaign() {
         <option value="powered_by">Powered by</option>
         <option value="interstitial">Interstitial</option>
         <option value="leaderboard">Leaderboard</option>
+        <option value="celebration">Celebration</option>
+        <option value="fan_meter">Fan meter</option>
+        <option value="minigame">Mini-game</option>
+        <option value="mission">Missions</option>
+        <option value="season_pass">Season track</option>
+        <option value="cheer">Cheers</option>
+        <option value="nudge">Bot nudge</option>
       </select>
       <select className="field" name="type" defaultValue="native">
         <option value="native">Native card</option>
