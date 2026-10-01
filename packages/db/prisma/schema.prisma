@@ -36,6 +36,12 @@ model User {
   lastBoardRank   Int?
   bonusSpins      Int       @default(0)
   predictionBoost Int       @default(0)
+  avatarFace      String    @default("cool")
+  avatarJersey    String    @default("lime")
+  avatarCap       String    @default("cap")
+  avatarFrame     String    @default("lime")
+  avatarRole      String    @default("bat")
+  avatarNumber    Int       @default(7)
   theme           String    @default("floodlight")
   unlockedThemes  String    @default("floodlight")
   status          String    @default("PENDING")

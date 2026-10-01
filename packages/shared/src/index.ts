@@ -10,3 +10,4 @@ export * from "./profanity";
 export * from "./cricket";
 export * from "./time";
 export * from "./engage";
+export * from "./avatar";

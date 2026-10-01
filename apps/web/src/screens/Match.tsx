@@ -4,6 +4,7 @@ import { api, initData, t, wsBase, type Match } from "../lib";
 import { pillClass } from "./Home";
 import { AdSlot } from "./Ad";
 import { Celebrate, muted, setMuted } from "./Celebrate";
+import { Avatar, STATUS_STICKER } from "../Avatar";
 
 export function MatchPage({ lang }: { lang: string }) {
   const { key = "" } = useParams();
@@ -70,7 +71,7 @@ export function MatchPage({ lang }: { lang: string }) {
       {cheers.map((c) => <span key={c.id} className="float" style={{ left: `${c.x}%` }} aria-hidden="true">{c.emoji}</span>)}
       <div className="hero">
         <div className="row">
-          <span className="livepill">{match.status === "live" && <i className="dot" />} {match.status === "live" ? t(lang, "live") : match.status}</span>
+          <span className="livepill">{match.status === "live" && <i className="dot" />} {STATUS_STICKER[match.status] || ""} {match.status === "live" ? t(lang, "live") : match.status}</span>
           <button className="iconbtn" aria-pressed={mute} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
           <span className="demo">{match.demo ? t(lang, "demo") : match.format}</span>
         </div>
@@ -79,7 +80,7 @@ export function MatchPage({ lang }: { lang: string }) {
         <div className="need">{lang === "hi" ? live?.needHi : live?.need || match.toss}</div>
         {live && <div className="meta">{live.overs} · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"} · {t(lang, "proj")} {live.projected ?? "—"}</div>}
         {live && <div className="win"><i style={{ width: `${live.win.a}%`, background: match.teams.a.color }} /><i style={{ width: `${live.win.b}%`, background: match.teams.b.color }} /></div>}
-        <div className="small">{t(lang, "win")} {live ? `${match.teams.a.code} ${live.win.a} · ${match.teams.b.code} ${live.win.b}` : ""}</div>
+        <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {live ? `${match.teams.a.code} ${live.win.a} · ${match.teams.b.code} ${live.win.b}` : ""}</div>
       </div>
       <AdSlot slot="powered_by" matchKey={match.key} />
       <FanMeter matchKey={match.key} lang={lang} />
@@ -98,9 +99,9 @@ export function MatchPage({ lang }: { lang: string }) {
           </div>
           <div className="small">{t(lang, "thisOver")}</div>
           <div className="pills">{live.thisOver.map((b, i) => <span key={i} className={pillClass(b)}>{b}</span>)}</div>
-          <div className="board"><b>{live.striker?.name} *</b><span>{live.striker?.runs}</span><span>{live.striker?.balls}</span></div>
-          <div className="board"><b>{live.nonStriker?.name}</b><span>{live.nonStriker?.runs}</span><span>{live.nonStriker?.balls}</span></div>
-          <div className="board"><span>{live.bowler?.name}</span><span>{live.bowler?.overs}</span><span>{live.bowler?.wickets}-{live.bowler?.runs}</span></div>
+          {live.striker?.look && <div className="who"><Avatar look={live.striker.look} size={44} /><b>{live.striker.name} *</b><span>{live.striker.runs} ({live.striker.balls})</span></div>}
+          {live.nonStriker?.look && <div className="who"><Avatar look={live.nonStriker.look} size={44} /><b>{live.nonStriker.name}</b><span>{live.nonStriker.runs} ({live.nonStriker.balls})</span></div>}
+          {live.bowler?.look && <div className="who"><Avatar look={live.bowler.look} size={44} /><b>{live.bowler.name}</b><span>{live.bowler.overs} · {live.bowler.wickets}-{live.bowler.runs}</span></div>}
           <h2>Commentary</h2>
           {(match.commentary || []).slice(0, 8).map((line, i) => (
             <div key={i} className="py-2 border-b border-white/5"><span className="small">{line.over}</span> {lang === "hi" ? line.textHi : line.text}</div>
@@ -112,14 +113,18 @@ export function MatchPage({ lang }: { lang: string }) {
           <h2>Points</h2>
           {(match.points || []).map((row) => <div key={row.team} className="board"><b>{row.team}</b><span>{row.pts}</span><span>{row.nrr}</span></div>)}
           <h2>Playing XI</h2>
-          <p className="small">{match.xi?.a.map((p) => p.name).join(", ")}</p>
-          <p className="small">{match.xi?.b.map((p) => p.name).join(", ")}</p>
+          <div className="chips">
+            {match.xi?.a.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
+          </div>
+          <div className="chips">
+            {match.xi?.b.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
+          </div>
         </>
       )}
       {tab === "card" && (match.innings || []).map((inn) => (
         <div key={inn.title + inn.overs} className="mt-3">
           <h2>{inn.title} {inn.runs}/{inn.wickets} ({inn.overs})</h2>
-          {inn.batters.map((b) => <div key={b.id} className="board"><span>{b.name}{b.out ? "" : " *"} <i className="small">{b.dismissal || "not out"}</i></span><b>{b.runs}</b><span>{b.balls}</span></div>)}
+          {inn.batters.map((b) => <div key={b.id} className="who">{b.look && <Avatar look={b.look} size={36} />}<b>{b.name}{b.out ? "" : " *"} <i className="small">{b.dismissal || "not out"}</i></b><span>{b.runs}</span></div>)}
           {inn.bowlers.map((b) => <div key={b.id} className="board"><span>{b.name}</span><span>{b.overs}</span><span>{b.wickets}/{b.runs}</span></div>)}
         </div>
       ))}
@@ -268,7 +273,7 @@ function Chat({ matchKey }: { matchKey: string }) {
       </div>
       <div className="chat mt-3">
         {(data?.messages || []).map((m: any) => (
-          <div key={m.id} className="bubble"><b className="small">{m.name}</b><div>{m.body}</div></div>
+          <div key={m.id} className="who">{m.look && <Avatar look={m.look} size={32} />}<div><b className="small">{m.name}</b><div>{m.body}</div></div></div>
         ))}
       </div>
       <form onSubmit={async (e) => {

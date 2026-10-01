@@ -1,4 +1,5 @@
 import { currentRunRate, oversLabel, projectedScore, requiredRunRate, winProbability, type WinProb } from "./winprob";
+import { castLook, teamMood, type Cartoon, type RoleId } from "./avatar";
 
 export type Sport = "cricket" | "football" | "kabaddi";
 export type MatchStatus = "live" | "upcoming" | "completed";
@@ -113,6 +114,7 @@ export interface BatterView {
   fours: number;
   sixes: number;
   strike: boolean;
+  look: Cartoon;
 }
 
 export interface BowlerView {
@@ -122,6 +124,7 @@ export interface BowlerView {
   runs: number;
   wickets: number;
   economy: number;
+  look: Cartoon;
 }
 
 export interface MatchView {
@@ -159,13 +162,14 @@ export interface MatchView {
     partnership: { runs: number; balls: number };
     thisOver: string[];
     recent: string[];
+    mood: { emoji: string; label: string; labelHi: string };
   };
   innings?: InningsView[];
   commentary?: { over: string; text: string; textHi: string; kind: string }[];
   wagon?: { x: number; y: number; runs: number; wicket: boolean }[];
   manhattan?: { over: number; runs: number; wickets: number; innings: number }[];
   worm?: { over: number; runs: number; innings: number }[];
-  xi?: { a: Player[]; b: Player[] };
+  xi?: { a: (Player & { look: Cartoon })[]; b: (Player & { look: Cartoon })[] };
   h2h?: CricketMatchState["h2h"];
   points?: CricketMatchState["points"];
   nextBallIndex?: number;
@@ -182,8 +186,8 @@ export interface InningsView {
   wickets: number;
   overs: string;
   extras: number;
-  batters: (BatterCard & { name: string })[];
-  bowlers: (BowlerCard & { name: string; overs: string; economy: number })[];
+  batters: (BatterCard & { name: string; look: Cartoon })[];
+  bowlers: (BowlerCard & { name: string; overs: string; economy: number; look: Cartoon })[];
 }
 
 const IND: Team = { key: "ind", name: "India", nameHi: "भारत", code: "IND", color: "#ff7a18", color2: "#138808", flag: "🇮🇳" };
@@ -744,16 +748,27 @@ function batterView(match: CricketMatchState, id: string | undefined, strike: bo
   const inn = match.innings[match.current];
   const card = inn?.batters.find((b) => b.id === id);
   if (!card) return null;
-  return { id, name: playerName(match, id), runs: card.runs, balls: card.balls, fours: card.fours, sixes: card.sixes, strike };
+  return { id, name: playerName(match, id), runs: card.runs, balls: card.balls, fours: card.fours, sixes: card.sixes, strike, look: lookOf(match, id, "bat") };
 }
 
 function bowlerView(match: CricketMatchState, id: string | undefined): BowlerView | null {
   if (!id) return null;
   const inn = match.innings[match.current];
   const card = inn?.bowlers.find((b) => b.id === id);
-  if (!card) return { id, name: playerName(match, id), overs: "0.0", runs: 0, wickets: 0, economy: 0 };
+  if (!card) return { id, name: playerName(match, id), overs: "0.0", runs: 0, wickets: 0, economy: 0, look: lookOf(match, id, "bowl") };
   const economy = card.balls ? Math.round((card.runs / (card.balls / 6)) * 100) / 100 : 0;
-  return { id, name: playerName(match, id), overs: oversLabel(card.balls), runs: card.runs, wickets: card.wickets, economy };
+  return { id, name: playerName(match, id), overs: oversLabel(card.balls), runs: card.runs, wickets: card.wickets, economy, look: lookOf(match, id, "bowl") };
+}
+
+function lookOf(match: CricketMatchState, id: string, fallback: RoleId): Cartoon {
+  for (const side of ["a", "b"] as const) {
+    const index = match.squads[side].findIndex((player) => player.id === id);
+    if (index >= 0) {
+      const player = match.squads[side][index];
+      return castLook(player.id, player.role, match.teams[side].color, index);
+    }
+  }
+  return castLook(id, fallback, "#e7ff4d", 0);
 }
 
 function partnership(inn: Innings): { runs: number; balls: number } {
@@ -812,6 +827,7 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
             partnership: partnership(inn),
             thisOver: (inn.overs[inn.overs.length - 1]?.balls || []).slice(-12),
             recent: inn.balls.slice(-12).map(ballToken),
+            mood: teamMood(win[inn.team], inn.balls.slice(-6).map(ballToken)),
           };
         })()
       : null;
@@ -846,12 +862,13 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
     wickets: item.wickets,
     overs: oversLabel(item.legalBalls),
     extras: item.extras,
-    batters: item.batters.map((b) => ({ ...b, name: playerName(match, b.id) })),
+    batters: item.batters.map((b) => ({ ...b, name: playerName(match, b.id), look: lookOf(match, b.id, "bat") })),
     bowlers: item.bowlers.map((b) => ({
       ...b,
       name: playerName(match, b.id),
       overs: oversLabel(b.balls),
       economy: b.balls ? Math.round((b.runs / (b.balls / 6)) * 100) / 100 : 0,
+      look: lookOf(match, b.id, "bowl"),
     })),
   }));
   const lastBalls = (inn?.balls || []).slice(-18).reverse();
@@ -877,7 +894,10 @@ export function projectMatch(match: CricketMatchState, detail: boolean, now = Da
       return { over: over.n, runs, innings: idx + 1 };
     });
   });
-  view.xi = match.squads;
+  view.xi = {
+    a: match.squads.a.map((player, index) => ({ ...player, look: castLook(player.id, player.role, match.teams.a.color, index) })),
+    b: match.squads.b.map((player, index) => ({ ...player, look: castLook(player.id, player.role, match.teams.b.color, index) })),
+  };
   view.h2h = match.h2h;
   view.points = match.points;
   view.nextBallIndex = inn?.balls.length || 0;

@@ -6,8 +6,18 @@ import {
   normalizePhone,
   parseAdminList,
   phoneHash,
+  assertAvatar,
+  FACES,
+  FRAMES,
+  CAPS,
+  JERSEYS,
+  isUnlocked,
   rankFor,
+  resolveLook,
+  ROLES,
+  type AvatarPick,
   type InitDataResult,
+  type RoleId,
 } from "@liveline/shared";
 import { rollDailyStreak } from "./engage";
 import { env } from "../env";
@@ -16,6 +26,68 @@ import { loadKey } from "./cryptoKey";
 import { sendTelegramMessage } from "../telegram";
 
 const admins = () => parseAdminList(env.adminRaw);
+
+export function userCartoon(user: {
+  avatarFace: string;
+  avatarJersey: string;
+  avatarCap: string;
+  avatarFrame: string;
+  avatarRole: string;
+  avatarNumber: number;
+}) {
+  const role = (ROLES.some((item) => item.id === user.avatarRole) ? user.avatarRole : "bat") as RoleId;
+  return resolveLook({
+    face: user.avatarFace,
+    jersey: user.avatarJersey,
+    cap: user.avatarCap,
+    frame: user.avatarFrame,
+    role,
+    number: user.avatarNumber,
+  });
+}
+
+export async function avatarShop(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const badges = (await prisma.badge.findMany({ where: { userId } })).map((row) => row.badgeKey);
+  const mark = <T extends { xp: number; badge?: string }>(items: T[]) => items.map((item) => ({ ...item, unlocked: isUnlocked(item, user.xp, badges) }));
+  return {
+    look: userCartoon(user),
+    pick: {
+      face: user.avatarFace,
+      jersey: user.avatarJersey,
+      cap: user.avatarCap,
+      frame: user.avatarFrame,
+      role: user.avatarRole,
+      number: user.avatarNumber,
+    },
+    faces: mark(FACES),
+    jerseys: mark(JERSEYS),
+    caps: mark(CAPS),
+    frames: mark(FRAMES),
+    roles: ROLES,
+    xp: user.xp,
+  };
+}
+
+export async function saveAvatar(userId: string, pick: AvatarPick) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const badges = (await prisma.badge.findMany({ where: { userId } })).map((row) => row.badgeKey);
+  const problem = assertAvatar(pick, user.xp, badges);
+  if (problem === "LOCKED") throw httpError(409, "LOCKED", "Earn that piece with XP or a reward first.");
+  if (problem) throw httpError(400, problem);
+  const saved = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      avatarFace: pick.face,
+      avatarJersey: pick.jersey,
+      avatarCap: pick.cap,
+      avatarFrame: pick.frame,
+      avatarRole: pick.role,
+      avatarNumber: pick.number,
+    },
+  });
+  return { look: userCartoon(saved), pick };
+}
 
 export function userIsAdmin(telegramId: string, username?: string | null): boolean {
   return isAdmin(admins(), telegramId, username);
@@ -259,6 +331,12 @@ export function publicUser(user: {
   dailyStreak: number;
   streakFreeze: number;
   fanTeamKey: string | null;
+  avatarFace: string;
+  avatarJersey: string;
+  avatarCap: string;
+  avatarFrame: string;
+  avatarRole: string;
+  avatarNumber: number;
   bonusSpins: number;
   predictionBoost: number;
   theme: string;
@@ -291,6 +369,7 @@ export function publicUser(user: {
     dailyStreak: user.dailyStreak,
     streakFreeze: user.streakFreeze,
     fanTeamKey: user.fanTeamKey,
+    look: userCartoon(user),
     bonusSpins: user.bonusSpins,
     predictionBoost: user.predictionBoost,
     theme: user.theme,

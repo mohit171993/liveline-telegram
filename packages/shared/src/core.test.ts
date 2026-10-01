@@ -8,6 +8,7 @@ import { decideFulfilment, drawPrize, pickWeighted } from "./rewards";
 import { amountAllowed, parseBalance, parseBuy, parseCatalogue, parseStatus, type GiftCatalogueItem } from "./giftport";
 import { advanceMatch, buildDemoUniverse, projectMatch } from "./cricket";
 import { celebrations, cheerAllowed, fanLoudness, nextDailyStreak, rankFor, scoreGuessPoints, shiftIstDay, triviaFor } from "./engage";
+import { assertAvatar, castLook, teamMood } from "./avatar";
 import { containsProfanity, maskProfanity } from "./profanity";
 import { winProbability } from "./winprob";
 
@@ -195,6 +196,14 @@ describe("engagement", () => {
     expect(fanLoudness(2, 5)).toBe(11);
     expect(triviaFor("demo").options).toHaveLength(4);
     expect(triviaFor("demo").answer).toBeGreaterThanOrEqual(0);
+    expect(assertAvatar({ face: "lion", jersey: "lime", cap: "cap", frame: "lime", role: "bat", number: 7 }, 10, [])).toBe("LOCKED");
+    expect(assertAvatar({ face: "cool", jersey: "lime", cap: "cap", frame: "lime", role: "bowl", number: 18 }, 0, [])).toBeNull();
+    const look = castLook("ind_bumrah", "bowl", "#ff7a18", 8);
+    expect(look.icon).toBe("🎯");
+    expect(look.number).toBe(9);
+    expect(look.face).toMatch(/\p{Emoji}/u);
+    expect(teamMood(70, ["1", "6", "4"]).emoji).toBe("🔥");
+    expect(teamMood(20, ["W"]).emoji).toBe("😬");
   });
 });
 

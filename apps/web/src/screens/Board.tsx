@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, t, type Me } from "../lib";
+import { Avatar, badgeSticker, type Look } from "../Avatar";
 
 export function BoardPage({ lang, me }: { lang: string; me: Me }) {
   const [scope, setScope] = useState("daily");
@@ -14,9 +15,9 @@ export function BoardPage({ lang, me }: { lang: string; me: Me }) {
         {["daily", "match", "season"].map((s) => <button key={s} className={`chip ${scope === s ? "on" : ""}`} onClick={() => setScope(s)}>{s}</button>)}
       </div>
       <p className="small">Streak {me.user.streak} · {me.user.points} {t(lang, "points")}</p>
-      {(data?.badges || []).map((b: any) => <span key={b.id} className="chip on">{b.badgeKey}</span>)}
+      {(data?.badges || []).map((b: any) => <span key={b.id} className="chip on">{badgeSticker(b.badgeKey)} {b.badgeKey.split("_").join(" ")}</span>)}
       {(data?.rows || []).map((row: any) => (
-        <div key={row.userId} className={`rank ${row.you ? "you" : ""}`}><span>{row.rank} {row.name}</span><b>{row.points}</b></div>
+        <div key={row.userId} className={`who ${row.you ? "you" : ""}`}>{row.look && <Avatar look={row.look as Look} size={36} />}<b>{row.rank} {row.name}</b><span>{row.points}</span></div>
       ))}
       <AdNote />
     </>

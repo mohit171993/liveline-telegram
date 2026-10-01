@@ -7,9 +7,10 @@ export type Live = {
   crr: number; rrr: number | null; target: number | null; projected: number | null;
   need: string | null; needHi: string | null;
   win: { a: number; b: number; tie: number };
-  striker: { id: string; name: string; runs: number; balls: number; fours: number; sixes: number } | null;
-  nonStriker: { id: string; name: string; runs: number; balls: number } | null;
-  bowler: { id: string; name: string; overs: string; runs: number; wickets: number; economy: number } | null;
+  striker: { id: string; name: string; runs: number; balls: number; fours: number; sixes: number; look?: Look } | null;
+  nonStriker: { id: string; name: string; runs: number; balls: number; look?: Look } | null;
+  bowler: { id: string; name: string; overs: string; runs: number; wickets: number; economy: number; look?: Look } | null;
+  mood?: { emoji: string; label: string; labelHi: string };
   partnership: { runs: number; balls: number };
   thisOver: string[];
   recent: string[];
@@ -30,16 +31,20 @@ export type Match = {
 };
 export type Innings = {
   team: "a" | "b"; title: string; runs: number; wickets: number; overs: string; extras: number;
-  batters: { id: string; name: string; runs: number; balls: number; fours: number; sixes: number; out: boolean; dismissal?: string }[];
-  bowlers: { id: string; name: string; overs: string; runs: number; wickets: number; economy: number }[];
+  batters: { id: string; name: string; runs: number; balls: number; fours: number; sixes: number; out: boolean; dismissal?: string; look?: Look }[];
+  bowlers: { id: string; name: string; overs: string; runs: number; wickets: number; economy: number; look?: Look }[];
 };
-export type Player = { id: string; name: string; role: string; style: string };
+export type Look = {
+  face: string; jersey: string; ink: string; number: number; role: string; icon: string; cap: string; frame: string;
+};
+export type Player = { id: string; name: string; role: string; style: string; look?: Look };
 export type Me = {
   user: {
     id: string; telegramId: string; username: string | null; firstName: string | null; language: string;
     registered: boolean; needsPhone: boolean; needsTerms: boolean; blocked: boolean; admin: boolean;
     points: number; xp: number; streak: number; dailyStreak: number; streakFreeze: number;
     fanTeamKey: string | null;
+    look: Look;
     rank: { id: string; name: string; progress: number; next: { name: string; min: number } | null };
     bonusSpins: number; phone: string | null; theme: string;
     referralLink: string;

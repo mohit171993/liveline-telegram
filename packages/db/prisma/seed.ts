@@ -176,6 +176,7 @@ async function main() {
       ["season_pass", "Free season track"],
       ["cheer", "Cheer with Harbour"],
       ["nudge", "Harbour on the night line"],
+      ["avatar", "Kit night"],
     ] as const;
     for (const [slot, headline] of slots) {
       const have = await prisma.creative.findFirst({ where: { campaignId: harbour.id, slot } });

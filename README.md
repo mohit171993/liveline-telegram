@@ -153,6 +153,7 @@ Covers initData HMAC and staleness, prediction settlement, ad eligibility and de
 - The home screen has a Join our channel button. It opens `https://t.me/$CHANNEL_USERNAME` (default [@LiveLine_Pro](https://t.me/LiveLine_Pro)). Auto-posts go to `CHANNEL_ID`.
 - Big moments play a short roar. Mute is stored on the device. `prefers-reduced-motion` skips the confetti.
 - The season track and missions cannot be bought. Streak freeze covers one missed day.
+- Players and fans use cartoon SVG avatars (emoji face, jersey, number, role icon). There are no photos. The avatar builder unlocks faces, jerseys, caps, and frames with XP and rewards.
 - AI answers are grounded in the live match until `OPENAI_API_KEY` is set.
 - GiftPort HTTP calls are implemented. Missing credentials or `USE_MOCK_GIFTPORT=true` uses the mock catalogue and balance.
 - Score cards are SVG. A PNG is produced only if `@resvg/resvg-js` is installed.

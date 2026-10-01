@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, haptic, t, type Match, type Me } from "../lib";
 import { AdSlot } from "./Ad";
+import { Avatar, STATUS_STICKER } from "../Avatar";
 
 export function Home({ me }: { me: Me }) {
   const [matches, setMatches] = useState<Match[] | null>(null);
@@ -33,7 +34,7 @@ export function Home({ me }: { me: Me }) {
     <>
       <header className="top">
         <div className="brand">
-          <div className="bug">LL</div>
+          <button className="iconbtn" aria-label="Avatar" onClick={() => nav("/avatar")}><Avatar look={me.user.look} size={36} /></button>
           <div><b>LIVELINE</b><span>Pro · India</span></div>
         </div>
         <div className="flex items-center gap-2">
@@ -56,7 +57,8 @@ export function Home({ me }: { me: Me }) {
       {live && (
         <button className="hero w-full text-left" onClick={() => { haptic("medium"); nav(`/match/${live.key}`); }}>
           <div className="row">
-            <span className="livepill"><i className="dot" /> {t(lang, "live")}</span>
+            <span className="livepill"><i className="dot" /> {STATUS_STICKER.live} {t(lang, "live")}</span>
+            {live.live?.mood && <span className="demo">{live.live.mood.emoji} {lang === "hi" ? live.live.mood.labelHi : live.live.mood.label}</span>}
             <span className="demo">{live.demo ? t(lang, "demo") : live.seriesName}</span>
           </div>
           <div className="small mt-2">{live.teams.a.flag} {live.teams.a.code} {live.scoreline.a} · {live.teams.b.flag} {live.teams.b.code} {live.scoreline.b}</div>

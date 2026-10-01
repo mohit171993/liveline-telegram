@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, t } from "../lib";
 import { AdSlot } from "./Ad";
+import { badgeSticker } from "../Avatar";
 
 export function PassPage({ lang }: { lang: string }) {
   const [data, setData] = useState<any>(null);
@@ -47,7 +48,7 @@ export function PassPage({ lang }: { lang: string }) {
       ))}
       <h2>Achievements</h2>
       <div className="chips">
-        {(data.badges || []).map((b: string) => <span key={b} className="chip on">{b.split("_").join(" ")}</span>)}
+        {(data.badges || []).map((b: string) => <span key={b} className="chip on">{badgeSticker(b)} {b.split("_").join(" ")}</span>)}
         {!data.badges?.length && <span className="small">Play to earn the first one.</span>}
       </div>
       {note && <p className="small">{note}</p>}

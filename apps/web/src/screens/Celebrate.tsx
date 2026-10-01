@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { haptic } from "../lib";
 import { AdSlot } from "./Ad";
+import { MOMENT_STICKER } from "../Avatar";
 
 const COPY: Record<string, { en: string; hi: string }> = {
   FOUR: { en: "FOUR", hi: "चौका" },
@@ -94,7 +95,7 @@ export function Celebrate({ moment, lang, matchKey, onDone }: { moment: string; 
     <div className="moment" role="dialog" aria-live="assertive" aria-label={label}>
       <canvas ref={canvas} className="confetti" aria-hidden="true" />
       <div className="moment-card">
-        <strong>{label}</strong>
+        <strong>{MOMENT_STICKER[moment] || "✨"} {label}</strong>
         <AdSlot slot="celebration" matchKey={matchKey} />
         <button className="ghost" onClick={onDone}>Skip</button>
       </div>

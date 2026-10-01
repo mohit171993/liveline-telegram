@@ -10,7 +10,7 @@ import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
 import type { authenticate as AuthFn } from "./server";
-import { acceptTerms, listUsers, publicUser, setBlocked, setLanguage, usersCsv } from "./services/users";
+import { acceptTerms, avatarShop, listUsers, publicUser, saveAvatar, setBlocked, setLanguage, usersCsv } from "./services/users";
 import { leaderboard, placePrediction, predictionState } from "./services/game";
 import { assertCleanCopy, recordAdEvent, reportCsv, reportRows, serveSlot } from "./services/ads";
 import { createReminder, deleteReminder, listReminders, updateReminder } from "./services/alerts";
@@ -296,6 +296,25 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     await bumpMission(user.id, "share").catch(() => undefined);
     await grantXp(user.id, 5).catch(() => undefined);
     return { ok: true };
+  });
+
+  app.get("/api/avatar", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    return avatarShop(user.id);
+  });
+  app.post("/api/avatar", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const body = z.object({
+      face: z.string(),
+      jersey: z.string(),
+      cap: z.string(),
+      frame: z.string(),
+      role: z.enum(["bat", "bowl", "wk", "all"]),
+      number: z.number().int().min(1).max(99),
+    }).parse(req.body);
+    return saveAvatar(user.id, body);
   });
 
   app.get("/api/engage", async (req, reply) => {

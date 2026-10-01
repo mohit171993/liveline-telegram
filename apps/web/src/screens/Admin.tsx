@@ -76,6 +76,7 @@ export function CreateCampaign() {
         <option value="season_pass">Season track</option>
         <option value="cheer">Cheers</option>
         <option value="nudge">Bot nudge</option>
+        <option value="avatar">Avatar kit</option>
       </select>
       <select className="field" name="type" defaultValue="native">
         <option value="native">Native card</option>

@@ -15,6 +15,7 @@ import { httpError } from "../httpError";
 import { getMatch } from "../feed";
 import { grantScratch } from "./rewards";
 import { bumpMission, grantXp, nudgeRank } from "./engage";
+import { userCartoon } from "./users";
 
 const BALL_PICKS = new Set(["dot", "1", "2", "3", "4", "6", "wicket", "extra"]);
 
@@ -195,6 +196,7 @@ export async function leaderboard(scope: string, opts: { matchKey?: string; grou
       name: user?.username ? `@${user.username}` : user?.firstName || "Player",
       points: row._sum.points || 0,
       you: row.userId === opts.userId,
+      look: user ? userCartoon(user) : null,
     };
   });
 }

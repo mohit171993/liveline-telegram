@@ -1,5 +1,6 @@
 import { prisma } from "@liveline/db";
 import { containsProfanity, maskProfanity } from "@liveline/shared";
+import { userCartoon } from "./users";
 import { httpError } from "../httpError";
 import { redis } from "../redis";
 
@@ -34,6 +35,7 @@ export async function listChat(matchKey: string) {
       at: m.createdAt,
       name: m.user.username ? `@${m.user.username}` : m.user.firstName || "Fan",
       userId: m.userId,
+      look: userCartoon(m.user),
     })),
     reactions: Object.fromEntries(reactions.map((r) => [r.emoji, r._count])),
     polls: polls.map((p) => ({
