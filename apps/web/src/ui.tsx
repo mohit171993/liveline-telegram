@@ -150,13 +150,34 @@ export function StreakBanner({ me }: { me: Me }) {
 function when(match: Match) {
   if (match.status === "live") return "LIVE";
   if (match.status === "completed") return match.result || "Result";
-  return new Date(match.startAt).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+  return kickoff(match.startAt).headline;
+}
+
+export function kickoff(startAt: number, now = Date.now()) {
+  const clock = new Date(startAt).toLocaleString("en-IN", {
+    hour: "2-digit", minute: "2-digit", day: "numeric", month: "short", timeZone: "Asia/Kolkata",
+  });
+  const ms = startAt - now;
+  if (ms <= 0 || ms >= 48 * 60 * 60 * 1000) return { headline: clock, clock: "" };
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const headline = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+  return { headline, clock };
+}
+
+export function placeOf(match: { venue?: string; city?: string }) {
+  return [match.venue, match.city].filter(Boolean).join(", ");
 }
 
 export function HeroCard({ match, lang }: { match: Match; lang: string }) {
   const nav = useNavigate();
   const live = match.live;
   const bat = live ? match.teams[live.batting] : match.teams.a;
+  const start = kickoff(match.startAt);
+  const place = placeOf(match);
+  const detail = [start.clock, place].filter(Boolean).join(" · ");
   return (
     <motion.button
       className={`hero slide ${match.status === "live" ? "is-live" : ""}`}
@@ -169,20 +190,29 @@ export function HeroCard({ match, lang }: { match: Match; lang: string }) {
         <span className="livepill">{match.status === "live" && <i className="dot" />} {when(match)}</span>
         <span className="demo">{match.demo ? t(lang, "demo") : match.seriesName}</span>
       </div>
-      <div className="versus">
+      <div className={`versus ${live ? "" : "pair"}`}>
         <div className="side">
           <Flag code={match.teams.a.code} size={40} />
           <strong>{match.teams.a.code}</strong>
           <em>{match.scoreline.a || "—"}</em>
         </div>
-        <div className="score" style={{ color: bat.color }}>{live ? `${live.runs}/${live.wickets}` : match.teams.a.code}</div>
+        {live && <div className="score" style={{ color: bat.color }}>{live.runs}/{live.wickets}</div>}
         <div className="side">
           <Flag code={match.teams.b.code} size={40} />
           <strong>{match.teams.b.code}</strong>
           <em>{match.scoreline.b || "—"}</em>
         </div>
       </div>
-      <div className="need">{lang === "hi" ? live?.needHi : live?.need || match.name}</div>
+      {live ? (
+        <div className="need">{lang === "hi" ? live.needHi : live.need || match.name}</div>
+      ) : match.status === "completed" ? (
+        <div className="hero-state"><b>{match.result || "Result"}</b></div>
+      ) : (
+        <div className="hero-state">
+          <b>{start.headline}</b>
+          {detail && <span>{detail}</span>}
+        </div>
+      )}
       <div className="stripe" style={{ background: `linear-gradient(90deg, ${match.teams.a.color}, ${match.teams.b.color})` }} />
       {live && <div className="meta">{live.overs} ov · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"}</div>}
       {live && (

@@ -53,15 +53,25 @@ async function persist(matches: CricketMatchState[]) {
   await redis.set(UNIVERSE, JSON.stringify(matches));
 }
 
+function withoutDemo(matches: CricketMatchState[]): CricketMatchState[] {
+  return matches.filter((match) => !match.demo && !match.key.startsWith("demo_"));
+}
+
+/** Real Roanuz feeds must not keep serving the simulated universe. */
+function published(matches: CricketMatchState[]): CricketMatchState[] {
+  return env.useMockProvider ? matches : withoutDemo(matches);
+}
+
 export async function listSummaries(now = Date.now()): Promise<MatchView[]> {
-  const matches = await readUniverse();
+  const matches = published(await readUniverse());
   return matches.map((match) => projectMatch(match, false, now, env.lockMs));
 }
 
 export async function getMatch(key: string, now = Date.now()): Promise<{ state: CricketMatchState; view: MatchView } | null> {
+  if (!env.useMockProvider && key.startsWith("demo_")) return null;
   const matches = await readUniverse();
   const state = matches.find((match) => match.key === key);
-  if (!state) return null;
+  if (!state || (!env.useMockProvider && state.demo)) return null;
   return { state, view: projectMatch(state, true, now, env.lockMs) };
 }
 
@@ -97,8 +107,12 @@ async function tick() {
   try {
     if (!(await holdLock())) return;
     const now = Date.now();
-    if (env.useMockProvider || !roanuz.configured()) {
+    if (env.useMockProvider) {
       await tickMock(now);
+      return;
+    }
+    if (!roanuz.configured()) {
+      console.error(JSON.stringify({ level: "error", msg: "roanuz-unconfigured" }));
       return;
     }
     await tickRoanuz(now);
@@ -197,7 +211,7 @@ async function tickRoanuz(now: number) {
       void hook([{ match: next, events }]).catch(() => undefined);
     }
   }
-  matches = [...byKey.values()];
+  matches = withoutDemo([...byKey.values()]);
   await persist(matches);
   const liveKeys = matches.filter((match) => match.status === "live").map((match) => match.key);
   const signature = liveKeys.join(",");

@@ -62,3 +62,27 @@ export function clickDedupeKey(userId: string, creativeId: string, nowMs: number
   const day = Math.floor(nowMs / 86_400_000);
   return `clk:${userId}:${creativeId}:${day}`;
 }
+
+/** Seed, E2E, and example.com campaigns are not real sponsors. */
+export function isPlaceholderSponsor(input: {
+  campaignName?: string | null;
+  advertiserId?: string | null;
+  contact?: string | null;
+  clickUrl?: string | null;
+}): boolean {
+  const name = (input.campaignName || "").trim();
+  if (/^harbour night line$/i.test(name) || /^e2e\b/i.test(name)) return true;
+  const advertiser = (input.advertiserId || "").trim().toLowerCase();
+  if (advertiser === "seed_harbour" || advertiser.startsWith("seed_")) return true;
+  const contact = (input.contact || "").trim().toLowerCase();
+  if (contact.endsWith(".example")) return true;
+  const raw = (input.clickUrl || "").trim();
+  if (!raw) return false;
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    if (host === "example.com" || host.endsWith(".example.com") || host.endsWith(".example")) return true;
+  } catch {
+    if (/example\.com/i.test(raw)) return true;
+  }
+  return false;
+}

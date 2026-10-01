@@ -15,7 +15,7 @@ import {
   type AdminGrantView,
 } from "./auth";
 import { decryptString, encryptString, loadEncryptionKey } from "./crypto";
-import { adEligible, clickDedupeKey, impressionDedupeKey, selectAd, type AdCandidate } from "./ads";
+import { adEligible, clickDedupeKey, impressionDedupeKey, isPlaceholderSponsor, selectAd, type AdCandidate } from "./ads";
 import { containsBetting, moderationDecision } from "./policy";
 import { applyBoost, predictionWindowOpen, settleBallPick, settleMatchPick, settleOverPick } from "./predictions";
 import { decideFulfilment, drawPrize, pickWeighted } from "./rewards";
@@ -177,6 +177,12 @@ describe("ads", () => {
     expect(impressionDedupeKey("u", "c1", now)).toBe(impressionDedupeKey("u", "c1", now + 1000));
     expect(impressionDedupeKey("u", "c1", now)).not.toBe(impressionDedupeKey("u", "c1", now + 3_600_000));
     expect(clickDedupeKey("u", "c1", now)).toBe(clickDedupeKey("u", "c1", now + 1000));
+  });
+
+  it("hides seed and example campaigns and keeps a real sponsor", () => {
+    expect(isPlaceholderSponsor({ campaignName: "Harbour night line", advertiserId: "seed_harbour", clickUrl: "https://example.com/harbour" })).toBe(true);
+    expect(isPlaceholderSponsor({ campaignName: "E2E slot luck", contact: "qa@test.example" })).toBe(true);
+    expect(isPlaceholderSponsor({ campaignName: "Night series", advertiserId: "adv_1", contact: "ads@brand.com", clickUrl: "https://brand.com/night" })).toBe(false);
   });
 });
 

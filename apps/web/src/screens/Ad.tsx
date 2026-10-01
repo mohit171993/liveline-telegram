@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib";
 
-export function AdSlot({ slot, matchKey }: { slot: string; matchKey?: string }) {
+export function AdSlot({ slot, matchKey, quiet }: { slot: string; matchKey?: string; quiet?: boolean }) {
   const [ad, setAd] = useState<any>(null);
   useEffect(() => {
     const q = new URLSearchParams({ slot, ...(matchKey ? { matchKey } : {}) });
@@ -12,7 +12,7 @@ export function AdSlot({ slot, matchKey }: { slot: string; matchKey?: string }) 
   }, [slot, matchKey]);
   if (!ad) return null;
   return (
-    <button className="ad" onClick={async () => {
+    <button className={quiet ? "ad quiet" : "ad"} onClick={async () => {
       await api(`/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => undefined);
       if (ad.clickUrl) window.Telegram?.WebApp?.openLink?.(ad.clickUrl);
     }}>

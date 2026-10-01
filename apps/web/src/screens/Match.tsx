@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, initData, t, wsBase, type Match } from "../lib";
-import { pillClass } from "../ui";
+import { kickoff, pillClass, placeOf } from "../ui";
 import { Flag } from "../flags";
 import { AdSlot } from "./Ad";
 import { Celebrate, muted, setMuted } from "./Celebrate";
@@ -68,6 +68,13 @@ export function MatchPage({ lang }: { lang: string }) {
   if (!match) return <div className="skel" />;
   const live = match.live;
   const bat = live ? match.teams[live.batting] : match.teams.a;
+  const winText = live?.win ? `${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%` : "";
+  const start = kickoff(match.startAt);
+  const place = placeOf(match);
+  const detail = [start.clock, place].filter(Boolean).join(" · ");
+  const commentary = (match.commentary || []).filter((line) => (lang === "hi" ? line.textHi : line.text));
+  const points = match.points || [];
+  const xiCount = (match.xi?.a.length || 0) + (match.xi?.b.length || 0);
 
   return (
     <>
@@ -78,30 +85,41 @@ export function MatchPage({ lang }: { lang: string }) {
       <div className="hero">
         <div className="row">
           <span className="livepill">{match.status === "live" && <i className="dot" />} {STATUS_STICKER[match.status] || ""} {match.status === "live" ? t(lang, "live") : match.status}</span>
-          <button className="iconbtn" aria-pressed={mute} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
           <span className="demo">{match.demo ? t(lang, "demo") : match.format}</span>
         </div>
         <div className="versus compact">
           <div className="side"><Flag code={match.teams.a.code} size={36} /><strong>{match.teams.a.code}</strong></div>
           <div className="side"><Flag code={match.teams.b.code} size={36} /><strong>{match.teams.b.code}</strong></div>
         </div>
-        <div className="score" style={{ color: bat.color }}>{live ? `${live.runs}/${live.wickets}` : match.result || "—"}</div>
-        <div className="need">{lang === "hi" ? live?.needHi : live?.need || match.toss}</div>
+        {live ? (
+          <div className="score" style={{ color: bat.color }}>{live.runs}/{live.wickets}</div>
+        ) : match.status === "completed" ? (
+          <div className="hero-state"><b>{match.result || "Result"}</b></div>
+        ) : (
+          <div className="hero-state">
+            <b>{start.headline}</b>
+            {detail && <span>{detail}</span>}
+          </div>
+        )}
+        {live && <div className="need">{lang === "hi" ? live.needHi : live.need || match.toss}</div>}
         {live && <div className="meta">{live.overs} · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"} · {t(lang, "proj")} {live.projected ?? "—"}</div>}
-        {live && <div className="win"><i style={{ width: `${live.win.a}%`, background: match.teams.a.color }} /><i style={{ width: `${live.win.b}%`, background: match.teams.b.color }} /></div>}
-        <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {live ? `${match.teams.a.code} ${live.win.a} · ${match.teams.b.code} ${live.win.b}` : ""}</div>
+        {winText && (
+          <>
+            <div className="win"><i style={{ width: `${live!.win.a}%`, background: match.teams.a.color }} /><i style={{ width: `${live!.win.b}%`, background: match.teams.b.color }} /></div>
+            <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {winText}</div>
+          </>
+        )}
         {live?.luck && (
           <div className="small mt-2">{live.luck.emoji} Luck {live.luck.score} · {lang === "hi" ? live.luck.labelHi : live.luck.label}
             {live.forecast ? ` · next over ${live.forecast.low}–${live.forecast.high} · wicket ${live.forecast.wicketChance}%` : ""}
           </div>
         )}
         {laneOn && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
+        <div className="match-tools" role="toolbar" aria-label="Match tools">
+          <button type="button" aria-pressed={mute} className={mute ? "on" : ""} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
+          <button type="button" aria-pressed={!laneOn} className={laneOn ? "" : "on"} onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
+        </div>
       </div>
-      <AdSlot slot="luck" matchKey={match.key} />
-      <div className="row">
-        <button className="ghost" onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
-      </div>
-      <AdSlot slot="danmaku" matchKey={match.key} />
       <form onSubmit={async (e) => {
         e.preventDefault();
         const body = String(new FormData(e.currentTarget).get("body") || "");
@@ -111,7 +129,6 @@ export function MatchPage({ lang }: { lang: string }) {
       }}>
         <input className="field" name="body" maxLength={42} placeholder="Short comment" aria-label="Comment" />
       </form>
-      <AdSlot slot="powered_by" matchKey={match.key} />
       <FanMeter matchKey={match.key} lang={lang} />
       <MiniPlay matchKey={match.key} lang={lang} />
       <div className="tabs">
@@ -138,28 +155,47 @@ export function MatchPage({ lang }: { lang: string }) {
           {live.striker?.look && <div className="who"><Avatar look={live.striker.look} size={44} /><b>{live.striker.name} *</b><span>{live.striker.runs} ({live.striker.balls})</span></div>}
           {live.nonStriker?.look && <div className="who"><Avatar look={live.nonStriker.look} size={44} /><b>{live.nonStriker.name}</b><span>{live.nonStriker.runs} ({live.nonStriker.balls})</span></div>}
           {live.bowler?.look && <div className="who"><Avatar look={live.bowler.look} size={44} /><b>{live.bowler.name}</b><span>{live.bowler.overs} · {live.bowler.wickets}-{live.bowler.runs}</span></div>}
-          <h2>Commentary</h2>
-          {(match.commentary || []).slice(0, 8).map((line, i) => (
-            <div key={i} className="py-2 border-b border-white/5"><span className="small">{line.over}</span> {lang === "hi" ? line.textHi : line.text}</div>
-          ))}
-          <h2>Venue</h2>
-          <p className="small">{match.venue}, {match.city}. {match.pitch}</p>
-          <h2>Head to head</h2>
-          <p className="small">{match.h2h?.played} played · {match.teams.a.code} {match.h2h?.aWins} · {match.teams.b.code} {match.h2h?.bWins}. {match.h2h?.last}</p>
-          <h2>Points</h2>
-          {(match.points || []).map((row) => <div key={row.team} className="board"><b>{row.team}</b><span>{row.pts}</span><span>{row.nrr}</span></div>)}
-          <h2>Playing XI</h2>
-          <AdSlot slot="fan_xi" matchKey={match.key} />
-          <button className="ghost" onClick={async () => {
-            const ids = [...(match.xi?.a || []), ...(match.xi?.b || [])].slice(0, 11).map((p) => p.id);
-            if (ids.length === 11) await api(`/api/matches/${match.key}/xi`, { method: "POST", body: JSON.stringify({ playerIds: ids }) });
-          }}>Save fan XI</button>
-          <div className="chips">
-            {match.xi?.a.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
-          </div>
-          <div className="chips">
-            {match.xi?.b.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
-          </div>
+          {commentary.length > 0 && (
+            <>
+              <h2>Commentary</h2>
+              {commentary.slice(0, 8).map((line, i) => (
+                <div key={i} className="py-2 border-b border-white/5"><span className="small">{line.over}</span> {lang === "hi" ? line.textHi : line.text}</div>
+              ))}
+            </>
+          )}
+          {(match.venue || match.city) && (
+            <>
+              <h2>Venue</h2>
+              <p className="small">{[match.venue, match.city].filter(Boolean).join(", ")}{match.pitch ? `. ${match.pitch}` : ""}</p>
+            </>
+          )}
+          {(match.h2h?.played || 0) > 0 && (
+            <>
+              <h2>Head to head</h2>
+              <p className="small">{match.h2h?.played} played · {match.teams.a.code} {match.h2h?.aWins} · {match.teams.b.code} {match.h2h?.bWins}. {match.h2h?.last}</p>
+            </>
+          )}
+          {points.length > 0 && (
+            <>
+              <h2>Points</h2>
+              {points.map((row) => <div key={row.team} className="board"><b>{row.team}</b><span>{row.pts}</span><span>{row.nrr}</span></div>)}
+            </>
+          )}
+          {xiCount > 0 && (
+            <>
+              <h2>Playing XI</h2>
+              <button className="ghost" onClick={async () => {
+                const ids = [...(match.xi?.a || []), ...(match.xi?.b || [])].slice(0, 11).map((p) => p.id);
+                if (ids.length === 11) await api(`/api/matches/${match.key}/xi`, { method: "POST", body: JSON.stringify({ playerIds: ids }) });
+              }}>Save fan XI</button>
+              <div className="chips">
+                {match.xi?.a.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
+              </div>
+              <div className="chips">
+                {match.xi?.b.map((p) => <span key={p.id} className="chip">{p.look ? <Avatar look={p.look} size={28} /> : p.role} {p.name.split(" ").slice(-1)}</span>)}
+              </div>
+            </>
+          )}
         </>
       )}
       {tab === "card" && (match.innings || []).map((inn) => (
@@ -171,6 +207,7 @@ export function MatchPage({ lang }: { lang: string }) {
       ))}
       {tab === "charts" && <Charts match={match} />}
       {tab === "chat" && <Chat matchKey={match.key} />}
+      <AdSlot slot="powered_by" matchKey={match.key} quiet />
     </>
   );
 }
@@ -180,22 +217,36 @@ function Charts({ match }: { match: Match }) {
   const max = Math.max(1, ...mans.map((m) => m.runs));
   const worm = match.worm || [];
   const maxW = Math.max(1, ...worm.map((w) => w.runs));
+  const wagon = match.wagon || [];
+  if (!mans.length && !worm.length && !wagon.length) return null;
   return (
     <>
-      <h2>Manhattan</h2>
-      <svg className="chart" viewBox="0 0 300 120">
-        {mans.map((m, i) => <rect key={i} x={i * 14} y={110 - (m.runs / max) * 100} width="10" height={(m.runs / max) * 100} fill={m.wickets ? "#ff5d7a" : "#e7ff4d"} />)}
-      </svg>
-      <h2>Worm</h2>
-      <svg className="chart" viewBox="0 0 300 120">
-        <polyline fill="none" stroke="#8ee7ff" strokeWidth="2" points={worm.filter((w) => w.innings === 1).map((w, i) => `${i * 14},${110 - (w.runs / maxW) * 100}`).join(" ")} />
-        <polyline fill="none" stroke="#e7ff4d" strokeWidth="2" points={worm.filter((w) => w.innings === 2).map((w, i) => `${i * 14},${110 - (w.runs / maxW) * 100}`).join(" ")} />
-      </svg>
-      <h2>Wagon</h2>
-      <svg className="chart" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,.2)" />
-        {(match.wagon || []).map((w, i) => <circle key={i} cx={w.x} cy={w.y} r={w.runs >= 6 ? 2.4 : 1.6} fill={w.wicket ? "#ff5d7a" : w.runs >= 4 ? "#e7ff4d" : "#8ee7ff"} />)}
-      </svg>
+      {mans.length > 0 && (
+        <>
+          <h2>Manhattan</h2>
+          <svg className="chart" viewBox="0 0 300 120">
+            {mans.map((m, i) => <rect key={i} x={i * 14} y={110 - (m.runs / max) * 100} width="10" height={(m.runs / max) * 100} fill={m.wickets ? "#ff5d7a" : "#e7ff4d"} />)}
+          </svg>
+        </>
+      )}
+      {worm.length > 0 && (
+        <>
+          <h2>Worm</h2>
+          <svg className="chart" viewBox="0 0 300 120">
+            <polyline fill="none" stroke="#8ee7ff" strokeWidth="2" points={worm.filter((w) => w.innings === 1).map((w, i) => `${i * 14},${110 - (w.runs / maxW) * 100}`).join(" ")} />
+            <polyline fill="none" stroke="#e7ff4d" strokeWidth="2" points={worm.filter((w) => w.innings === 2).map((w, i) => `${i * 14},${110 - (w.runs / maxW) * 100}`).join(" ")} />
+          </svg>
+        </>
+      )}
+      {wagon.length > 0 && (
+        <>
+          <h2>Wagon</h2>
+          <svg className="chart" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,.2)" />
+            {wagon.map((w, i) => <circle key={i} cx={w.x} cy={w.y} r={w.runs >= 6 ? 2.4 : 1.6} fill={w.wicket ? "#ff5d7a" : w.runs >= 4 ? "#e7ff4d" : "#8ee7ff"} />)}
+          </svg>
+        </>
+      )}
     </>
   );
 }
@@ -236,8 +287,6 @@ function FanMeter({ matchKey, lang }: { matchKey: string; lang: string }) {
         {CHEERS.map((emoji) => <button key={emoji} className="pill" onClick={() => cheer(emoji)} aria-label={`${t(lang, "cheer")} ${emoji}`}>{emoji}</button>)}
       </div>
       {note && <p className="small">{note}</p>}
-      <AdSlot slot="fan_meter" matchKey={matchKey} />
-      <AdSlot slot="cheer" matchKey={matchKey} />
     </section>
   );
 }
@@ -253,7 +302,6 @@ function MiniPlay({ matchKey, lang }: { matchKey: string; lang: string }) {
     <section className="card">
       <h2>Break games</h2>
       <p className="small">Free. Points only. No cash.</p>
-      <AdSlot slot="minigame" matchKey={matchKey} />
       {data.trivia && (
         <div>
           <p>{lang === "hi" ? data.trivia.promptHi : data.trivia.prompt}</p>
@@ -300,7 +348,6 @@ function Vote({ matchKey, open }: { matchKey: string; open: boolean }) {
   return (
     <section className="card">
       <h2>Fan vote</h2>
-      <AdSlot slot="fan_vote" matchKey={matchKey} />
       <p className="small">Opens late. The result is fans versus the stats card. Points only.</p>
       {data.categories.map((c: any) => (
         <div key={c.id}>

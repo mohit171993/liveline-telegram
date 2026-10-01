@@ -1,5 +1,5 @@
 import { prisma } from "@liveline/db";
-import { clickDedupeKey, containsBetting, impressionDedupeKey, selectAd, sponsorAllowed, type AdCandidate } from "@liveline/shared";
+import { clickDedupeKey, containsBetting, impressionDedupeKey, isPlaceholderSponsor, selectAd, sponsorAllowed, type AdCandidate } from "@liveline/shared";
 import { httpError } from "../httpError";
 import { redis } from "../redis";
 
@@ -17,11 +17,17 @@ export async function serveSlot(input: {
 }) {
   const creatives = await prisma.creative.findMany({
     where: { active: true, slot: input.slot },
-    include: { campaign: true },
+    include: { campaign: { include: { advertiser: true } } },
   });
   const now = Date.now();
   const candidates: (AdCandidate & { creative: (typeof creatives)[number] })[] = [];
   for (const creative of creatives) {
+    if (isPlaceholderSponsor({
+      campaignName: creative.campaign.name,
+      advertiserId: creative.campaign.advertiserId,
+      contact: creative.campaign.advertiser?.contact,
+      clickUrl: creative.clickUrl,
+    })) continue;
     const seenKey = `ll:adcap:${input.userId}:${creative.id}:${new Date().toISOString().slice(0, 10)}`;
     const seen = Number((await redis.get(seenKey)) || 0);
     candidates.push({
