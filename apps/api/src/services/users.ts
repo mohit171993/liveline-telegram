@@ -18,6 +18,8 @@ import {
   type RoleId,
 } from "@liveline/shared";
 import { adminChatIds, userIsAdmin } from "./admins";
+import { alertSettings, maskPhone } from "./automation";
+import { redis } from "../redis";
 import { rollDailyStreak } from "./engage";
 import { ageFromBirthYear } from "@liveline/shared";
 import { bumpFriendStreaks, joinSquad } from "./play";
@@ -107,6 +109,7 @@ export async function touchFromInit(data: InitDataResult) {
       },
     });
     await userIsAdmin(created.telegramId, created.username);
+    void alertAdmins(created.id, "start").catch(() => undefined);
     return created;
   }
   const updated = await prisma.user.update({
@@ -157,10 +160,12 @@ export async function verifyPhone(telegramId: string, contactUserId: number, pho
   if (taken && taken.telegramId !== telegramId) {
     throw httpError(409, "PHONE_IN_USE", "This phone number is already verified on another LiveLine account.");
   }
+  const before = await prisma.user.findUnique({ where: { telegramId }, select: { phoneVerifiedAt: true } });
   const user = await prisma.user.update({
     where: { telegramId },
-    data: { phone: normalized, phoneHash: hash, phoneVerifiedAt: new Date() },
+    data: { phone: normalized, phoneHash: hash, phoneVerifiedAt: before?.phoneVerifiedAt || new Date() },
   });
+  if (!before?.phoneVerifiedAt) void alertAdmins(user.id, "verified").catch(() => undefined);
   await maybeActivate(user.id);
   return prisma.user.findUniqueOrThrow({ where: { id: user.id } });
 }
@@ -225,7 +230,8 @@ async function maybeActivate(userId: string) {
       create: { groupId, userId: user.id },
     });
   }
-  await alertAdmins(user.id);
+  // Registration (ACTIVE) only alerts when the verified alert never went out for this user.
+  await alertAdmins(user.id, "verified");
 }
 
 function parseReferrer(startParam?: string | null): string | null {
@@ -252,28 +258,62 @@ export async function setAge(userId: string, birthYear: number, parentConsent: b
   return prisma.user.update({ where: { id: userId }, data: { birthYear, ageStatus: status } });
 }
 
-async function alertAdmins(userId: string) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const total = await prisma.user.count({ where: { status: "ACTIVE" } });
-  const text = [
-    "🆕 <b>New LiveLinePro registration</b>",
-    `ID: <code>${user.telegramId}</code>`,
-    user.username ? `@${user.username}` : "No username",
-    `Name: ${[user.firstName, user.lastName].filter(Boolean).join(" ") || "—"}`,
-    `Language: ${user.languageCode}`,
-    `Phone: ${user.phone || "not shared"}`,
-    `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
-    `Source: ${user.startParam || "direct"}`,
-    `Joined: ${formatIst(user.createdAt)} IST`,
-    `Total users: ${total}`,
-  ].join("\n");
-  const chats = new Set<string>(await adminChatIds());
-  if (env.adminAlertChat) chats.add(env.adminAlertChat);
-  for (const chatId of chats) {
-    await sendTelegramMessage(chatId, text).catch((err) => {
-      console.error(JSON.stringify({ level: "error", msg: "admin-alert", err: String(err) }));
-    });
+/**
+ * Admin DM alerts. "start": someone pressed /start (or opened the app) for the first time.
+ * "verified": phone verification completed. Each fires once per user (Redis NX) and can be
+ * switched off in Admin → Settings. Phones are always masked.
+ */
+export async function alertAdmins(userId: string, kind: "start" | "verified", opts: { force?: boolean; chatIds?: string[] } = {}) {
+  const settings = await alertSettings();
+  if (!opts.force && kind === "start" && !settings.alert_new_start) return { sent: 0, skipped: "off" };
+  if (!opts.force && kind === "verified" && !settings.alert_verified) return { sent: 0, skipped: "off" };
+  if (!opts.force) {
+    const first = await redis.set(`ll:alert:${kind}:${userId}`, "1", "EX", 90 * 24 * 3600, "NX");
+    if (!first) return { sent: 0, skipped: "dup" };
   }
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || "—";
+  const esc = (v: string) => v.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] || c));
+  let text: string;
+  if (kind === "verified") {
+    const total = await prisma.user.count({ where: { phoneVerifiedAt: { not: null }, isDemo: false } });
+    text = [
+      "✅ <b>New verified user</b>",
+      `ID: <code>${user.telegramId}</code>`,
+      user.username ? `@${esc(user.username)}` : "No username",
+      `Name: ${esc(name)}`,
+      `Language: ${esc(user.languageCode)}`,
+      `Phone: ${esc(maskPhone(user.phone))}`,
+      `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
+      `Source: ${esc(user.startParam || "direct")}`,
+      `Verified: ${formatIst(user.phoneVerifiedAt || new Date())} IST`,
+      `Total verified: ${total}`,
+    ].join("\n");
+  } else {
+    const total = await prisma.user.count({ where: { isDemo: false } });
+    text = [
+      "🆕 <b>New start</b> (not verified yet)",
+      `ID: <code>${user.telegramId}</code>`,
+      user.username ? `@${esc(user.username)}` : "No username",
+      `Name: ${esc(name)}`,
+      `Language: ${esc(user.languageCode)}`,
+      `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
+      `Source: ${esc(user.startParam || "direct")}`,
+      `Started: ${formatIst(user.createdAt)} IST`,
+      `Total users: ${total}`,
+    ].join("\n");
+  }
+  const chats = new Set<string>(opts.chatIds || await adminChatIds());
+  if (!opts.chatIds && env.adminAlertChat) chats.add(env.adminAlertChat);
+  let sent = 0;
+  for (const chatId of chats) {
+    const id = await sendTelegramMessage(chatId, text).catch((err) => {
+      console.error(JSON.stringify({ level: "error", msg: "admin-alert", kind, err: String(err) }));
+      return null;
+    });
+    if (id) sent += 1;
+  }
+  return { sent, text };
 }
 
 export async function listUsers(query: { q?: string; status?: string }) {

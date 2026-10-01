@@ -4,11 +4,26 @@ import { onFeedEvents, startPoller } from "./feed";
 import { handleFeed } from "./services/alerts";
 import { startWorkers } from "./jobs";
 import { refreshBalance } from "./services/rewards";
+import { channelTick } from "./services/channel";
+import { runReminders } from "./services/reminders";
+import { runBroadcasts } from "./services/crm";
+
+function every(ms: number, name: string, fn: () => Promise<unknown>) {
+  let busy = false;
+  setInterval(() => {
+    if (busy) return;
+    busy = true;
+    fn().catch((err) => console.error(JSON.stringify({ level: "error", msg: name, err: String(err) }))).finally(() => { busy = false; });
+  }, ms);
+}
 
 async function main() {
   onFeedEvents(handleFeed);
   startPoller();
   await startWorkers();
+  every(30_000, "channel-tick", () => channelTick());
+  every(15_000, "broadcasts", () => runBroadcasts());
+  every(5 * 60_000, "reminders", () => runReminders());
   http.createServer((_req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));

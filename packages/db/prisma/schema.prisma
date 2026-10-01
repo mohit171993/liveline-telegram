@@ -59,6 +59,8 @@ model User {
   blockReason     String?
   isDemo          Boolean   @default(false)
   lastSeenAt      DateTime?
+  optOut          Boolean   @default(false)
+  botBlockedAt    DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -685,4 +687,102 @@ model AdminAudit {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+model CrmTag {
+  id        String   @id @default(cuid())
+  userId    String
+  tag       String
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tag])
+  @@index([tag])
+}
+
+model CrmNote {
+  id        String   @id @default(cuid())
+  userId    String
+  body      String
+  actorId   String?
+  actorName String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model CrmSegment {
+  id        String   @id @default(cuid())
+  name      String
+  filter    String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Broadcast {
+  id          String    @id @default(cuid())
+  text        String
+  buttonText  String?
+  buttonParam String?
+  filter      String    @default("{}")
+  segmentName String?
+  status      String    @default("draft")
+  scheduledAt DateTime?
+  createdBy   String?
+  confirmedBy String?
+  confirmedAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  total       Int       @default(0)
+  sent        Int       @default(0)
+  failed      Int       @default(0)
+  blocked     Int       @default(0)
+  opened      Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  deliveries BroadcastDelivery[]
+
+  @@index([status, scheduledAt])
+}
+
+model BroadcastDelivery {
+  id          String    @id @default(cuid())
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  userId      String
+  telegramId  String
+  status      String    @default("queued")
+  messageId   Int?
+  error       String?
+  sentAt      DateTime?
+  openedAt    DateTime?
+
+  @@unique([broadcastId, userId])
+  @@index([broadcastId, status])
+  @@index([userId])
+}
+
+model AutoRule {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  config    String   @default("{}")
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+model AutoSend {
+  id        String    @id @default(cuid())
+  userId    String
+  ruleKey   String
+  step      Int       @default(0)
+  dedupeKey String    @unique
+  status    String
+  error     String?
+  sentAt    DateTime  @default(now())
+  openedAt  DateTime?
+
+  @@index([userId, sentAt])
+  @@index([ruleKey, sentAt])
 }

@@ -37,6 +37,13 @@ export function Home({ me }: { me: Me }) {
 
   return (
     <>
+      {me.user.admin && (
+        <button className="admin-tile" onClick={() => { haptic("medium"); nav("/admin"); }}>
+          <span className="admin-tile-icon">🛠</span>
+          <span><b>Admin panel</b><small>CRM · Broadcasts · Automations · Channel · Reports</small></span>
+          <span className="admin-tile-go">›</span>
+        </button>
+      )}
       {!matches && <><div className="skel hero-skel" /><div className="skel" /><div className="skel" /></>}
       {matches && featured.length > 0 && (
         <div className="hero-rail">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, type Me } from "../lib";
 
 const privacy = `LiveLine Pro stores only what Telegram gives us (ID, name, username, language, Premium flag) and the phone number you choose to share with Telegram's contact button. We use it to keep one account per person, send reminders, and deliver gift vouchers to that number. We never read your phone book. Points, spins and vouchers have no cash value. There is no betting.`;
@@ -6,6 +7,7 @@ const privacy = `LiveLine Pro stores only what Telegram gives us (ID, name, user
 export function Gate({ mode, me, message, onDone }: { mode: "outside" | "register" | "blocked" | "error"; me?: Me; message?: string; onDone?: (me: Me) => void }) {
   const [terms, setTerms] = useState(false);
   const [note, setNote] = useState("");
+  const nav = useNavigate();
   if (mode === "outside") {
     return (
       <div className="gate">
@@ -22,6 +24,13 @@ export function Gate({ mode, me, message, onDone }: { mode: "outside" | "registe
   if (mode === "error") return <div className="gate"><h1>LiveLine</h1><p>{message}</p></div>;
   return (
     <div className="app">
+      {me?.user.admin && (
+        <button className="admin-tile" onClick={() => nav("/admin")}>
+          <span className="admin-tile-icon">🛠</span>
+          <span><b>Admin panel</b><small>You're on the admin list: open it now, verify later.</small></span>
+          <span className="admin-tile-go">›</span>
+        </button>
+      )}
       <h1 className="font-display text-5xl">Verify</h1>
       <p className="small">{privacy}</p>
       <label className="flex gap-2 items-start mt-4"><input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} /> <span>{me?.user.language === "hi" ? "मैं नियम और गोपनीयता सूचना मानता हूँ" : "I agree to the terms and privacy notice"}</span></label>

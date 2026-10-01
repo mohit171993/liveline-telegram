@@ -231,9 +231,14 @@ export async function authenticate(
     await reply.code(403).send({ error: "BLOCKED", message: "This account is blocked." });
     return null;
   }
-  if (opts.admin && !(await userIsAdmin(user.telegramId, user.username))) {
-    await reply.code(403).send({ error: "ADMIN_ONLY" });
-    return null;
+  if (opts.admin) {
+    if (!(await userIsAdmin(user.telegramId, user.username))) {
+      await reply.code(403).send({ error: "ADMIN_ONLY" });
+      return null;
+    }
+    // Listed admins run the panel from signed Telegram initData even before they share a
+    // phone; the player app (predictions, rewards) still needs verification.
+    return user;
   }
   if (opts.registered !== false && user.status !== "ACTIVE") {
     await reply.code(403).send({

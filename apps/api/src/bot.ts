@@ -9,6 +9,10 @@ import { redis } from "./redis";
 import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
 import { pinLive, upsertSquad } from "./services/play";
 import { rememberChannelPost } from "./services/reports";
+import { adminChatIds } from "./services/admins";
+import { confirmBroadcast, createBroadcast, findUserBrief, cancelBroadcast } from "./services/crm";
+import { maskPhone } from "./services/automation";
+import { formatIst } from "@liveline/shared";
 import { signInitData } from "@liveline/shared";
 
 /** Per-chat menu button: the Mini App only after the phone is verified, plain commands before. */
@@ -84,6 +88,10 @@ const HOW_IT_WORKS = [
   "No deposits, no betting, no cash. Points are free and have no money value.",
 ].join("\n");
 
+function escHtml(value: string): string {
+  return value.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] || c));
+}
+
 function channelLink() {
   return channelUrl() || "https://t.me/LiveLine_Pro";
 }
@@ -102,7 +110,13 @@ function guestKeyboard() {
 }
 
 /** Verified home grid: 2 columns, every button opens the Mini App deep link. */
-function homeKeyboard(telegramId: number) {
+function homeKeyboard(telegramId: number, admin = false) {
+  const kb = homeGrid(telegramId);
+  if (admin) kb.row().webApp("🛠 Admin panel", webApp("/admin")).danger();
+  return kb;
+}
+
+function homeGrid(telegramId: number) {
   return new InlineKeyboard()
     .url("🏏 Live Scores", miniAppLink("live")).primary()
     .url("🎯 Predict", miniAppLink("predict")).success()
@@ -143,6 +157,22 @@ async function isVerified(telegramId: number): Promise<boolean> {
 export function createBot() {
   const bot = new Bot(env.botToken || "0:MOCK");
 
+  // Reachability: a user who blocks the bot is skipped by reminders/broadcasts; talking to us again clears it.
+  bot.on("my_chat_member", async (ctx) => {
+    if (ctx.chat?.type !== "private" || !ctx.from) return;
+    const status = ctx.myChatMember.new_chat_member.status;
+    await prisma.user.updateMany({
+      where: { telegramId: String(ctx.from.id) },
+      data: { botBlockedAt: status === "kicked" ? new Date() : null },
+    }).catch(() => undefined);
+  });
+  bot.use(async (ctx, next) => {
+    if (ctx.chat?.type === "private" && ctx.from && (ctx.message || ctx.callbackQuery)) {
+      await prisma.user.updateMany({ where: { telegramId: String(ctx.from.id), botBlockedAt: { not: null } }, data: { botBlockedAt: null } }).catch(() => undefined);
+    }
+    return next();
+  });
+
   // Gate: in a private chat, an unverified user gets the verify keyboard again on any
   // message, command (except /start, handled below) or button tap. Contacts pass through.
   bot.use(async (ctx, next) => {
@@ -152,6 +182,9 @@ export function createBot() {
     if (/^\/help(@\w+)?(\s|$)/.test(ctx.message?.text || "")) return next();
     const text = ctx.message?.text || "";
     if (/^\/start(@\w+)?(\s|$)/.test(text)) return next();
+    // /admin answers listed admins even before phone verification; /stop and /resume always work.
+    if (/^\/(admin|stop|resume)(@\w+)?(\s|$)/.test(text)) return next();
+    if (ctx.callbackQuery?.data?.startsWith("adm:")) return next();
     if (!ctx.message && !ctx.callbackQuery) return next();
     if (await isVerified(ctx.from.id)) return next();
     if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => undefined);
@@ -174,7 +207,9 @@ export function createBot() {
         return;
       }
       await setChatMenu(ctx.api, ctx.chat.id, true);
-      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from!.id));
+      const isAdmin = await userIsAdmin(ctx.from!.id, ctx.from!.username);
+      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from!.id, isAdmin));
+      if (user.optOut) await ctx.reply("🔕 Reminders are off. Send /resume to turn them back on.");
       return;
     }
     const link = miniAppLink(`grp_${ctx.chat.id}`);
@@ -194,7 +229,7 @@ export function createBot() {
         user.status === "ACTIVE" ? "You're in." : "You're in. Accept the terms in the app to finish.",
         { reply_markup: { remove_keyboard: true } },
       );
-      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from.id));
+      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from.id, await userIsAdmin(ctx.from.id, ctx.from.username)));
     } catch (err) {
       await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.", {
         reply_markup: verifyKeyboard(),
@@ -324,33 +359,102 @@ export function createBot() {
     await ctx.reply("Sponsor manager", { reply_markup: new InlineKeyboard().webApp("🏏 Open ad manager", webApp("/admin")).primary() });
   });
 
-  bot.command("broadcast", async (ctx) => {
-    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.reply("Admins only.");
-    const text = ctx.match?.trim();
-    if (!text) return ctx.reply("Usage: /broadcast your message");
-    await redis.set(`ll:botbcast:${ctx.from.id}`, text, "EX", 120);
-    await ctx.reply(`Send this to every verified user?\n\n${text}`, {
-      reply_markup: new InlineKeyboard().text("✅ Confirm", "bcast:yes").success().text("Cancel", "bcast:no").danger(),
-    });
+  bot.command("stop", async (ctx) => {
+    if (ctx.chat.type !== "private" || !ctx.from) return;
+    await prisma.user.updateMany({ where: { telegramId: String(ctx.from.id) }, data: { optOut: true } });
+    await ctx.reply("🔕 Done. No more reminders or announcements from us.\nYou can still use the app any time. Send /resume to turn reminders back on.");
   });
 
-  bot.callbackQuery("bcast:yes", async (ctx) => {
-    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return;
-    const text = await redis.get(`ll:botbcast:${ctx.from.id}`);
-    if (!text) return ctx.answerCallbackQuery({ text: "Expired" });
-    await redis.del(`ll:botbcast:${ctx.from.id}`);
-    const users = await prisma.user.findMany({ where: { status: "ACTIVE" }, select: { telegramId: true } });
-    for (const user of users) {
-      await ctx.api.sendMessage(user.telegramId, text).catch(() => undefined);
+  bot.command("resume", async (ctx) => {
+    if (ctx.chat.type !== "private" || !ctx.from) return;
+    await prisma.user.updateMany({ where: { telegramId: String(ctx.from.id) }, data: { optOut: false } });
+    await ctx.reply("🔔 Reminders are back on. Max 2 a day, never at night. Send /stop any time.");
+  });
+
+  // /admin: listed admins only (silent for everyone else). Shortcuts:
+  //   /admin find @handle | <telegram id>
+  //   /admin broadcast <text>   → draft to all verified users, sends only after ✅ Confirm
+  bot.command("admin", async (ctx) => {
+    if (ctx.chat.type !== "private" || !ctx.from) return;
+    if (!(await userIsAdmin(ctx.from.id, ctx.from.username))) return;
+    const arg = (ctx.match || "").trim();
+    const [sub, ...rest] = arg.split(/\s+/);
+    const tail = arg.slice(sub.length).trim();
+    if (sub === "find" && rest.length) {
+      const hit = await findUserBrief(tail);
+      if (!hit) return ctx.reply(`No user matches <code>${escHtml(tail)}</code>.`, { parse_mode: "HTML" });
+      const u = hit.user;
+      const lines = [
+        `👤 <b>${escHtml([u.firstName, u.lastName].filter(Boolean).join(" ") || "—")}</b>${u.username ? ` @${escHtml(u.username)}` : ""}`,
+        `ID: <code>${u.telegramId}</code> · ${u.phoneVerifiedAt ? "✅ verified" : "⏳ not verified"} · ${u.status}`,
+        `Phone: ${escHtml(maskPhone(u.phone))} · Lang: ${u.languageCode}${u.isPremium ? " · ⭐ Premium" : ""}`,
+        `Source: ${escHtml(u.startParam || "direct")}`,
+        `Points: ${u.points} · Predictions: ${u._count.predictions} · Spins: ${u._count.spins}`,
+        `Joined: ${formatIst(u.createdAt)} IST`,
+        `Last seen: ${u.lastSeenAt ? `${formatIst(u.lastSeenAt)} IST` : "—"}`,
+        u.optOut ? "🔕 Opted out of reminders" : "",
+        u.botBlockedAt ? "⛔ Has blocked the bot" : "",
+        hit.tags.length ? `Tags: ${hit.tags.map(escHtml).join(", ")}` : "",
+      ].filter(Boolean);
+      return ctx.reply(lines.join("\n"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().webApp("📇 Open CRM profile", webApp(`/admin/crm/user/${u.id}`)).primary(),
+      });
     }
-    await ctx.editMessageText(`Sent to ${users.length} users.`);
-    await ctx.answerCallbackQuery();
+    if (sub === "broadcast" && rest.length) {
+      try {
+        const draft = await createBroadcast({ text: tail, filter: { verified: "yes" } }, String(ctx.from.id));
+        return ctx.reply(
+          `📣 <b>Broadcast draft</b> to <b>${draft.total}</b> verified, reachable users (opted-out and blocked users are skipped):\n\n${draft.html}\n\nNothing is sent until you tap ✅ Confirm.`,
+          {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard()
+              .text(`✅ Confirm & send to ${draft.total}`, `adm:bc:yes:${draft.id}`).success()
+              .row()
+              .text("✖️ Cancel", `adm:bc:no:${draft.id}`).danger(),
+          },
+        );
+      } catch (err) {
+        return ctx.reply(`Could not create the draft: ${escHtml(err instanceof Error ? err.message : String(err))}`, { parse_mode: "HTML" });
+      }
+    }
+    await ctx.reply(
+      [
+        "🛠 <b>LiveLine Pro admin</b>",
+        "",
+        "Shortcuts:",
+        "• <code>/admin find @handle</code> or <code>/admin find 123456789</code>",
+        "• <code>/admin broadcast Your message</code> (draft → you confirm)",
+      ].join("\n"),
+      {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard()
+          .webApp("🛠 Open Admin panel", webApp("/admin")).primary()
+          .row()
+          .webApp("📇 CRM users", webApp("/admin/crm"))
+          .webApp("📣 Broadcasts", webApp("/admin/broadcasts"))
+          .row()
+          .webApp("⚙️ Automations", webApp("/admin/automation"))
+          .webApp("📢 Channel", webApp("/admin/channel")),
+      },
+    );
   });
 
-  bot.callbackQuery("bcast:no", async (ctx) => {
-    if (ctx.from) await redis.del(`ll:botbcast:${ctx.from.id}`);
-    await ctx.editMessageText("Cancelled.");
-    await ctx.answerCallbackQuery();
+  bot.callbackQuery(/^adm:bc:(yes|no):(.+)$/, async (ctx) => {
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.answerCallbackQuery();
+    const [, action, id] = ctx.match as RegExpMatchArray;
+    try {
+      if (action === "no") {
+        await cancelBroadcast(id);
+        await ctx.editMessageText("✖️ Broadcast cancelled. Nothing was sent.");
+      } else {
+        const b = await confirmBroadcast(id, String(ctx.from.id));
+        await ctx.editMessageText(`✅ Confirmed. Sending to ${b.total} users at a safe rate. Track delivery and opens in Admin → Broadcasts.`);
+      }
+      await ctx.answerCallbackQuery();
+    } catch (err) {
+      await ctx.answerCallbackQuery({ text: err instanceof Error ? err.message.slice(0, 180) : "Failed", show_alert: true });
+    }
   });
 
   bot.catch((err) => console.error(JSON.stringify({ level: "error", msg: "bot", err: String(err) })));
@@ -398,6 +502,19 @@ async function main() {
     ],
     { scope: { type: "all_group_chats" } },
   ).catch(() => undefined);
+  // Admins see /admin in their own command menu (chat scope); nobody else does.
+  const userCommands = [
+    { command: "start", description: "🏠 Home" },
+    { command: "live", description: "🔴 Matches in play" },
+    { command: "predict", description: "🎯 Free predictions" },
+    { command: "spin", description: "🎡 Free daily spin" },
+    { command: "leaderboard", description: "🏆 Leaderboard" },
+    { command: "reminders", description: "🔔 Match reminders" },
+    { command: "help", description: "ℹ️ How it works" },
+  ];
+  for (const chatId of await adminChatIds().catch(() => [] as string[])) {
+    await bot.api.setMyCommands([...userCommands, { command: "admin", description: "🛠 Admin panel & CRM" }], { scope: { type: "chat", chat_id: Number(chatId) } }).catch(() => undefined);
+  }
   await bot.start();
 }
 

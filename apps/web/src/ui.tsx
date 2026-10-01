@@ -30,6 +30,7 @@ export function AppHeader({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       <header className="topbar">
         <Wordmark theme={theme} />
         <div className="top-actions">
+          {me.user.admin && <button className="admin-chip" aria-label="Admin panel" onClick={() => { haptic("light"); nav("/admin"); }}>🛠 Admin</button>}
           <button className="points" onClick={() => { haptic("light"); nav("/board"); }}>{me.user.points} {t(lang, "points")}</button>
           <button className="avatar-btn" aria-label="Settings" onClick={() => { haptic("light"); setOpen(true); }}>
             <Avatar look={me.user.look} size={36} />
@@ -63,7 +64,7 @@ export function AppHeader({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
                 </div>
               </div>
               <button className="ghost" onClick={() => { setOpen(false); nav("/avatar"); }}>Edit kit</button>
-              {me.user.admin && <button className="ghost" onClick={() => { setOpen(false); nav("/admin"); }}>Admin</button>}
+              {me.user.admin && <button className="ghost" onClick={() => { setOpen(false); nav("/admin"); }}>🛠 Admin panel</button>}
               <button className="primary" onClick={() => setOpen(false)}>Done</button>
             </motion.div>
           </motion.div>

@@ -2,15 +2,17 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, toast } from "../lib";
 import { Empty } from "../ui";
+import { AdminNav } from "./Crm";
 
 export function Dash() {
   const [data, setData] = useState<any>(null);
   const nav = useNavigate();
   useEffect(() => { api("/api/admin/overview").then(setData).catch(() => setData({ error: true })); }, []);
-  if (!data) return <div className="skel" />;
-  if (data.error) return <p>Admin only.</p>;
+  if (!data) return <div className="admin"><AdminNav /><div className="skel" /></div>;
+  if (data.error) return <div className="admin"><AdminNav /><Empty icon="🛠" title="Admin only" text="This account isn't on the admin list." /></div>;
   return (
-    <>
+    <div className="admin">
+      <AdminNav />
       <h2>Dashboard</h2>
       <div className="kpis">
         <div className="kpi"><span className="small">Users</span><b>{data.active}</b></div>
@@ -25,6 +27,14 @@ export function Dash() {
       <p className="small">Balance {data.giftport?.currency} · {data.giftport?.message}</p>
       <h2>Top matches</h2>
       {(data.top || []).map((row: any) => <div key={row.matchKey} className="board"><span>{row.matchKey}</span><b>{row.views}</b></div>)}
+      <div className="admin-grid">
+        <button className="admin-card" onClick={() => nav("/admin/crm")}><span>📇</span><b>CRM</b><small>Users, filters, profiles, CSV</small></button>
+        <button className="admin-card" onClick={() => nav("/admin/broadcasts")}><span>📣</span><b>Broadcast</b><small>Segments, test, schedule</small></button>
+        <button className="admin-card" onClick={() => nav("/admin/automation")}><span>⚙️</span><b>Automations</b><small>Verify nudges, reminders</small></button>
+        <button className="admin-card" onClick={() => nav("/admin/channel")}><span>📢</span><b>Channel</b><small>Auto-post cards</small></button>
+        <button className="admin-card" onClick={() => nav("/admin/funnel")}><span>🧭</span><b>Funnel</b><small>Start → verify → predict → return</small></button>
+        <button className="admin-card" onClick={() => nav("/admin/settings")}><span>🔔</span><b>Alerts</b><small>New start / verified DMs</small></button>
+      </div>
       <button className="report-entry" onClick={() => nav("/admin/reports")}>
         <b>Reports</b>
         <span>Users, play, matches, ads, rewards, channel</span>
@@ -33,7 +43,7 @@ export function Dash() {
       <button className="ghost w-full" onClick={() => nav("/admin/users")}>Users</button>
       <button className="ghost w-full" onClick={() => nav("/admin/admins")}>Admins</button>
       <button className="ghost w-full" onClick={() => nav("/admin/fulfilment")}>Fulfilment</button>
-    </>
+    </div>
   );
 }
 

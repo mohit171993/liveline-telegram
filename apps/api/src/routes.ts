@@ -1,3 +1,4 @@
+import { crmRoutes } from "./crmRoutes";
 import fs from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
@@ -581,6 +582,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
 }
 
 async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
+  await crmRoutes(app, authenticate);
   app.get("/api/admin/admins", async (req, reply) => {
     const user = await authenticate(req, reply, { admin: true });
     if (!user) return;

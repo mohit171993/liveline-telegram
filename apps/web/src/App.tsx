@@ -9,6 +9,7 @@ import { RewardsPage } from "./screens/Rewards";
 import { AlertsPage } from "./screens/Alerts";
 import { BuddyPage } from "./screens/Buddy";
 import { Admins, CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
+import { AdminSettings, Automation, Broadcasts, ChannelAdmin, CrmUser, CrmUsers, Funnel } from "./screens/Crm";
 import { Reports } from "./screens/Reports";
 import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
 import { PlayPage } from "./screens/Play";
@@ -50,22 +51,40 @@ export function App() {
   const location = useLocation();
   const ready = Boolean(me?.user.registered && !me?.user.needsAge && !me?.user.blocked);
   useEffect(() => {
-    if (!ready) return;
+    if (!me) return;
     const param = window.Telegram?.WebApp?.initDataUnsafe?.start_param || "";
     // Handle each launch once (keyed by the signed launch), so a later deep link in the same webview still works.
     const launch = `ll:deeplink:${window.Telegram?.WebApp?.initData?.slice(-24) || ""}`;
     if (!param || sessionStorage.getItem(launch)) return;
-    const target = deepLinkRoute(param);
+    // Admins reach the panel even before phone verification / terms.
+    const adminTarget = (param === "admin" || param === "crm") && me.user.admin;
+    if (!ready && !adminTarget) return;
+    // Tracked links from broadcasts / reminders: b_<id>__<screen>, r_<id>__<screen>.
+    const tracked = param.match(/^[br]_[A-Za-z0-9]+__([a-z]+)$/);
+    if (tracked) api("/api/track/open", { method: "POST", body: JSON.stringify({ param }) }).catch(() => undefined);
+    const target = deepLinkRoute(tracked ? tracked[1] : param);
     if (target) {
       sessionStorage.setItem(launch, "1");
       nav(target, { replace: true });
     }
-  }, [ready, nav]);
+  }, [ready, me, nav]);
 
   if (!inTelegram()) return <><Gate mode="outside" />{splash && <Splash onDone={() => setSplash(false)} />}</>;
   if (loading) return <div className="app"><div className="skel" /><div className="skel" /><div className="skel" /></div>;
   if (err && !me) return <Gate mode="error" message={err} />;
   if (me?.user.blocked) return <Gate mode="blocked" />;
+  // Listed admins can always open the admin panel, even before verification.
+  const adminOnly = me?.user.admin && (!me.user.registered || me.user.needsAge);
+  if (adminOnly && location.pathname.startsWith("/admin")) {
+    return (
+      <div className="app">
+        <Toaster />
+        <ErrorBoundary resetKey={location.pathname}>
+          <Routes>{adminRoutes()}<Route path="*" element={<Dash />} /></Routes>
+        </ErrorBoundary>
+      </div>
+    );
+  }
   if (me && !me.user.registered) return <Gate mode="register" me={me} onDone={setMe} />;
   if (me?.user.needsAge) return <AgeGate me={me} onDone={setMe} />;
 
@@ -89,12 +108,7 @@ export function App() {
         <Route path="/alerts" element={<AlertsPage lang={lang} />} />
         <Route path="/ai/:key" element={<BuddyPage lang={lang} />} />
         <Route path="/advertise" element={<AdvertisePage />} />
-        <Route path="/admin" element={<Dash />} />
-        <Route path="/admin/reports" element={<Reports />} />
-        <Route path="/admin/new" element={<CreateCampaign />} />
-        <Route path="/admin/users" element={<Users />} />
-        <Route path="/admin/admins" element={<Admins />} />
-        <Route path="/admin/fulfilment" element={<Fulfilment />} />
+        {adminRoutes()}
         <Route path="/ai" element={<BuddyPage lang={lang} />} />
         <Route path="*" element={<Home me={me!} />} />
       </Routes>
@@ -102,6 +116,24 @@ export function App() {
       <TabBar lang={lang} />
     </div>
   );
+}
+
+function adminRoutes() {
+  return [
+    <Route key="a" path="/admin" element={<Dash />} />,
+    <Route key="r" path="/admin/reports" element={<Reports />} />,
+    <Route key="n" path="/admin/new" element={<CreateCampaign />} />,
+    <Route key="u" path="/admin/users" element={<Users />} />,
+    <Route key="ad" path="/admin/admins" element={<Admins />} />,
+    <Route key="f" path="/admin/fulfilment" element={<Fulfilment />} />,
+    <Route key="c" path="/admin/crm" element={<CrmUsers />} />,
+    <Route key="cu" path="/admin/crm/user/:id" element={<CrmUser />} />,
+    <Route key="b" path="/admin/broadcasts" element={<Broadcasts />} />,
+    <Route key="au" path="/admin/automation" element={<Automation />} />,
+    <Route key="ch" path="/admin/channel" element={<ChannelAdmin />} />,
+    <Route key="fu" path="/admin/funnel" element={<Funnel />} />,
+    <Route key="s" path="/admin/settings" element={<AdminSettings />} />,
+  ];
 }
 
 /** Live tab: open the match in play now, else the next one up, else the most recent. */
@@ -146,6 +178,7 @@ export function deepLinkRoute(param: string): string | null {
     season: "/pass",
     avatar: "/avatar",
     admin: "/admin",
+    crm: "/admin/crm",
   };
   if (param.startsWith("match_")) return `/match/${param.slice("match_".length)}`;
   if (param.startsWith("predict_")) return `/predict/${param.slice("predict_".length)}`;
