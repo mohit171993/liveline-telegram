@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { prisma } from "@liveline/db";
 import { formatIst, istDay, projectMatch, type AdvanceResult } from "@liveline/shared";
-import { env, channelUrl } from "../env";
+import { env, matchLink, miniAppLink } from "../env";
 import { bullConnection } from "../redis";
 import { redis } from "../redis";
 import { sendTelegramMessage } from "../telegram";
@@ -99,18 +99,25 @@ function alertBody(kind: string, view: ReturnType<typeof projectMatch>, result?:
 }
 
 async function channelPost(event: AdvanceResult) {
-  if (!env.channelId) return;
-  const interesting = event.moment === "WICKET" || event.events.some((e) => e.startsWith("over:") || e.startsWith("result:") || e.startsWith("start:"));
-  if (!interesting) return;
-  const token = `${event.match.key}:${event.ball?.i ?? event.events[0] ?? event.moment}`;
-  const ok = await redis.set(`ll:chan:${token}`, "1", "EX", 3600, "NX");
+  if (!env.channelAutopost || !env.channelId) return;
+  // Only LIVE matches. Never post upcoming or finished cards (e.g. on a cold start).
+  if (event.match.status !== "live" || event.match.demo) return;
+  const kind = event.moment === "WICKET"
+    ? "wicket"
+    : event.events.find((e) => e.startsWith("start:"))
+      ? "start"
+      : event.events.find((e) => e.startsWith("over:"));
+  if (!kind) return;
+  // Dedupe across restarts and across api/worker processes: one post per match + moment.
+  const token = `${event.match.key}:${kind}:${event.ball?.i ?? ""}`;
+  const ok = await redis.set(`ll:chan:${token}`, "1", "EX", 7 * 24 * 3600, "NX");
   if (!ok) return;
   const view = projectMatch(event.match, false);
-  const line = view.live
-    ? `${view.teams[view.live.batting].flag} <b>${view.teams[view.live.batting].code} ${view.live.runs}/${view.live.wickets}</b> (${view.live.overs})\n${view.live.need || `CRR ${view.live.crr}`}`
-    : `<b>${view.name}</b>\n${view.result || "Upcoming"}`;
-  const link = channelUrl() ? `\n${env.webappUrl}` : "";
-  await sendTelegramMessage(env.channelId, `🏏 ${view.name}\n${line}${link}`).catch(() => undefined);
+  if (!view.live) return;
+  const line = `${view.teams[view.live.batting].flag} <b>${view.teams[view.live.batting].code} ${view.live.runs}/${view.live.wickets}</b> (${view.live.overs})\n${view.live.need || `CRR ${view.live.crr}`}`;
+  await sendTelegramMessage(env.channelId, `🔴 LIVE · ${view.name}\n${line}`, {
+    reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: matchLink(event.match.key) }]] },
+  }).catch(() => undefined);
 }
 
 export async function listReminders(userId: string) {
@@ -192,7 +199,9 @@ export async function fireReminder(id: string) {
   } catch {
     return;
   }
-  await sendTelegramMessage(reminder.user.telegramId, `⏰ <b>LiveLine reminder</b>\n${body}\n${env.webappUrl}`);
+  await sendTelegramMessage(reminder.user.telegramId, `⏰ <b>LiveLine reminder</b>\n${body}`, {
+    reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: reminder.matchKey ? matchLink(reminder.matchKey) : miniAppLink() }]] },
+  });
   if (reminder.minutesBefore) await prisma.reminder.update({ where: { id }, data: { status: "fired" } });
 }
 

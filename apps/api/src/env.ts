@@ -17,6 +17,9 @@ export const env = {
   adminAlertChat: process.env.ADMIN_ALERT_CHAT_ID || "",
   channelId: process.env.CHANNEL_ID || "",
   channelUsername: (process.env.CHANNEL_USERNAME || "").replace(/^@/, ""),
+  // Channel auto-posting is OFF unless explicitly enabled.
+  channelAutopost: bool("CHANNEL_AUTOPOST", false),
+  botUsername: (process.env.BOT_USERNAME || "LiveLineProBot").replace(/^@/, ""),
   webappUrl: (process.env.WEBAPP_URL || "http://localhost:5173").replace(/\/$/, ""),
   authMaxAge: Number(process.env.AUTH_MAX_AGE_SECONDS || 86400),
   redisUrl: process.env.REDIS_URL || "redis://localhost:6379",
@@ -56,6 +59,20 @@ export const useMockGiftport =
 
 export function telegramDryRun(): boolean {
   return !env.botToken || env.botToken.includes("MOCK");
+}
+
+/**
+ * Telegram Mini App deep link. Never hand out the raw hosting URL in messages:
+ * t.me/<bot>?startapp=<param> opens the Mini App inside Telegram.
+ * startapp allows [A-Za-z0-9_-], up to 64 chars.
+ */
+export function miniAppLink(param?: string): string {
+  const clean = (param || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  return clean ? `https://t.me/${env.botUsername}?startapp=${clean}` : `https://t.me/${env.botUsername}?startapp`;
+}
+
+export function matchLink(matchKey: string): string {
+  return miniAppLink(`match_${matchKey}`);
 }
 
 export function channelUrl(): string | null {

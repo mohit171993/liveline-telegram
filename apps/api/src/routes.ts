@@ -5,7 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "@liveline/db";
 import { findPlayer, istDay, SPORT_MODULES } from "@liveline/shared";
-import { env, channelUrl } from "./env";
+import { env, channelUrl, matchLink } from "./env";
 import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
@@ -323,7 +323,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     const png = await svgToPng(svg);
     const caption = `${found.view.name}\n${found.view.live ? found.view.live.need || found.view.live.overs : found.view.result || ""}`;
     if (png) await sendTelegramPhoto(user.telegramId, png, caption);
-    else await sendTelegramMessage(user.telegramId, `🏏 ${caption}\n${env.webappUrl}`);
+    else await sendTelegramMessage(user.telegramId, `🏏 ${caption}`, { reply_markup: { inline_keyboard: [[{ text: "Open Live Line", url: matchLink(body.matchKey) }]] } });
     await bumpMission(user.id, "share").catch(() => undefined);
     await grantXp(user.id, 5).catch(() => undefined);
     return { ok: true };

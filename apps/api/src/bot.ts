@@ -2,7 +2,7 @@ import http from "http";
 import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import { prisma } from "@liveline/db";
 import { liveScoreCard, projectMatch, squadCode } from "@liveline/shared";
-import { env, telegramDryRun, channelUrl } from "./env";
+import { env, telegramDryRun, channelUrl, miniAppLink } from "./env";
 import { readUniverse } from "./feed";
 import { redis } from "./redis";
 import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
@@ -51,7 +51,7 @@ export function createBot() {
     }
     await ctx.reply("Open the mini app for the live line, predictions, and reminders.", { reply_markup: kb });
     if (ctx.chat.type !== "private") {
-      const link = `https://t.me/LiveLineProBot/app?startapp=grp_${ctx.chat.id}`;
+      const link = miniAppLink(`grp_${ctx.chat.id}`);
       await ctx.reply(`Group board: ${link}`);
     }
   });

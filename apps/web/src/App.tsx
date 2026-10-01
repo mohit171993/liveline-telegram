@@ -31,6 +31,18 @@ export function App() {
     api<Me>("/api/me").then(setMe).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, []);
 
+  // Deep link: t.me/LiveLineProBot?startapp=match_<key> opens that match.
+  const nav = useNavigate();
+  const ready = Boolean(me?.user.registered && !me?.user.needsAge && !me?.user.blocked);
+  useEffect(() => {
+    if (!ready) return;
+    const param = window.Telegram?.WebApp?.initDataUnsafe?.start_param || "";
+    if (param.startsWith("match_") && !sessionStorage.getItem("ll:deeplink")) {
+      sessionStorage.setItem("ll:deeplink", "1");
+      nav(`/match/${param.slice("match_".length)}`, { replace: true });
+    }
+  }, [ready, nav]);
+
   if (!inTelegram()) return <><Gate mode="outside" />{splash && <Splash onDone={() => setSplash(false)} />}</>;
   if (loading) return <div className="app"><div className="skel" /><div className="skel" /><div className="skel" /></div>;
   if (err && !me) return <Gate mode="error" message={err} />;
