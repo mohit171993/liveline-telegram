@@ -636,3 +636,32 @@ model MatchViewStat {
 
   @@id([matchKey, day])
 }
+
+model AdminAccount {
+  id           String    @id @default(cuid())
+  telegramId   String?
+  username     String?
+  usernameNorm String?
+  role         String
+  source       String    @default("panel")
+  addedBy      String?
+  boundAt      DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([revokedAt])
+}
+
+model AdminAudit {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetId   String?
+  targetUser String?
+  role       String?
+  detail     String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -1,15 +1,13 @@
 import http from "http";
 import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import { prisma } from "@liveline/db";
-import { isAdmin, liveScoreCard, parseAdminList, projectMatch, squadCode } from "@liveline/shared";
+import { liveScoreCard, projectMatch, squadCode } from "@liveline/shared";
 import { env, telegramDryRun, channelUrl } from "./env";
 import { readUniverse } from "./feed";
 import { redis } from "./redis";
-import { verifyPhone, touchFromInit } from "./services/users";
+import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
 import { pinLive, upsertSquad } from "./services/play";
 import { signInitData } from "@liveline/shared";
-
-const admins = () => parseAdminList(env.adminRaw);
 
 function webApp(path = "") {
   return `${env.webappUrl}${path}`;
@@ -140,7 +138,7 @@ export function createBot() {
   });
 
   bot.command("stats", async (ctx) => {
-    if (!ctx.from || !isAdmin(admins(), ctx.from.id, ctx.from.username)) return ctx.reply("Admins only.");
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.reply("Admins only.");
     const users = await prisma.user.count({ where: { status: "ACTIVE" } });
     const dau = await prisma.session.findMany({
       where: { startedAt: { gte: new Date(Date.now() - 24 * 3600_000) } },
@@ -151,12 +149,12 @@ export function createBot() {
   });
 
   bot.command("ads", async (ctx) => {
-    if (!ctx.from || !isAdmin(admins(), ctx.from.id, ctx.from.username)) return ctx.reply("Admins only.");
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.reply("Admins only.");
     await ctx.reply("Sponsor manager", { reply_markup: new InlineKeyboard().webApp("Open ad manager", webApp("/admin")) });
   });
 
   bot.command("broadcast", async (ctx) => {
-    if (!ctx.from || !isAdmin(admins(), ctx.from.id, ctx.from.username)) return ctx.reply("Admins only.");
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.reply("Admins only.");
     const text = ctx.match?.trim();
     if (!text) return ctx.reply("Usage: /broadcast your message");
     await redis.set(`ll:botbcast:${ctx.from.id}`, text, "EX", 120);
@@ -166,7 +164,7 @@ export function createBot() {
   });
 
   bot.callbackQuery("bcast:yes", async (ctx) => {
-    if (!ctx.from || !isAdmin(admins(), ctx.from.id, ctx.from.username)) return;
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return;
     const text = await redis.get(`ll:botbcast:${ctx.from.id}`);
     if (!text) return ctx.answerCallbackQuery({ text: "Expired" });
     await redis.del(`ll:botbcast:${ctx.from.id}`);

@@ -11,6 +11,7 @@ import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
 import type { authenticate as AuthFn } from "./server";
 import { acceptTerms, avatarShop, listUsers, publicUser, saveAvatar, setAge, setBlocked, setLanguage, usersCsv } from "./services/users";
+import { addAdmin, listAdminRoster, removeAdmin, setAdminRole, adminChatIds } from "./services/admins";
 import { leaderboard, placePrediction, predictionState } from "./services/game";
 import { assertCleanCopy, assertSponsorCategory, recordAdEvent, reportCsv, reportRows, serveSlot } from "./services/ads";
 import { createReminder, deleteReminder, listReminders, updateReminder } from "./services/alerts";
@@ -51,7 +52,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
   app.get("/api/me", async (req, reply) => {
     const user = await authenticate(req, reply, { registered: false });
     if (!user) return;
-    return { user: publicUser(user), channelUrl: channelUrl(), sports: SPORT_MODULES };
+    return { user: await publicUser(user), channelUrl: channelUrl(), sports: SPORT_MODULES };
   });
 
   app.post("/api/auth/terms", async (req, reply) => {
@@ -59,21 +60,21 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     if (!user) return;
     const body = z.object({ accepted: z.literal(true) }).parse(req.body);
     if (!body.accepted) throw httpError(400, "TERMS");
-    return { user: publicUser(await acceptTerms(user.id)) };
+    return { user: await publicUser(await acceptTerms(user.id)) };
   });
 
   app.post("/api/auth/age", async (req, reply) => {
     const user = await authenticate(req, reply, { registered: false });
     if (!user) return;
     const body = z.object({ birthYear: z.number().int(), parentConsent: z.boolean().default(false) }).parse(req.body);
-    return { user: publicUser(await setAge(user.id, body.birthYear, body.parentConsent)) };
+    return { user: await publicUser(await setAge(user.id, body.birthYear, body.parentConsent)) };
   });
 
   app.post("/api/auth/language", async (req, reply) => {
     const user = await authenticate(req, reply, { registered: false });
     if (!user) return;
     const body = z.object({ language: z.enum(["en", "hi"]) }).parse(req.body);
-    return { user: publicUser(await setLanguage(user.id, body.language)) };
+    return { user: await publicUser(await setLanguage(user.id, body.language)) };
   });
 
   app.get("/api/home", async (req, reply) => {
@@ -288,8 +289,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     }).parse(req.body);
     assertCleanCopy(body.brand, body.message);
     const lead = await prisma.sponsorLead.create({ data: { userId: user.id, ...body, budget: body.budget || "" } });
-    const { parseAdminList } = await import("@liveline/shared");
-    for (const id of parseAdminList(env.adminRaw).ids) {
+    for (const id of await adminChatIds()) {
       await sendTelegramMessage(id, `📣 Ad lead\n${body.brand}\n${body.name} · ${body.contact}\n${body.message}`).catch(() => undefined);
     }
     return { ok: true, id: lead.id };
@@ -582,6 +582,35 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
 }
 
 async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
+  app.get("/api/admin/admins", async (req, reply) => {
+    const user = await authenticate(req, reply, { admin: true });
+    if (!user) return;
+    return listAdminRoster();
+  });
+
+  app.post("/api/admin/admins", async (req, reply) => {
+    const user = await authenticate(req, reply, { admin: true });
+    if (!user) return;
+    const body = z.object({
+      handle: z.string().min(1),
+      role: z.enum(["owner", "full"]),
+    }).parse(req.body);
+    return addAdmin(user.telegramId, body.handle, body.role);
+  });
+
+  app.post("/api/admin/admins/:id/role", async (req, reply) => {
+    const user = await authenticate(req, reply, { admin: true });
+    if (!user) return;
+    const body = z.object({ role: z.enum(["owner", "full"]) }).parse(req.body);
+    return setAdminRole(user.telegramId, (req.params as { id: string }).id, body.role);
+  });
+
+  app.post("/api/admin/admins/:id/remove", async (req, reply) => {
+    const user = await authenticate(req, reply, { admin: true });
+    if (!user) return;
+    return removeAdmin(user.telegramId, (req.params as { id: string }).id);
+  });
+
   app.get("/api/admin/overview", async (req, reply) => {
     const user = await authenticate(req, reply, { admin: true });
     if (!user) return;

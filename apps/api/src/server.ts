@@ -221,7 +221,7 @@ export async function authenticate(
     await reply.code(403).send({ error: "BLOCKED", message: "This account is blocked." });
     return null;
   }
-  if (opts.admin && !userIsAdmin(user.telegramId, user.username)) {
+  if (opts.admin && !(await userIsAdmin(user.telegramId, user.username))) {
     await reply.code(403).send({ error: "ADMIN_ONLY" });
     return null;
   }

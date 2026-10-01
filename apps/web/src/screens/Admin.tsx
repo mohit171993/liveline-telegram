@@ -26,6 +26,7 @@ export function Dash() {
       {(data.top || []).map((row: any) => <div key={row.matchKey} className="board"><span>{row.matchKey}</span><b>{row.views}</b></div>)}
       <button className="primary" onClick={() => nav("/admin/new")}>New campaign</button>
       <button className="ghost w-full" onClick={() => nav("/admin/users")}>Users</button>
+      <button className="ghost w-full" onClick={() => nav("/admin/admins")}>Admins</button>
       <button className="ghost w-full" onClick={() => nav("/admin/fulfilment")}>Fulfilment</button>
     </>
   );
@@ -134,6 +135,83 @@ export function Users() {
         <div key={u.id} className="board">
           <span>{u.firstName} @{u.username}<br /><i className="small">{u.telegramId} · {u.phone || "no phone"} · {u.status}</i></span>
           <button onClick={async () => { await api(`/api/admin/users/${u.id}/block`, { method: "POST", body: JSON.stringify({ blocked: u.status !== "BLOCKED" }) }); load(); }}>{u.status === "BLOCKED" ? "Unblock" : "Block"}</button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+export function Admins() {
+  const [data, setData] = useState<{ admins: any[]; audit: any[] } | null>(null);
+  const [handle, setHandle] = useState("");
+  const [role, setRole] = useState("full");
+  const [msg, setMsg] = useState("");
+
+  async function load() {
+    setData(await api("/api/admin/admins"));
+  }
+  useEffect(() => { load().catch(() => setData({ admins: [], audit: [] })); }, []);
+
+  if (!data) return <div className="skel" />;
+  return (
+    <>
+      <h2>Admins</h2>
+      <p className="small">Owner and full admin both run the panel. A username locks to a numeric id the first time that person opens the bot or the app.</p>
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        setMsg("");
+        try {
+          await api("/api/admin/admins", { method: "POST", body: JSON.stringify({ handle, role }) });
+          setHandle("");
+          await load();
+        } catch (err) {
+          setMsg(err instanceof Error ? err.message : "Could not add that admin.");
+        }
+      }}>
+        <input className="field" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@username or numeric id" required />
+        <select className="field" value={role} onChange={(e) => setRole(e.target.value)}>
+          <option value="full">Full admin</option>
+          <option value="owner">Owner</option>
+        </select>
+        <button className="primary">Add admin</button>
+      </form>
+      {msg && <p>{msg}</p>}
+      {data.admins.map((row) => (
+        <div key={row.id} className="card adminrow">
+          <div>
+            <b>{row.username ? `@${row.username}` : row.telegramId}</b>
+            <div className="small">{row.roleLabel} · {row.bound ? row.telegramId : "Waiting for first open"} · {row.source}</div>
+          </div>
+          <div className="adminactions">
+            <select className="field" value={row.role} onChange={async (e) => {
+              setMsg("");
+              try {
+                await api(`/api/admin/admins/${row.id}/role`, { method: "POST", body: JSON.stringify({ role: e.target.value }) });
+                await load();
+              } catch (err) {
+                setMsg(err instanceof Error ? err.message : "Could not change that role.");
+                await load();
+              }
+            }}>
+              <option value="owner">Owner</option>
+              <option value="full">Full admin</option>
+            </select>
+            <button className="ghost" onClick={async () => {
+              setMsg("");
+              try {
+                await api(`/api/admin/admins/${row.id}/remove`, { method: "POST" });
+                await load();
+              } catch (err) {
+                setMsg(err instanceof Error ? err.message : "Could not remove that admin.");
+              }
+            }}>Remove</button>
+          </div>
+        </div>
+      ))}
+      <h2>Audit log</h2>
+      {data.audit.map((row) => (
+        <div key={row.id} className="board">
+          <span>{row.detail}<br /><i className="small">{new Date(row.createdAt).toLocaleString()}</i></span>
         </div>
       ))}
     </>

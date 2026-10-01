@@ -1,11 +1,12 @@
 import { Queue } from "bullmq";
 import { prisma } from "@liveline/db";
-import { formatIst, istDay, parseAdminList, projectMatch, type AdvanceResult } from "@liveline/shared";
+import { formatIst, istDay, projectMatch, type AdvanceResult } from "@liveline/shared";
 import { env, channelUrl } from "../env";
 import { bullConnection } from "../redis";
 import { redis } from "../redis";
 import { sendTelegramMessage } from "../telegram";
 import { httpError } from "../httpError";
+import { adminChatIds } from "./admins";
 import { settleFeed } from "./game";
 import { maybeStreakNudges, nudgePredictionWindow, settleOversGuess } from "./engage";
 import { alertVoteOpen, settleLeagueWeek, syncLivePins } from "./play";
@@ -225,7 +226,7 @@ export async function dailySummary() {
     `Ad impressions: ${impressions}`,
     `Ad clicks: ${clicks}`,
   ].join("\n");
-  const chats = new Set<string>([...parseAdminList(env.adminRaw).ids]);
+  const chats = new Set<string>(await adminChatIds());
   if (env.adminAlertChat) chats.add(env.adminAlertChat);
   for (const chat of chats) await sendTelegramMessage(chat, text).catch(() => undefined);
 }

@@ -53,7 +53,7 @@ Then run migrations from the API container or locally against the published Post
 | Variable | Purpose |
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Bot token. `MOCK` in the value disables outbound Telegram calls. |
-| `ADMIN_TELEGRAM_IDS` | Comma-separated numeric ids and/or usernames. Default `8992664481` (`@fantzoSportsUpdates`). |
+| `ADMIN_TELEGRAM_IDS` | Comma-separated numeric ids and `@usernames`, matched without case. Default `8992664481,@Liveline_proadmin`. The first entry is the owner. |
 | `ADMIN_ALERT_CHAT_ID` | Optional extra chat for registration and ops alerts. |
 | `CHANNEL_ID` | Auto-post chat. Default `-1004458549838` (`@LiveLine_Pro`). |
 | `CHANNEL_USERNAME` | Default `LiveLine_Pro`. Used for the Join button. |
@@ -84,7 +84,7 @@ The app reads these from the environment only. Nothing secret is committed.
 3. The bot sets the menu button itself on startup (`Live scores` → `WEBAPP_URL`). You can also set it with `/setmenubutton`.
 4. Add the bot as admin of [@LiveLine_Pro](https://t.me/LiveLine_Pro) with permission to post. `CHANNEL_ID` is `-1004458549838`.
 5. In groups, `/live` and `/score` reply with the current line. `/start` in a group shares a group-board link.
-6. Admins (`ADMIN_TELEGRAM_IDS`) can use `/stats`, `/ads`, and `/broadcast`. Broadcast asks for confirmation.
+6. Admins (`ADMIN_TELEGRAM_IDS`) can use `/stats`, `/ads`, and `/broadcast`. Broadcast asks for confirmation. The first entry is the owner (`8992664481`, `@fantzoSportsUpdates`). `@Liveline_proadmin` is a full admin. Usernames match in any case. The first time that person opens the bot or the mini app, the numeric id is stored, so a later username change still has access. Another account that takes the old username does not. The Admins screen adds and removes admins, sets owner or full admin, and keeps an audit log. The last owner cannot be removed.
 
 Phone verification uses the bot's contact-request keyboard or `WebApp.requestContact`. The server rejects a contact whose `user_id` is not the sender.
 
@@ -100,7 +100,7 @@ Do not create a new Railway project. GiftPort already whitelists this project's 
 3. Add the web service with `apps/web/Dockerfile`. Set `API_URL` to the public API origin (written into `/config.js` on boot).
 4. Plugin Postgres and Redis in the same project. Copy `DATABASE_URL` and `REDIS_URL` into each backend service.
 5. Set the variables from the table above. Use the real bot token, Roanuz keys, GiftPort client id and secret, and a fresh `REWARDS_ENCRYPTION_KEY` (`openssl rand -base64 32`).
-6. Release command for the API service: `pnpm --filter @liveline/db exec prisma migrate deploy`
+6. Release command for the API service: `pnpm --filter @liveline/db exec prisma migrate deploy`. That applies `20261001170000_admins` along with the earlier migrations.
 7. Confirm the project's static outbound IP is still the one saved in GiftPort → API Settings. If a deploy has to leave that IP, set `GIFTPORT_PROXY_URL` to an HTTP proxy on the whitelisted address.
 8. Point BotFather and `WEBAPP_URL` at the web service URL.
 

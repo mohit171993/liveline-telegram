@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { isAdmin, parseAdminList, signInitData, validateInitData, assertContactBelongsToUser, normalizePhone } from "./auth";
+import {
+  bindDecision,
+  envAdminTokens,
+  envTokenCovered,
+  isAdmin,
+  normalizeAdminToken,
+  parseAdminList,
+  revokeGuard,
+  roleChangeGuard,
+  signInitData,
+  validateInitData,
+  assertContactBelongsToUser,
+  normalizePhone,
+  type AdminGrantView,
+} from "./auth";
 import { decryptString, encryptString, loadEncryptionKey } from "./crypto";
 import { adEligible, clickDedupeKey, impressionDedupeKey, selectAd, type AdCandidate } from "./ads";
 import { containsBetting, moderationDecision } from "./policy";
@@ -70,10 +84,51 @@ describe("initData", () => {
   });
 
   it("matches admin ids and usernames from env", () => {
-    const list = parseAdminList("8992664481, @fantzoSportsUpdates");
+    const list = parseAdminList("8992664481, @fantzoSportsUpdates, @Liveline_proadmin");
     expect(isAdmin(list, "8992664481", null)).toBe(true);
     expect(isAdmin(list, "1", "FantzoSportsUpdates")).toBe(true);
-    expect(isAdmin(list, "2", "someone")).toBe(false);
+    expect(isAdmin(list, "2", "Liveline_ProAdmin")).toBe(true);
+    expect(isAdmin(list, "3", "someone")).toBe(false);
+  });
+});
+
+describe("admin roster", () => {
+  const open: AdminGrantView = {
+    id: "g-user",
+    telegramId: null,
+    usernameNorm: "liveline_proadmin",
+    role: "full",
+    revoked: false,
+  };
+
+  it("treats the first env entry as owner and the rest as full admins", () => {
+    expect(envAdminTokens("8992664481, @Liveline_proadmin")).toEqual([
+      { kind: "id", value: "8992664481", role: "owner" },
+      { kind: "username", value: "liveline_proadmin", role: "full" },
+    ]);
+    expect(normalizeAdminToken("@Liveline_ProAdmin")?.value).toBe("liveline_proadmin");
+    expect(normalizeAdminToken("not a user")).toBeNull();
+  });
+
+  it("binds a username once, then keeps the numeric id", () => {
+    expect(bindDecision([open], "555", "Liveline_ProAdmin")).toEqual({ action: "bind", grantId: "g-user" });
+    const bound: AdminGrantView = { ...open, telegramId: "555" };
+    expect(bindDecision([bound], "555", "renamed_later")).toEqual({ action: "already", grantId: "g-user" });
+    expect(bindDecision([bound], "999", "Liveline_proadmin")).toEqual({ action: "deny" });
+    expect(bindDecision([bound], "999", "someone")).toEqual({ action: "none" });
+    expect(envTokenCovered([{ telegramId: "555", usernameNorm: "liveline_proadmin" }], { kind: "username", value: "liveline_proadmin" })).toBe(true);
+    expect(envTokenCovered([{ telegramId: null, usernameNorm: "liveline_proadmin" }], { kind: "username", value: "liveline_proadmin" })).toBe(true);
+  });
+
+  it("refuses to remove or demote the last owner", () => {
+    const roster = [
+      { id: "owner", role: "owner" as const },
+      { id: "full", role: "full" as const },
+    ];
+    expect(revokeGuard(roster, "full")).toBe("ok");
+    expect(revokeGuard(roster, "owner")).toBe("LAST_OWNER");
+    expect(roleChangeGuard(roster, "owner", "full")).toBe("LAST_OWNER");
+    expect(roleChangeGuard(roster, "full", "owner")).toBe("ok");
   });
 });
 

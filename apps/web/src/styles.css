@@ -171,6 +171,10 @@ a { color: inherit; }
   font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--line);
 }
 .board b { font-weight: 600; }
+.adminrow { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.adminactions { display: flex; gap: 8px; align-items: center; }
+.adminactions .field { width: auto; margin: 0; padding: 8px; }
+.adminactions .ghost { margin: 0; padding: 8px 12px; }
 .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
 .kpi { background: var(--surface); border-radius: 12px; padding: 8px; border: 1px solid var(--line); box-shadow: var(--shadow); }
 .kpi b { display: block; font-family: "Barlow Condensed", sans-serif; font-size: 28px; }

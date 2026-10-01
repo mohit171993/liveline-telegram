@@ -8,7 +8,7 @@ import { BoardPage } from "./screens/Board";
 import { RewardsPage } from "./screens/Rewards";
 import { AlertsPage } from "./screens/Alerts";
 import { BuddyPage } from "./screens/Buddy";
-import { CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
+import { Admins, CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
 import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
 import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
@@ -57,6 +57,7 @@ export function App() {
         <Route path="/admin" element={<Dash />} />
         <Route path="/admin/new" element={<CreateCampaign />} />
         <Route path="/admin/users" element={<Users />} />
+        <Route path="/admin/admins" element={<Admins />} />
         <Route path="/admin/fulfilment" element={<Fulfilment />} />
       </Routes>
       <Nav lang={lang} admin={!!me?.user.admin} />

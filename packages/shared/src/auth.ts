@@ -145,3 +145,87 @@ export function isAdmin(
   if (username && list.usernames.has(username.toLowerCase().replace(/^@/, ""))) return true;
   return false;
 }
+
+export type AdminRole = "owner" | "full";
+
+export interface AdminGrantView {
+  id: string;
+  telegramId: string | null;
+  usernameNorm: string | null;
+  role: AdminRole;
+  revoked: boolean;
+}
+
+/** Telegram usernames are 5–32 characters. Numeric ids stay as digits. */
+export function normalizeAdminToken(raw: string): { kind: "id" | "username"; value: string } | null {
+  const token = raw.trim().replace(/^@/, "");
+  if (!token || /\s/.test(token)) return null;
+  if (/^\d+$/.test(token)) return { kind: "id", value: token };
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(token)) return null;
+  return { kind: "username", value: token.toLowerCase() };
+}
+
+/** First valid entry is the owner. Later ids and usernames are full admins. */
+export function envAdminTokens(raw: string | undefined): { kind: "id" | "username"; value: string; role: AdminRole }[] {
+  const out: { kind: "id" | "username"; value: string; role: AdminRole }[] = [];
+  for (const part of (raw || "").split(",")) {
+    const token = normalizeAdminToken(part);
+    if (!token) continue;
+    out.push({ ...token, role: out.length === 0 ? "owner" : "full" });
+  }
+  return out;
+}
+
+export function envTokenCovered(
+  rows: { telegramId: string | null; usernameNorm: string | null }[],
+  token: { kind: "id" | "username"; value: string },
+): boolean {
+  return rows.some((row) => (token.kind === "id" ? row.telegramId === token.value : row.usernameNorm === token.value));
+}
+
+/**
+ * Access sticks to the numeric id after the first open.
+ * A later username change still matches. A different account that picks up the old username does not.
+ */
+export function bindDecision(
+  grants: AdminGrantView[],
+  telegramId: string | number,
+  username?: string | null,
+): { action: "already" | "bind"; grantId: string } | { action: "deny" } | { action: "none" } {
+  const id = String(telegramId);
+  const active = grants.filter((grant) => !grant.revoked);
+  const byId = active.find((grant) => grant.telegramId === id);
+  if (byId) return { action: "already", grantId: byId.id };
+  const norm = username ? username.trim().replace(/^@/, "").toLowerCase() : "";
+  if (!norm) return { action: "none" };
+  const byName = active.find((grant) => grant.usernameNorm === norm);
+  if (!byName) return { action: "none" };
+  if (!byName.telegramId) return { action: "bind", grantId: byName.id };
+  return { action: "deny" };
+}
+
+export function revokeGuard(
+  active: { id: string; role: AdminRole }[],
+  targetId: string,
+): "ok" | "LAST_OWNER" | "NOT_FOUND" {
+  const target = active.find((row) => row.id === targetId);
+  if (!target) return "NOT_FOUND";
+  const owners = active.filter((row) => row.role === "owner").length;
+  if (target.role === "owner" && owners <= 1) return "LAST_OWNER";
+  return "ok";
+}
+
+export function roleChangeGuard(
+  active: { id: string; role: AdminRole }[],
+  targetId: string,
+  next: AdminRole,
+): "ok" | "LAST_OWNER" | "NOT_FOUND" | "SAME" {
+  const target = active.find((row) => row.id === targetId);
+  if (!target) return "NOT_FOUND";
+  if (target.role === next) return "SAME";
+  if (target.role === "owner" && next !== "owner") {
+    const owners = active.filter((row) => row.role === "owner").length;
+    if (owners <= 1) return "LAST_OWNER";
+  }
+  return "ok";
+}

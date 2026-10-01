@@ -2,9 +2,7 @@ import { prisma } from "@liveline/db";
 import {
   assertContactBelongsToUser,
   formatIst,
-  isAdmin,
   normalizePhone,
-  parseAdminList,
   phoneHash,
   assertAvatar,
   FACES,
@@ -19,6 +17,7 @@ import {
   type InitDataResult,
   type RoleId,
 } from "@liveline/shared";
+import { adminChatIds, userIsAdmin } from "./admins";
 import { rollDailyStreak } from "./engage";
 import { ageFromBirthYear } from "@liveline/shared";
 import { bumpFriendStreaks, joinSquad } from "./play";
@@ -27,7 +26,7 @@ import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
 import { sendTelegramMessage } from "../telegram";
 
-const admins = () => parseAdminList(env.adminRaw);
+export { userIsAdmin };
 
 export function userCartoon(user: {
   avatarFace: string;
@@ -91,15 +90,11 @@ export async function saveAvatar(userId: string, pick: AvatarPick) {
   return { look: userCartoon(saved), pick };
 }
 
-export function userIsAdmin(telegramId: string, username?: string | null): boolean {
-  return isAdmin(admins(), telegramId, username);
-}
-
 export async function touchFromInit(data: InitDataResult) {
   const telegramId = String(data.user.id);
   const existing = await prisma.user.findUnique({ where: { telegramId } });
   if (!existing) {
-    return prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         telegramId,
         username: data.user.username || null,
@@ -111,6 +106,8 @@ export async function touchFromInit(data: InitDataResult) {
         status: "PENDING",
       },
     });
+    await userIsAdmin(created.telegramId, created.username);
+    return created;
   }
   const updated = await prisma.user.update({
     where: { id: existing.id },
@@ -125,6 +122,7 @@ export async function touchFromInit(data: InitDataResult) {
   });
   const rolled = await rollDailyStreak(updated);
   if (rolled.status === "ACTIVE") await bumpFriendStreaks(rolled.id).catch(() => undefined);
+  await userIsAdmin(rolled.telegramId, rolled.username);
   return rolled;
 }
 
@@ -269,7 +267,7 @@ async function alertAdmins(userId: string) {
     `Joined: ${formatIst(user.createdAt)} IST`,
     `Total users: ${total}`,
   ].join("\n");
-  const chats = new Set<string>([...admins().ids]);
+  const chats = new Set<string>(await adminChatIds());
   if (env.adminAlertChat) chats.add(env.adminAlertChat);
   for (const chatId of chats) {
     await sendTelegramMessage(chatId, text).catch((err) => {
@@ -334,7 +332,7 @@ export async function setBlocked(userId: string, blocked: boolean, reason?: stri
   });
 }
 
-export function publicUser(user: {
+export async function publicUser(user: {
   id: string;
   telegramId: string;
   username: string | null;
@@ -409,6 +407,6 @@ export function publicUser(user: {
     themes: user.unlockedThemes.split(",").filter(Boolean),
     referralCount: user.referralCount,
     referralLink: `https://t.me/LiveLineProBot?start=ref_${user.telegramId}`,
-    admin: userIsAdmin(user.telegramId, user.username),
+    admin: await userIsAdmin(user.telegramId, user.username),
   };
 }

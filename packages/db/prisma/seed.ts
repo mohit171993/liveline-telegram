@@ -8,7 +8,8 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminId = (process.env.ADMIN_TELEGRAM_IDS || "8992664481").split(",")[0].trim();
+  const tokens = (process.env.ADMIN_TELEGRAM_IDS || "8992664481").split(",").map((part) => part.trim().replace(/^@/, ""));
+  const adminId = tokens.find((part) => /^\d+$/.test(part)) || "8992664481";
   const pepper = loadEncryptionKey(process.env.REWARDS_ENCRYPTION_KEY || "liveline-pro-local-dev-key-32b!!").toString("base64");
   const hash = (phone: string) => phoneHash(phone, pepper);
 

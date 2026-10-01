@@ -14,7 +14,7 @@ import { providerName, rewardsProvider } from "../giftport";
 import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
 import { sendTelegramMessage } from "../telegram";
-import { parseAdminList } from "@liveline/shared";
+import { adminChatIds } from "./admins";
 
 export async function grantScratch(userId: string, source: string, sourceRef?: string) {
   const open = await prisma.scratchCard.count({ where: { userId, opened: false } });
@@ -396,7 +396,7 @@ async function lowBalanceAlert(balance: number) {
   const exists = await prisma.outboundMessage.findFirst({ where: { kind: "low_balance", payload: { contains: dedupe } } });
   if (exists) return;
   const text = `⚠️ GiftPort balance is ₹${balance.toFixed(2)}. Voucher issuing is blocked below the prize amount. Top up before the next draw.`;
-  const chats = new Set<string>([...parseAdminList(env.adminRaw).ids]);
+  const chats = new Set<string>(await adminChatIds());
   if (env.adminAlertChat) chats.add(env.adminAlertChat);
   for (const chatId of chats) await sendTelegramMessage(chatId, text).catch(() => undefined);
   await prisma.outboundMessage.create({ data: { chatId: "admins", kind: "low_balance", payload: dedupe } });
