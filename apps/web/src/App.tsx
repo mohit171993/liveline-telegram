@@ -13,11 +13,13 @@ import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
 import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
 import { AvatarBuilder } from "./screens/AvatarBuilder";
+import { Splash } from "./brand/Brand";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [err, setErr] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [splash, setSplash] = useState(true);
   const lang = me?.user.language || "en";
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export function App() {
     api<Me>("/api/me").then(setMe).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, []);
 
-  if (!inTelegram()) return <Gate mode="outside" />;
+  if (!inTelegram()) return <><Gate mode="outside" />{splash && <Splash onDone={() => setSplash(false)} />}</>;
   if (loading) return <div className="app"><div className="skel" /><div className="skel" /><div className="skel" /></div>;
   if (err && !me) return <Gate mode="error" message={err} />;
   if (me?.user.blocked) return <Gate mode="blocked" />;
@@ -38,6 +40,7 @@ export function App() {
 
   return (
     <div className="app">
+      {splash && <Splash onDone={() => setSplash(false)} />}
       <Routes>
         <Route path="/" element={<Home me={me!} />} />
         <Route path="/match/:key" element={<MatchPage lang={lang} />} />

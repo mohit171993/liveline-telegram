@@ -4,6 +4,8 @@ A Telegram Mini App for the live cricket line, built for India. It ships with th
 
 The cricket feed sits behind a provider interface. With `USE_MOCK_PROVIDER=true` a simulator plays a live match, settles predictions, and updates the board without Roanuz keys. Football and kabaddi have reserved slots in the same registry.
 
+The mark is a cricket ball cut by a neon pulse. Lino is the mascot. Dark is navy with lime, cyan, and orange. Light uses the same accents on a pale field. Tokens live in `apps/web/src/styles.css`. Profile pictures for the bot and the channel are in `apps/web/public/brand/` at 512 and 640.
+
 ## What you get
 
 - Mini app: live, upcoming, and recent matches, favourite teams, series filter, ball-by-ball line, FOUR / SIX / WICKET moments, CRR, RRR, projected score, a model win probability (not a price), scorecard, commentary, wagon, Manhattan and worm charts, XI, venue, head-to-head, points, Hindi and English, Telegram theme, haptics, BackButton and MainButton.

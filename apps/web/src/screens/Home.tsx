@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, haptic, t, type Match, type Me } from "../lib";
 import { AdSlot } from "./Ad";
 import { Avatar, STATUS_STICKER } from "../Avatar";
+import { useTheme, Wordmark } from "../brand/Brand";
 
 export function Home({ me }: { me: Me }) {
   const [matches, setMatches] = useState<Match[] | null>(null);
@@ -11,6 +12,7 @@ export function Home({ me }: { me: Me }) {
   const [fav, setFav] = useState<string[]>([]);
   const nav = useNavigate();
   const lang = me.user.language;
+  const { theme, toggle } = useTheme();
 
   async function load() {
     const data = await api<{ matches: Match[]; series: { key: string; name: string }[]; favorites: { refKey: string }[] }>("/api/home");
@@ -35,9 +37,10 @@ export function Home({ me }: { me: Me }) {
       <header className="top">
         <div className="brand">
           <button className="iconbtn" aria-label="Avatar" onClick={() => nav("/avatar")}><Avatar look={me.user.look} size={36} /></button>
-          <div><b>LIVELINE</b><span>Pro · India</span></div>
+          <Wordmark theme={theme} />
         </div>
         <div className="flex items-center gap-2">
+          <button className="lang" onClick={toggle} aria-label="Theme">{theme === "dark" ? "Light" : "Dark"}</button>
           <button className="lang" onClick={async () => { const next = lang === "hi" ? "en" : "hi"; await api("/api/auth/language", { method: "POST", body: JSON.stringify({ language: next }) }); location.reload(); }}>{lang === "hi" ? "EN" : "हिं"}</button>
           <button className="iconbtn" onClick={() => nav("/board")}>{me.user.points} {t(lang, "points")}</button>
           {me.user.admin && <button className="iconbtn" onClick={() => nav("/admin")}>Admin</button>}

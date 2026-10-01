@@ -136,17 +136,12 @@ export function bootTelegram() {
   const tg = window.Telegram?.WebApp;
   tg?.ready();
   tg?.expand();
-  const p = tg?.themeParams;
-  if (!p) return;
-  const root = document.documentElement;
-  if (p.bg_color) root.style.setProperty("--tg-theme-bg-color", p.bg_color);
-  if (p.text_color) root.style.setProperty("--tg-theme-text-color", p.text_color);
-  if (p.hint_color) root.style.setProperty("--tg-theme-hint-color", p.hint_color);
-  if (p.button_color) root.style.setProperty("--tg-theme-button-color", p.button_color);
-  if (p.button_text_color) root.style.setProperty("--tg-theme-button-text-color", p.button_text_color);
-  if (p.secondary_bg_color) root.style.setProperty("--tg-theme-secondary-bg-color", p.secondary_bg_color);
-  tg?.setHeaderColor?.(p.bg_color || "#07080d");
-  tg?.setBackgroundColor?.(p.bg_color || "#07080d");
+  if (!localStorage.getItem("ll-theme") && (tg?.colorScheme === "light" || tg?.colorScheme === "dark")) {
+    document.documentElement.dataset.theme = tg.colorScheme;
+  }
+  const bg = document.documentElement.dataset.theme === "light" ? "#F3F6FB" : "#070B14";
+  tg?.setHeaderColor?.(bg);
+  tg?.setBackgroundColor?.(bg);
 }
 
 declare global {
@@ -159,7 +154,7 @@ declare global {
         ready: () => void;
         expand: () => void;
         themeParams?: Record<string, string>;
-        colorScheme?: string;
+        colorScheme?: "light" | "dark";
         setHeaderColor?: (c: string) => void;
         setBackgroundColor?: (c: string) => void;
         HapticFeedback?: { impactOccurred: (s: string) => void; notificationOccurred: (s: string) => void; selectionChanged: () => void };

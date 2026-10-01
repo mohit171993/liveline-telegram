@@ -17,3 +17,4 @@ test-results
 /tmp
 *.png
 !apps/web/public/**
+!apps/promo/public/**

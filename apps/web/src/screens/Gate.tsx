@@ -10,7 +10,7 @@ export function Gate({ mode, me, message, onDone }: { mode: "outside" | "registe
     return (
       <div className="gate">
         <div>
-          <div className="bug mx-auto">LL</div>
+          <img className="mx-auto" src="/brand/logo.svg" width="280" height="50" alt="LiveLine Pro" />
           <h1>LIVELINE</h1>
           <p>Scores stay inside Telegram. Nothing here is public.</p>
           <a className="primary inline-block" href="https://t.me/LiveLineProBot">Open in Telegram</a>
