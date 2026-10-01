@@ -53,7 +53,7 @@ Then run migrations from the API container or locally against the published Post
 | Variable | Purpose |
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Bot token. `MOCK` in the value disables outbound Telegram calls. |
-| `ADMIN_TELEGRAM_IDS` | Comma-separated numeric ids and `@usernames`, matched without case. Default `8992664481,@Liveline_proadmin`. The first entry is the owner. |
+| `ADMIN_TELEGRAM_IDS` | Comma-separated numeric ids and `@usernames`, matched without case. Default `8992664481,8860632140`. Both are full admins. |
 | `ADMIN_ALERT_CHAT_ID` | Optional extra chat for registration and ops alerts. |
 | `CHANNEL_ID` | Auto-post chat. Default `-1004458549838` (`@LiveLine_Pro`). |
 | `CHANNEL_USERNAME` | Default `LiveLine_Pro`. Used for the Join button. |
@@ -84,7 +84,7 @@ The app reads these from the environment only. Nothing secret is committed.
 3. The bot sets the menu button itself on startup (`Live scores` → `WEBAPP_URL`). You can also set it with `/setmenubutton`.
 4. Add the bot as admin of [@LiveLine_Pro](https://t.me/LiveLine_Pro) with permission to post. `CHANNEL_ID` is `-1004458549838`.
 5. In groups, `/live` and `/score` reply with the current line. `/start` in a group shares a group-board link.
-6. Admins (`ADMIN_TELEGRAM_IDS`) can use `/stats`, `/ads`, and `/broadcast`. Broadcast asks for confirmation. The first entry is the owner (`8992664481`, `@fantzoSportsUpdates`). `@Liveline_proadmin` is a full admin. Usernames match in any case. The first time that person opens the bot or the mini app, the numeric id is stored, so a later username change still has access. Another account that takes the old username does not. The Admins screen adds and removes admins, sets owner or full admin, and keeps an audit log. The last owner cannot be removed.
+6. Admins (`ADMIN_TELEGRAM_IDS`) can use `/stats`, `/ads`, and `/broadcast`. Broadcast asks for confirmation. `8992664481` (`@fantzoSportsUpdates`) and `8860632140` (`@Liveline_proadmin`) are both full admins. Usernames still match in any case. The first time that person opens the bot or the mini app, the numeric id is stored, so a later username change still has access. Another account that takes the old username does not. The Admins screen adds and removes admins, sets owner or full admin, and keeps an audit log. The last owner cannot be removed.
 
 Phone verification uses the bot's contact-request keyboard or `WebApp.requestContact`. The server rejects a contact whose `user_id` is not the sender.
 

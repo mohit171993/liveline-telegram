@@ -62,6 +62,18 @@ async function seedEnvAdmins() {
   const tokens = envAdminTokens(env.adminRaw);
   for (const token of tokens) {
     const rows = await prisma.adminAccount.findMany();
+    const handle = token.kind === "username" ? `@${token.value}` : token.value;
+    const active = rows.find((row) => !row.revokedAt && (token.kind === "id" ? row.telegramId === token.value : row.usernameNorm === token.value));
+    if (active?.source === "env" && active.role !== token.role) {
+      await prisma.adminAccount.update({ where: { id: active.id }, data: { role: token.role } });
+      await writeAudit({
+        action: "role",
+        targetId: active.telegramId,
+        targetUser: active.username,
+        role: token.role,
+        detail: `Env set ${handle} to ${roleLabel(token.role)}`,
+      });
+    }
     if (envTokenCovered(rows, token)) continue;
     try {
       const created = await prisma.adminAccount.create({
@@ -74,7 +86,6 @@ async function seedEnvAdmins() {
           boundAt: token.kind === "id" ? new Date() : null,
         },
       });
-      const handle = token.kind === "username" ? `@${token.value}` : token.value;
       await writeAudit({
         action: "seed",
         targetId: created.telegramId,

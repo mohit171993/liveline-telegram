@@ -101,10 +101,10 @@ describe("admin roster", () => {
     revoked: false,
   };
 
-  it("treats the first env entry as owner and the rest as full admins", () => {
-    expect(envAdminTokens("8992664481, @Liveline_proadmin")).toEqual([
-      { kind: "id", value: "8992664481", role: "owner" },
-      { kind: "username", value: "liveline_proadmin", role: "full" },
+  it("treats every env entry as a full admin", () => {
+    expect(envAdminTokens("8992664481,8860632140")).toEqual([
+      { kind: "id", value: "8992664481", role: "full" },
+      { kind: "id", value: "8860632140", role: "full" },
     ]);
     expect(normalizeAdminToken("@Liveline_ProAdmin")?.value).toBe("liveline_proadmin");
     expect(normalizeAdminToken("not a user")).toBeNull();

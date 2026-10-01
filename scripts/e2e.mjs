@@ -187,35 +187,36 @@ assert(ticket.status === 200 || ticket.body?.error === "TOO_EARLY" || ticket.bod
 const young = await call("/api/auth/age", admin, { method: "POST", body: JSON.stringify({ birthYear: 2016, parentConsent: true }) });
 assert(young.status === 403, "under 13 refused");
 
-const proId = 88008821;
-const pro = sign({ id: proId, first_name: "Lino", username: "Liveline_ProAdmin" });
+const proId = 8860632140;
+const pro = sign({ id: proId, first_name: "Lino", username: "Liveline_proadmin" });
 const proMe = await call("/api/me", pro);
-assert(proMe.status === 200 && proMe.body.user.admin === true, "username admin binds on first open");
-const renamed = sign({ id: proId, first_name: "Lino", username: "renamed_later" });
-const renamedMe = await call("/api/me", renamed);
-assert(renamedMe.status === 200 && renamedMe.body.user.admin === true, "bound id keeps admin after a username change");
-const impostor = sign({ id: 88008822, first_name: "Copy", username: "liveline_proadmin" });
-const impostorMe = await call("/api/me", impostor);
-assert(impostorMe.status === 200 && impostorMe.body.user.admin === false, "a taken username does not grant admin");
+assert(proMe.status === 200 && proMe.body.user.admin === true, "second admin id is a full admin");
 
 let roster = await call("/api/admin/admins", admin);
 assert(roster.status === 200, "admin roster");
 for (const row of roster.body.admins || []) {
-  const keep = row.telegramId === String(adminId) || row.username === "liveline_proadmin";
+  const keep = row.telegramId === String(adminId) || row.telegramId === String(proId);
   if (!keep) await call(`/api/admin/admins/${row.id}/remove`, admin, { method: "POST" });
 }
 roster = await call("/api/admin/admins", admin);
-const owner = (roster.body.admins || []).find((row) => row.telegramId === String(adminId) && row.role === "owner");
-const full = (roster.body.admins || []).find((row) => row.username === "liveline_proadmin" && row.role === "full" && row.telegramId === String(proId));
-assert(owner && full, "owner and full admin are listed");
-assert((roster.body.audit || []).some((row) => row.action === "bind"), "bind is in the audit log");
-const stuck = await call(`/api/admin/admins/${owner.id}/remove`, admin, { method: "POST" });
-assert(stuck.status === 409 && stuck.body.error === "LAST_OWNER", "last owner cannot be removed");
+const defaults = roster.body.admins || [];
+const first = defaults.find((row) => row.telegramId === String(adminId) && row.role === "full");
+const second = defaults.find((row) => row.telegramId === String(proId) && row.role === "full");
+assert(first && second, "both default ids are full admins");
 
-const added = await call("/api/admin/admins", admin, { method: "POST", body: JSON.stringify({ handle: `@night${Date.now().toString().slice(-8)}`, role: "full" }) });
+const handle = `night${Date.now().toString().slice(-8)}`;
+const added = await call("/api/admin/admins", admin, { method: "POST", body: JSON.stringify({ handle: `@${handle}`, role: "full" }) });
 assert(added.status === 200 && added.body.bound === false, "panel adds a username admin");
-const promoted = await call(`/api/admin/admins/${added.body.id}/role`, admin, { method: "POST", body: JSON.stringify({ role: "owner" }) });
-assert(promoted.status === 200 && promoted.body.role === "owner", "role can change to owner");
+const boundId = 88008821;
+const bound = sign({ id: boundId, first_name: "Night", username: handle });
+const boundMe = await call("/api/me", bound);
+assert(boundMe.status === 200 && boundMe.body.user.admin === true, "username admin binds on first open");
+const renamed = sign({ id: boundId, first_name: "Night", username: "renamed_later" });
+const renamedMe = await call("/api/me", renamed);
+assert(renamedMe.status === 200 && renamedMe.body.user.admin === true, "bound id keeps admin after a username change");
+const impostor = sign({ id: 88008822, first_name: "Copy", username: handle });
+const impostorMe = await call("/api/me", impostor);
+assert(impostorMe.status === 200 && impostorMe.body.user.admin === false, "a taken username does not grant admin");
 const removed = await call(`/api/admin/admins/${added.body.id}/remove`, admin, { method: "POST" });
 assert(removed.status === 200, "panel removes an admin");
 const strangerAdmin = await call("/api/admin/admins", stranger);

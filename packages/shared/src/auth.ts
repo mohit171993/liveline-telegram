@@ -165,13 +165,13 @@ export function normalizeAdminToken(raw: string): { kind: "id" | "username"; val
   return { kind: "username", value: token.toLowerCase() };
 }
 
-/** First valid entry is the owner. Later ids and usernames are full admins. */
+/** Every id and username in ADMIN_TELEGRAM_IDS is a full admin. */
 export function envAdminTokens(raw: string | undefined): { kind: "id" | "username"; value: string; role: AdminRole }[] {
   const out: { kind: "id" | "username"; value: string; role: AdminRole }[] = [];
   for (const part of (raw || "").split(",")) {
     const token = normalizeAdminToken(part);
     if (!token) continue;
-    out.push({ ...token, role: out.length === 0 ? "owner" : "full" });
+    out.push({ ...token, role: "full" });
   }
   return out;
 }
