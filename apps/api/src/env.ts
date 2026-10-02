@@ -46,6 +46,13 @@ export const env = {
   s3Secret: process.env.S3_SECRET_ACCESS_KEY || "",
   s3Region: process.env.S3_REGION || "auto",
   s3Public: process.env.S3_PUBLIC_URL || "",
+  // Ads manager uploads (Railway bucket "liveline-ads"; private, served via /ads-media/*).
+  adsS3Endpoint: process.env.ADS_S3_ENDPOINT || "",
+  adsS3Bucket: process.env.ADS_S3_BUCKET || "",
+  adsS3Access: process.env.ADS_S3_ACCESS_KEY_ID || "",
+  adsS3Secret: process.env.ADS_S3_SECRET_ACCESS_KEY || "",
+  adsS3Region: process.env.ADS_S3_REGION || "auto",
+  adsS3PathStyle: process.env.ADS_S3_PATH_STYLE === "true",
   embeddedWorker: bool("RUN_EMBEDDED_WORKER", true),
   internalToken: process.env.INTERNAL_SERVICE_TOKEN || "",
   workerHealthPort: Number(process.env.WORKER_HEALTH_PORT || 3002),

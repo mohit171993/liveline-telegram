@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SponsorBanner } from "./Sponsor";
 import { api, haptic, t, type Match, type Me } from "../lib";
 import { AdSlot } from "./Ad";
+import { AdInterstitial, AdSticky, AdUnitView, useAdUnits } from "./AdUnits";
 import { Flag } from "../flags";
 import { Empty, HeroCard, MatchCard, QuickRow, StreakBanner } from "../ui";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +14,8 @@ export function Home({ me }: { me: Me }) {
   const [fav, setFav] = useState<string[]>([]);
   const lang = me.user.language === "hi" ? "hi" : "en";
   const nav = useNavigate();
+  const ads = useAdUnits("home");
+  const sched = useAdUnits("schedule");
 
   async function load() {
     const data = await api<{ matches: Match[]; series: { key: string; name: string }[]; favorites: { refKey: string }[] }>("/api/home");
@@ -39,6 +42,7 @@ export function Home({ me }: { me: Me }) {
   return (
     <>
       <SponsorBanner />
+      <AdUnitView ad={ads.top} pos="top" page="home" />
       {me.user.admin && (
         <button className="admin-tile" onClick={() => { haptic("medium"); nav("/admin"); }}>
           <span className="admin-tile-icon">🛠</span>
@@ -53,6 +57,7 @@ export function Home({ me }: { me: Me }) {
         </div>
       )}
       <QuickRow channelUrl={me.channelUrl} />
+      <AdUnitView ad={ads.infeed} pos="infeed" page="home" />
       <StreakBanner me={me} />
       <div className="chips">
         {["all", "live", "upcoming", "recent", "fav"].map((key) => (
@@ -74,7 +79,10 @@ export function Home({ me }: { me: Me }) {
       {shown.filter((m) => !featured.some((f) => f.key === m.key) || filter !== "all").map((m) => (
         <MatchCard key={m.key} match={m} />
       ))}
+      <AdUnitView ad={sched.infeed} pos="infeed" page="schedule" />
       <AdSlot slot="home_native" />
+      <AdSticky ad={ads.sticky} page="home" />
+      <AdInterstitial ad={ads.interstitial} page="home" />
     </>
   );
 }

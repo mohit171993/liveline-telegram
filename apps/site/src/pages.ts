@@ -75,6 +75,7 @@ export async function homePage(): Promise<string> {
   <img class="hero-lino bob" src="/brand/mascot.svg" width="112" height="112" alt="Lino, the LiveLinePro mascot">
 </section>
 <div id="home-live" data-fragment="/fragment/home-live">${homeLive(live)}</div>
+<!--ad:infeed-->
 ${sectionHead("Upcoming matches", "/schedule")}
 <div class="list">${upcoming.length ? upcoming.map(matchCard).join("") : empty("No fixtures listed yet — check the schedule.")}</div>
 ${sectionHead("Series", "/schedule", "All series")}
@@ -82,13 +83,14 @@ ${sectionHead("Series", "/schedule", "All series")}
 ${sectionHead("Match previews")}
 <div class="list">${PREVIEWS.map(previewCard).join("")}</div>
 <a class="card lino-teaser" href="/lino"><img src="/brand/mascot.svg" width="56" height="56" alt=""><div><h3>Ask Lino — your AI cricket buddy</h3><p>Required rate, partnerships, player form and rules in plain words. English · हिंदी · Hinglish.</p></div><span class="arrow">→</span></a>
+<!--ad:infeed-->
 ${recent.length ? `${sectionHead("Recent results", "/schedule#results")}<div class="list">${recent.map(matchCard).join("")}</div>` : ""}
 ${tgCta("Never miss a wicket", "Toss, wicket, fifty and result alerts straight to your Telegram — free.", "alerts")}
 `;
   return layout({
     title: "LiveLinePro — Free Cricket Live Line, Live Score & Scorecard on Telegram",
     description: "Fast, free cricket live line: ball-by-ball live score, full scorecards, schedules, match previews and Lino AI insights. Get wicket alerts on Telegram. 18+, no betting.",
-    path: "/", active: "home", refresh: "15000", tgParam: "home",
+    path: "/", active: "home", refresh: "15000", tgParam: "home", adPage: "home",
   }, body);
 }
 
@@ -133,13 +135,14 @@ export async function matchPage(m: SiteMatch): Promise<string> {
   const body = `<nav class="crumbs"><a href="/">Home</a> › <a href="/series/${feedSeriesSlug(m)}">${esc(m.seriesName)}</a></nav>
 <h1 class="ph sm">${esc(A)} vs ${esc(B)} <span>${esc(titleWord)}</span></h1>
 <div id="match-live" data-fragment="/fragment/match/${encodeURIComponent(m.key)}">${matchLive(m, take)}</div>
+<!--ad:infeed-->
 ${tgCta(m.status === "completed" ? "Next match alerts" : `Get ${m.teams.a.code} vs ${m.teams.b.code} wicket alerts`, "Toss, every wicket, milestones and the result — straight to Telegram. Free.", `m_${m.key}`)}
 `;
   return layout({
     title: `${A} vs ${B} ${titleWord} — ${m.seriesName}`,
     description: desc, path, ogImage: `/og/match/${encodeURIComponent(m.key)}.png`, active: "live",
     refresh: m.status === "live" ? "5000" : m.status === "upcoming" ? "60000" : "",
-    tgParam: `m_${m.key}`,
+    tgParam: `m_${m.key}`, adPage: "match",
     jsonLd: [eventLd(`${A} vs ${B}, ${m.seriesName}`, m.startAt, m.venue, A, B, path, m.result || m.toss || m.status), breadcrumbs([["Home", "/"], [m.seriesName, `/series/${feedSeriesSlug(m)}`], [`${A} vs ${B}`, path]])],
   }, body);
 }
@@ -218,11 +221,13 @@ export async function schedulePage(): Promise<string> {
   const results = matches.filter((m) => m.status === "completed");
   const body = `<h1 class="ph">Cricket schedule</h1><p class="lede">Upcoming fixtures, series and results. All times in IST.</p>
 <div class="chips">${series.map((s) => `<a class="chip" href="/series/${s.slug}">${esc(s.short)}</a>`).join("")}</div>
+<!--ad:infeed-->
 ${[...byDay.entries()].map(([d, ms]) => `${sectionHead(istDate(ms[0].startAt) + (d === istDayKey(Date.now()) ? " · Today" : ""))}<div class="list">${ms.map(matchCard).join("")}</div>`).join("")}
 ${series.filter((s) => s.curated).map((s) => `${sectionHead(s.name, `/series/${s.slug}`, "Series")}<div class="list">${s.fixtures.map((f) => fixtureRow(f, matches)).join("")}</div>`).join("")}
+<!--ad:infeed-->
 <div id="results">${results.length ? `${sectionHead("Recent results")}<div class="list">${results.map(matchCard).join("")}</div>` : ""}</div>
 ${tgCta("Get the toss in Telegram", "Pick your teams once — LiveLinePro pings you before every match.", "schedule")}`;
-  return layout({ title: "Cricket Schedule & Fixtures 2026 — IND vs WI T20Is, Asian Games", description: "Upcoming cricket schedule with match times in IST: India vs West Indies T20I series, Asian Games 2026 cricket, live and recent results.", path: "/schedule", active: "schedule", tgParam: "schedule" }, body);
+  return layout({ title: "Cricket Schedule & Fixtures 2026 — IND vs WI T20Is, Asian Games", description: "Upcoming cricket schedule with match times in IST: India vs West Indies T20I series, Asian Games 2026 cricket, live and recent results.", path: "/schedule", active: "schedule", tgParam: "schedule", adPage: "schedule" }, body);
 }
 
 export async function seriesPage(s: SeriesEntry): Promise<string> {
@@ -293,10 +298,11 @@ export async function linoPage(): Promise<string> {
 </section>
 ${sectionHead("Lino's take on today's matches")}
 <div class="list" id="lino-list" data-fragment="/fragment/lino">${blocks}</div>
+<!--ad:infeed-->
 ${sectionHead("Try asking")}
 <div class="asks">${["What does India need off the last 5 overs?", "Who has the best economy in this match?", "Explain the Super Over rule in 2 lines.", "Kal ka match kitne baje hai?"].map((q) => `<a class="ask" href="${esc(appLink("lino"))}" rel="noopener">“${esc(q)}”</a>`).join("")}</div>
 <section class="card note"><h2 class="h2s">What Lino won't do</h2><p>Lino talks cricket only. No betting tips, odds, session rates or win percentages — ever. Lino's insights are based on the live scorecard and can be wrong; always enjoy responsibly.</p></section>`;
-  return layout({ title: "Lino AI — Cricket Match Insights & Live Analysis", description: "Lino is LiveLinePro's free AI cricket buddy: live match insights, required run rate, partnerships and player form in plain English or Hindi. No betting, ever.", path: "/lino", active: "lino", tgParam: "lino", refresh: "30000" }, body);
+  return layout({ title: "Lino AI — Cricket Match Insights & Live Analysis", description: "Lino is LiveLinePro's free AI cricket buddy: live match insights, required run rate, partnerships and player form in plain English or Hindi. No betting, ever.", path: "/lino", active: "lino", tgParam: "lino", refresh: "30000", adPage: "lino" }, body);
 }
 
 /* ---------------- alerts / about ---------------- */

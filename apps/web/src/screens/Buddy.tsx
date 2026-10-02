@@ -1,3 +1,4 @@
+import { AdInterstitial, AdSticky, AdUnitView, useAdUnits } from "./AdUnits";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, t } from "../lib";
@@ -10,6 +11,7 @@ export function BuddyPage({ lang }: { lang: string }) {
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const [text, setText] = useState("");
+  const ads = useAdUnits("lino");
   useEffect(() => {
     // Opened from the bot (startapp=lino) or the Home quick action: talk about the live match.
     api<{ matches: any[] }>("/api/home").then(({ matches }) => {
@@ -41,6 +43,7 @@ export function BuddyPage({ lang }: { lang: string }) {
     <>
       <div className="page-head" style={{ justifyContent: "flex-start", gap: 10 }}><div style={{ width: 48, height: 48, flex: "none", overflow: "hidden" }}><Mascot size={48} /></div><h2 style={{ margin: 0 }}>{lang === "hi" ? "लिनो से पूछें" : "Ask Lino"}</h2></div>
       <p className="small">{matchName ? `Talking about ${matchName} · ` : ""}Sports only · not betting advice</p>
+      <AdUnitView ad={ads.top} pos="top" page="lino" />
       <div className="chat">
         {log.map((line, i) => <div key={i} className={`bubble ${line.role === "me" ? "me" : ""}`}>{line.text}</div>)}
         {busy && <div className="bubble">Lino is typing…</div>}
@@ -55,6 +58,9 @@ export function BuddyPage({ lang }: { lang: string }) {
         <input className="field" value={text} onChange={(e) => setText(e.target.value)} placeholder={lang === "hi" ? "रन रेट क्या है?" : "Ask about the match…"} />
         <button className="primary" style={{ width: "auto", padding: "0 18px" }} disabled={busy || !text.trim()}>Send</button>
       </form>
+      <AdUnitView ad={ads.infeed} pos="infeed" page="lino" />
+      <AdSticky ad={ads.sticky} page="lino" />
+      <AdInterstitial ad={ads.interstitial} page="lino" />
     </>
   );
 }

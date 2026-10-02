@@ -7,6 +7,7 @@ import { getMatch, listMatches, matchPath, redis } from "./data";
 import { PREVIEWS } from "./content";
 import { linoTake } from "./lino";
 import { defaultOgSvg, matchOgSvg, previewOgSvg, renderPng } from "./og";
+import { adMedia, adStorageOk, injectAds, trackSiteAd, viewerId } from "./ads";
 import { aboutPage, alertsPage, allSeries, homeLive, homePage, linoBlocks, linoPage, liveList, livePage, matchLive, matchPage, notFoundPage, previewPage, schedulePage, seriesPage } from "./pages";
 
 const PUBLIC = path.resolve(__dirname, "../public");
@@ -26,7 +27,7 @@ app.use("*", async (c, next) => {
   if (!env.allowIndexing) c.header("x-robots-tag", "noindex, nofollow");
 });
 
-const html = (body: string, maxAge = 10) => new Response(body, {
+const html = async (page: string | Promise<string>, maxAge = 10) => new Response(await injectAds(await page), {
   headers: { "content-type": "text/html; charset=utf-8", "cache-control": `public, max-age=${maxAge}, stale-while-revalidate=30` },
 });
 const frag = (body: string) => new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
@@ -34,13 +35,13 @@ const frag = (body: string) => new Response(body, { headers: { "content-type": "
 app.get("/healthz", async (c) => {
   let r = "down";
   try { if (redis.status === "wait") await redis.connect(); r = (await redis.ping()) === "PONG" ? "ok" : "down"; } catch { /* */ }
-  return c.json({ ok: true, redis: r });
+  return c.json({ ok: true, redis: r, adsStorage: await adStorageOk() });
 });
 
-app.get("/", async () => html(await homePage()));
-app.get("/live", async () => html(await livePage(), 5));
-app.get("/schedule", async () => html(await schedulePage(), 30));
-app.get("/lino", async () => html(await linoPage(), 15));
+app.get("/", async () => html(homePage()));
+app.get("/live", async () => html(livePage(), 5));
+app.get("/schedule", async () => html(schedulePage(), 30));
+app.get("/lino", async () => html(linoPage(), 15));
 app.get("/alerts", () => html(alertsPage(), 300));
 app.get("/about", () => html(aboutPage(), 300));
 
@@ -49,19 +50,19 @@ app.get("/match/:key/:slug?", async (c) => {
   if (!m) return new Response(notFoundPage(), { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
   const want = matchPath(m);
   if (decodeURIComponent(c.req.path) !== decodeURIComponent(want)) return c.redirect(want, 301);
-  return html(await matchPage(m), m.status === "live" ? 3 : 30);
+  return html(matchPage(m), m.status === "live" ? 3 : 30);
 });
 
 app.get("/series/:slug", async (c) => {
   const s = (await allSeries()).find((x) => x.slug === c.req.param("slug"));
   if (!s) return new Response(notFoundPage(), { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
-  return html(await seriesPage(s), 30);
+  return html(seriesPage(s), 30);
 });
 
 app.get("/preview/:slug", async (c) => {
   const p = PREVIEWS.find((x) => x.slug === c.req.param("slug"));
   if (!p) return new Response(notFoundPage(), { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
-  return html(await previewPage(p), 120);
+  return html(previewPage(p), 120);
 });
 
 /* Auto-refresh fragments (same markup the page renders server-side). */
@@ -72,6 +73,36 @@ app.get("/fragment/match/:key", async (c) => {
   const m = await getMatch(decodeURIComponent(c.req.param("key")));
   if (!m) return c.text("", 404);
   return frag(matchLive(m, await linoTake(m)));
+});
+
+/* Ads manager: impression beacons, tracked click-through, media from the private bucket. */
+const clientIp = (c: { req: { header: (k: string) => string | undefined } }) => (c.req.header("x-forwarded-for") || "").split(",")[0].trim() || c.req.header("x-real-ip") || "0";
+app.post("/ad/ev", async (c) => {
+  let b: { id?: unknown; pl?: unknown; pg?: unknown } = {};
+  try { b = JSON.parse(await c.req.text()); } catch { /* */ }
+  if (typeof b.id === "string" && typeof b.pl === "string" && typeof b.pg === "string") {
+    await trackSiteAd({ id: b.id.slice(0, 40), type: "impression", placement: b.pl, page: b.pg, viewer: viewerId(clientIp(c), c.req.header("user-agent") || "") });
+  }
+  return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+});
+app.get("/ad/go/:id", async (c) => {
+  const ad = await trackSiteAd({ id: c.req.param("id").slice(0, 40), type: "click", placement: c.req.query("pl") || "", page: c.req.query("pg") || "", viewer: viewerId(clientIp(c), c.req.header("user-agent") || "") });
+  const to = ad?.targetUrl && /^https?:\/\//i.test(ad.targetUrl) ? ad.targetUrl : "/";
+  return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" } });
+});
+app.get("/ads-media/:file", async (c) => {
+  const m = await adMedia(c.req.param("file"));
+  if (!m) return c.text("not found", 404);
+  const size = m.body.length;
+  const base = { "content-type": m.type, "cache-control": "public, max-age=86400, immutable", "accept-ranges": "bytes" };
+  const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header("range") || "");
+  if (range && (range[1] || range[2])) {
+    const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (start >= size || start > end) return new Response(null, { status: 416, headers: { "content-range": `bytes */${size}` } });
+    return new Response(new Uint8Array(m.body.subarray(start, end + 1)), { status: 206, headers: { ...base, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) } });
+  }
+  return new Response(new Uint8Array(m.body), { headers: { ...base, "content-length": String(size) } });
 });
 
 /* SEO */

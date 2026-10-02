@@ -23,6 +23,8 @@ export function when(ms: number): string {
 export interface PageMeta {
   title: string; description: string; path: string; ogImage?: string; jsonLd?: unknown[]; noindex?: boolean; refresh?: string;
   active?: "home" | "live" | "schedule" | "lino" | "alerts"; tgParam?: string;
+  /** Ads manager page id: enables top/sticky/interstitial slots (filled in main.ts). */
+  adPage?: "home" | "match" | "schedule" | "lino";
 }
 
 const NAV: [PageMeta["active"], string, string, string][] = [
@@ -76,12 +78,13 @@ ${env.siteUrl ? `<meta property="og:url" content="${esc(url)}">` : ""}
   <a class="tg-btn sm" href="${esc(appLink(meta.tgParam || meta.active || "home"))}" rel="noopener">${tgIcon()}Open app</a>
 </header>
 <main class="wrap"${meta.refresh ? ` data-refresh="${esc(meta.refresh)}"` : ""}>
-${body}
+${meta.adPage ? `<!--adpage:${meta.adPage}--><!--ad:top-->` : ""}${body}
 </main>
 ${footer()}
 <nav class="tabs" aria-label="Main">
 ${NAV.map(([k, href, label, d]) => `<a href="${href}"${meta.active === k ? ` aria-current="page"` : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg><span>${label}</span></a>`).join("")}
 </nav>
+${meta.adPage ? "<!--ad:sticky--><!--ad:interstitial-->" : ""}
 <script src="/site.js?v=${ASSET_V}" defer></script>
 </body>
 </html>`;

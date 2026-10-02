@@ -13,6 +13,7 @@ const ADMIN_TABS = [
   { to: "/admin/automation", label: "⚙️ Automations" },
   { to: "/admin/channel", label: "📢 Channel" },
   { to: "/admin/sponsors", label: "💚 Sponsors" },
+  { to: "/admin/ads", label: "🖼 Ads" },
   { to: "/admin/funnel", label: "🧭 Funnel" },
   { to: "/admin/settings", label: "🔔 Alerts" },
   { to: "/admin/reports", label: "📈 Reports" },

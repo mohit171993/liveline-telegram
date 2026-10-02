@@ -33,6 +33,7 @@ export function Dash() {
         <button className="admin-card" onClick={() => nav("/admin/automation")}><span>⚙️</span><b>Automations</b><small>Verify nudges, reminders</small></button>
         <button className="admin-card" onClick={() => nav("/admin/channel")}><span>📢</span><b>Channel</b><small>Auto-post cards</small></button>
         <button className="admin-card" onClick={() => nav("/admin/sponsors")}><span>💚</span><b>Sponsors</b><small>Big button in /start + Home</small></button>
+        <button className="admin-card" onClick={() => nav("/admin/ads")}><span>🖼</span><b>Ads</b><small>Banners · native · video · embeds</small></button>
         <button className="admin-card" onClick={() => nav("/admin/funnel")}><span>🧭</span><b>Funnel</b><small>Start → verify → predict → return</small></button>
         <button className="admin-card" onClick={() => nav("/admin/settings")}><span>🔔</span><b>Alerts</b><small>New start / verified DMs</small></button>
       </div>

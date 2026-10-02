@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { SponsorTapsTable } from "./Sponsor";
+import { AdUnitsTable, type AdUnitReportRow } from "./AdsManager";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api, apiBase, haptic, initData } from "../lib";
@@ -32,9 +33,11 @@ export function Reports() {
   const [data, setData] = useState<Report | null>(null);
   const [error, setError] = useState("");
   const [sponsorRows, setSponsorRows] = useState<Parameters<typeof SponsorTapsTable>[0]["rows"]>();
+  const [adRows, setAdRows] = useState<AdUnitReportRow[]>();
+  const days = preset === "today" ? 1 : preset === "30d" ? 30 : preset === "7d" ? 7 : 30;
   useEffect(() => {
-    const days = preset === "today" ? 1 : preset === "30d" ? 30 : preset === "7d" ? 7 : 30;
     api<{ rows: NonNullable<typeof sponsorRows> }>(`/api/admin/sponsors/report?days=${days}`).then((r) => setSponsorRows(r.rows)).catch(() => setSponsorRows(undefined));
+    api<{ rows: AdUnitReportRow[] }>(`/api/admin/adunits/report?days=${days}`).then((r) => setAdRows(r.rows)).catch(() => setAdRows(undefined));
   }, [preset]);
 
   const ready = preset !== "custom" || (Boolean(from) && Boolean(to));
@@ -138,6 +141,7 @@ export function Reports() {
         </motion.div>
       )}
       <SponsorTapsTable rows={sponsorRows} />
+      <AdUnitsTable rows={adRows} days={days} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { api, initData, t, toast, wsBase, type Match, FEATURES } from "../lib";
 import { Empty, kickoff, pillClass, placeOf } from "../ui";
 import { Flag } from "../flags";
 import { AdSlot } from "./Ad";
+import { AdInterstitial, AdSticky, AdUnitView, useAdUnits } from "./AdUnits";
 import { Celebrate, muted, setMuted } from "./Celebrate";
 import { Avatar, STATUS_STICKER } from "../Avatar";
 
@@ -19,6 +20,7 @@ export function MatchPage({ lang }: { lang: string }) {
   const [lane, setLane] = useState<{ id: string; body: string }[]>([]);
 
   const [failed, setFailed] = useState("");
+  const ads = useAdUnits("match");
   async function load() {
     try { setMatch(await api<Match>(`/api/matches/${key}`)); setFailed(""); } catch (e: any) { setFailed(e.message || "error"); }
   }
@@ -86,6 +88,7 @@ export function MatchPage({ lang }: { lang: string }) {
         <Celebrate moment={moments[0]} lang={lang} matchKey={match.key} onDone={() => setMoments((cur) => cur.slice(1))} />
       )}
       {cheers.map((c) => <span key={c.id} className="float" style={{ left: `${c.x}%` }} aria-hidden="true">{c.emoji}</span>)}
+      <AdUnitView ad={ads.top} pos="top" page="match" />
       <div className="hero">
         <div className="row">
           <span className="livepill">{match.status === "live" && <i className="dot" />} {STATUS_STICKER[match.status] || ""} {match.status === "live" ? t(lang, "live") : match.status}</span>
@@ -215,7 +218,10 @@ export function MatchPage({ lang }: { lang: string }) {
       ))}
       {tab === "charts" && <Charts match={match} />}
       {tab === "chat" && <Chat matchKey={match.key} />}
+      <AdUnitView ad={ads.infeed} pos="infeed" page="match" />
       <AdSlot slot="powered_by" matchKey={match.key} quiet />
+      <AdSticky ad={ads.sticky} page="match" />
+      <AdInterstitial ad={ads.interstitial} page="match" />
     </>
   );
 }

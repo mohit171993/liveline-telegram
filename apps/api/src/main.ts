@@ -4,6 +4,7 @@ import { onFeedEvents, startPoller } from "./feed";
 import { handleFeed } from "./services/alerts";
 import { startWorkers } from "./jobs";
 import { ensureRewardTables } from "./services/rewards";
+import { startAdUnitJobs } from "./services/adunits";
 
 // A stray rejected promise (closed socket, flaky upstream) must not take the API down for everyone.
 process.on("unhandledRejection", (reason) => {
@@ -16,6 +17,7 @@ async function main() {
   await app.listen({ port: env.port, host: "0.0.0.0" });
   await ensureRewardTables().catch((err) => app.log.error({ err: String(err) }, "reward tables"));
   startPoller();
+  startAdUnitJobs();
   if (env.embeddedWorker) {
     await startWorkers();
   }

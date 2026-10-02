@@ -817,3 +817,48 @@ model SponsorTap {
   @@index([sponsorId, createdAt])
   @@index([userId])
 }
+
+/// Ads manager (admin "🖼 Ads" tab): banners, native cards, video and HTML embeds for the website + Mini App.
+model AdUnit {
+  id         String       @id @default(cuid())
+  name       String
+  kind       String       @default("banner")
+  title      String       @default("")
+  body       String       @default("")
+  cta        String       @default("")
+  images     Json         @default("{}")
+  videoUrl   String       @default("")
+  posterUrl  String       @default("")
+  html       String       @default("")
+  targetUrl  String       @default("")
+  openMode   String       @default("inapp")
+  frameable  Boolean      @default(false)
+  placements String       @default("")
+  pages      String       @default("")
+  startsAt   DateTime?
+  endsAt     DateTime?
+  priority   Int          @default(0)
+  weight     Int          @default(1)
+  freqCap    Int          @default(1)
+  enabled    Boolean      @default(false)
+  createdBy  String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  stats      AdUnitStat[]
+}
+
+/// Daily impression / click counters per ad, surface (site|app), placement and page.
+model AdUnitStat {
+  id          String @id @default(cuid())
+  adId        String
+  ad          AdUnit @relation(fields: [adId], references: [id], onDelete: Cascade)
+  day         String
+  surface     String
+  placement   String
+  page        String
+  impressions Int    @default(0)
+  clicks      Int    @default(0)
+
+  @@unique([adId, day, surface, placement, page])
+  @@index([day])
+}

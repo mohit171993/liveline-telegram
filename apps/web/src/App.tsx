@@ -12,6 +12,7 @@ import { Admins, CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin
 import { AdminSettings, Automation, Broadcasts, ChannelAdmin, CrmUser, CrmUsers, Funnel } from "./screens/Crm";
 import { Reports } from "./screens/Reports";
 import { SponsorView, SponsorsAdmin } from "./screens/Sponsor";
+import { AdsManager } from "./screens/AdsManager";
 import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
 import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
@@ -138,6 +139,7 @@ function adminRoutes() {
     <Route key="au" path="/admin/automation" element={<Automation />} />,
     <Route key="ch" path="/admin/channel" element={<ChannelAdmin />} />,
     <Route key="sp" path="/admin/sponsors" element={<SponsorsAdmin />} />,
+    <Route key="ads" path="/admin/ads" element={<AdsManager />} />,
     <Route key="fu" path="/admin/funnel" element={<Funnel />} />,
     <Route key="s" path="/admin/settings" element={<AdminSettings />} />,
   ];
