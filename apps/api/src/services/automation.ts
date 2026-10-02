@@ -52,6 +52,15 @@ export async function setAdminAlertPref(chatId: string, kind: AlertKind, enabled
   return prefs;
 }
 
+/** Full number for admin-only alerts/exports (owner-approved): +91 9876543659. */
+export function fullPhone(phone?: string | null): string {
+  const d = String(phone || "").replace(/\D/g, "");
+  if (!d) return "not shared";
+  if (d.length === 12 && d.startsWith("91")) return `+91 ${d.slice(2)}`;
+  if (d.length === 10) return `+91 ${d}`;
+  return `+${d}`;
+}
+
 /** +9198•••••210: keeps the first 4 and last 3 digits only (country code stays readable). */
 export function maskPhone(phone?: string | null): string {
   const digits = String(phone || "").replace(/\D/g, "");

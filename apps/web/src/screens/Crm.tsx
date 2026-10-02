@@ -55,20 +55,36 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
 
 async function exportCsv(kind: "users" | "attribution", body: Record<string, unknown>) {
   try {
+    toast("Preparing CSV…");
     const { url, fileName } = await api<{ url: string; fileName: string }>("/api/admin/crm/export", { method: "POST", body: JSON.stringify({ kind, ...body }) });
-    const tg = (window.Telegram?.WebApp || {}) as { downloadFile?: (p: { url: string; file_name: string }, cb?: (ok: boolean) => void) => void; openLink?: (u: string) => void };
-    if (tg.downloadFile) {
-      tg.downloadFile({ url, file_name: fileName });
-      toast("CSV ready. Confirm the download in Telegram.");
-    } else {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast("CSV downloading");
+    const tg = (window.Telegram?.WebApp || {}) as {
+      downloadFile?: (p: { url: string; file_name: string }, cb?: (ok: boolean) => void) => void;
+      openLink?: (u: string, o?: { try_instant_view?: boolean }) => void;
+      isVersionAtLeast?: (v: string) => boolean;
+      initData?: string;
+    };
+    const inTelegram = Boolean(tg.initData);
+    // Telegram webviews block blob/anchor downloads: use the native downloader (Bot API 8.0+),
+    // else open the short-lived link in the system browser, which saves the file.
+    if (inTelegram && tg.downloadFile && (!tg.isVersionAtLeast || tg.isVersionAtLeast("8.0"))) {
+      tg.downloadFile({ url, file_name: fileName }, (ok) => {
+        if (ok) toast("Downloading CSV…");
+        else if (tg.openLink) tg.openLink(url);
+      });
+      return;
     }
+    if (inTelegram && tg.openLink) {
+      tg.openLink(url);
+      toast("CSV opened in your browser (link valid 10 min)");
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast("CSV downloading");
   } catch (e) {
     toast(e instanceof Error ? e.message : "Export failed", "err");
   }
@@ -199,7 +215,7 @@ export function CrmUsers() {
         </div>
       )}
       <div className="actions-row">
-        <button className="ghost" onClick={() => exportCsv("users", { filter })}>⬇️ CSV</button>
+        <button className="ghost" onClick={() => exportCsv("users", { filter })}>⬇️ Download CSV</button>
         <button className="ghost" onClick={saveSegment}>💾 Save segment</button>
         <button className="ghost" onClick={bulkTag}>🏷 Tag all</button>
         <button className="ghost" onClick={() => { sessionStorage.setItem("ll:bc:filter", JSON.stringify(filter)); nav("/admin/broadcasts?new=1"); }}>📣 Message</button>

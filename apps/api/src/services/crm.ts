@@ -5,7 +5,7 @@ import { miniAppLink } from "../env";
 import { redis } from "../redis";
 import { isBlocked, tgCall } from "../telegram";
 import { httpError } from "../httpError";
-import { maskPhone } from "./automation";
+import { fullPhone, maskPhone } from "./automation";
 
 /* ------------------------------------------------------------------ filters */
 
@@ -377,18 +377,61 @@ export function toCsv(head: string[], rows: unknown[][]): string {
   return `\ufeff${[head, ...rows].map((r) => r.map(cell).join(",")).join("\n")}\n`;
 }
 
-export async function crmCsv(f: CrmFilter): Promise<string> {
-  const head = ["telegram_id", "username", "name", "language", "verified", "status", "source", "source_bucket", "points", "predictions", "spins", "joined_ist", "last_seen_ist", "opted_out", "bot_blocked", "tags"];
+const fmtDubai = (d?: Date | null) =>
+  d ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(d).replace(",", "") : "";
+
+/** Where a user came from, in plain words: bot / website SMS / website Telegram / ad or startapp tag. */
+export function sourceLabel(u: { source: string; verifyMethod: string | null; startParam: string | null }): string {
+  if (u.source === "website") return u.verifyMethod === "sms" ? "website SMS" : "website Telegram";
+  if (u.startParam) return u.startParam.startsWith("webverify_") ? "website Telegram" : `startapp: ${u.startParam}`;
+  return "bot";
+}
+
+/** Admin-only CRM export: every user matching the filter (all if none). Times in Asia/Dubai, full phone. */
+export async function crmCsv(f: CrmFilter): Promise<{ csv: string; count: number }> {
+  const head = ["telegram_id", "name", "username", "phone", "verified", "verified_at_dubai", "verify_method", "source", "start_param", "source_bucket",
+    "joined_dubai", "last_seen_dubai", "last_website_login_dubai", "points", "xp", "predictions", "spins", "language", "telegram_premium",
+    "alerts_opted_in", "status", "banned", "bot_blocked", "tags"];
+  const where = await fullWhere(f);
   const rows: unknown[][] = [];
-  for (let page = 0; page < 200; page++) {
-    const chunk = await listCrmUsers(f, page, 200);
-    for (const u of chunk.users) {
-      rows.push([u.telegramId, u.username || "", u.name, u.language, u.verified ? "yes" : "no", u.status, u.source, u.bucket, u.points, u.predictions, u.spins,
-        formatIst(new Date(u.joinedAt)), u.lastSeenAt ? formatIst(new Date(u.lastSeenAt)) : "", u.optOut ? "yes" : "no", u.botBlocked ? "yes" : "no", u.tags.join(" ")]);
+  const size = 500;
+  for (let page = 0; page < 400; page++) {
+    const chunk = await prisma.user.findMany({
+      where, orderBy: orderOf(f), skip: page * size, take: size,
+      include: { _count: { select: { predictions: true, spins: true } } },
+    });
+    const tags = await withTags(chunk);
+    for (const u of chunk) {
+      rows.push([
+        u.telegramId.startsWith("web:") ? "" : u.telegramId,
+        [u.firstName, u.lastName].filter(Boolean).join(" "),
+        u.username ? `@${u.username}` : "",
+        u.phone ? fullPhone(u.phone) : "",
+        u.phoneVerifiedAt ? "yes" : "no",
+        fmtDubai(u.phoneVerifiedAt),
+        u.verifyMethod || "",
+        sourceLabel(u),
+        u.startParam || "",
+        sourceBucket(u.startParam),
+        fmtDubai(u.createdAt),
+        fmtDubai(u.lastSeenAt),
+        fmtDubai(u.webLoginAt),
+        u.points,
+        u.xp,
+        u._count.predictions,
+        u._count.spins,
+        u.languageCode,
+        u.isPremium ? "yes" : "no",
+        u.optOut ? "no" : "yes",
+        u.status,
+        u.blockedAt || u.status === "BLOCKED" ? "yes" : "no",
+        u.botBlockedAt ? "yes" : "no",
+        (tags.get(u.id) || []).join(" "),
+      ]);
     }
-    if (chunk.users.length < 200) break;
+    if (chunk.length < size) break;
   }
-  return toCsv(head, rows);
+  return { csv: toCsv(head, rows), count: rows.length };
 }
 
 /* ------------------------------------------------------------------ messaging helpers */

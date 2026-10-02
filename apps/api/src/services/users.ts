@@ -18,7 +18,7 @@ import {
   type RoleId,
 } from "@liveline/shared";
 import { adminChatIds, userIsAdmin } from "./admins";
-import { adminAlertPrefs, alertSettings, maskPhone, wantsAlert } from "./automation";
+import { adminAlertPrefs, alertSettings, fullPhone, wantsAlert } from "./automation";
 import { redis } from "../redis";
 import { rollDailyStreak } from "./engage";
 import { ageFromBirthYear } from "@liveline/shared";
@@ -357,7 +357,7 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
       user.username ? `@${esc(user.username)}` : "No username",
       `Name: ${esc(name)}`,
       `Language: ${esc(user.languageCode)}`,
-      `Phone: ${esc(maskPhone(user.phone))}`,
+      `Phone: ${esc(fullPhone(user.phone))}`,
       `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
       `Source: ${esc(user.startParam || "direct")}`,
       `Verified: ${formatIst(user.phoneVerifiedAt || new Date())} IST`,
@@ -439,7 +439,7 @@ export async function alertWebsiteVerify(
     `Status: ${firstTime ? "🆕 first-time (new verified user)" : "↩️ returning (already verified)"}`,
   ];
   if (method === "sms") {
-    lines.push(`Phone: ${esc(maskPhoneWeb(user.phone))}`);
+    lines.push(`Phone: ${esc(fullPhone(user.phone))}`);
     if (!isWebOnlyTelegramId(user.telegramId)) lines.push(`Telegram ID: <code>${user.telegramId}</code>`);
   } else {
     lines.push(`Name: ${esc(name || "—")}`, user.username ? `Username: @${esc(user.username)}` : "Username: none", `User ID: <code>${user.telegramId}</code>`);

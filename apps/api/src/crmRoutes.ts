@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { httpError } from "./httpError";
 import type { authenticate as AuthFn } from "./server";
@@ -48,8 +48,10 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
   app.get("/api/admin/crm/users.csv", async (req, reply) => {
     if (!(await admin(req, reply))) return;
     reply.header("content-type", "text/csv; charset=utf-8");
-    reply.header("content-disposition", "attachment; filename=liveline-crm-users.csv");
-    return reply.send(await crmCsv(q(req)));
+    reply.header("content-disposition", `attachment; filename=${crmFileName()}`);
+    const out = await crmCsv(q(req));
+    reply.header("x-row-count", String(out.count));
+    return reply.send(out.csv);
   });
   app.get("/api/admin/crm/users/:id", async (req, reply) => {
     if (!(await admin(req, reply))) return;
@@ -75,32 +77,48 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
     return bulkTag(parseFilter(body.filter), body.tag, me.telegramId);
   });
 
-  // Telegram webviews can't save a fetch() blob reliably; mint a 10-minute one-time link instead
-  // and let WebApp.downloadFile (or the browser) fetch it.
+  // Telegram webviews can't save a fetch() blob reliably: mint a short-lived (10 min) random-token
+  // link instead, opened with WebApp.downloadFile (or openLink / the browser). The token is the only
+  // credential, so it allows a few GETs (Telegram may probe the URL before downloading) then dies.
   app.post("/api/admin/crm/export", async (req, reply) => {
-    if (!(await admin(req, reply))) return;
+    const me = await admin(req, reply);
+    if (!me) return;
     const body = z.object({ kind: z.enum(["users", "attribution"]), filter: z.unknown().optional(), days: z.number().int().optional() }).parse(req.body);
-    const token = crypto.randomBytes(18).toString("base64url");
-    await redis.set(`ll:export:${token}`, JSON.stringify(body), "EX", 600);
-    const base = env.publicApiUrl || `${req.protocol}://${req.headers.host}`;
-    return { url: `${base}/api/export/${token}`, fileName: body.kind === "users" ? "liveline-crm-users.csv" : "liveline-attribution.csv" };
+    const token = crypto.randomBytes(24).toString("base64url");
+    await redis.set(`ll:export:${token}`, JSON.stringify({ ...body, by: me.telegramId }), "EX", 600);
+    const host = env.publicApiUrl || `https://${req.headers.host}`;
+    const fileName = body.kind === "users" ? crmFileName() : "liveline-attribution.csv";
+    return { url: `${host.replace(/^http:\/\//, "https://")}/api/export/${token}/${fileName}`, fileName, expiresInSec: 600 };
   });
-  app.get("/api/export/:token", async (req, reply) => {
+  const exportHandler = async (req: FastifyRequest, reply: FastifyReply) => {
     const token = (req.params as { token: string }).token;
-    const raw = await redis.getdel(`ll:export:${token}`);
-    if (!raw) return reply.code(404).send({ error: "EXPIRED" });
+    const key = `ll:export:${token}`;
+    const raw = await redis.get(key);
+    if (!raw) return reply.code(404).type("text/plain").send("This download link has expired. Tap Download CSV again in the Admin panel.");
+    if (req.method === "GET") {
+      const uses = await redis.incr(`${key}:n`);
+      if (uses === 1) await redis.expire(`${key}:n`, 600);
+      if (uses > 5) { await redis.del(key); return reply.code(404).type("text/plain").send("This download link was already used."); }
+    }
     const body = JSON.parse(raw) as { kind: string; filter?: unknown; days?: number };
     let csv: string;
-    if (body.kind === "users") csv = await crmCsv(parseFilter(body.filter));
+    let count = 0;
+    if (body.kind === "users") ({ csv, count } = await crmCsv(parseFilter(body.filter)));
     else {
       const a = await attribution(body.days || 30);
       csv = toCsv(["source", "started", "verified", "verify_rate_%", "predicted", "predict_rate_%", "returned", "return_rate_%"],
         a.rows.map((r) => [r.source, r.started, r.verified, r.verifyRate, r.predicted, r.predictRate, r.returned, r.returnRate]));
+      count = a.rows.length;
     }
+    const fileName = body.kind === "users" ? crmFileName() : "liveline-attribution.csv";
     reply.header("content-type", "text/csv; charset=utf-8");
-    reply.header("content-disposition", `attachment; filename=${body.kind === "users" ? "liveline-crm-users.csv" : "liveline-attribution.csv"}`);
+    reply.header("content-disposition", `attachment; filename=${fileName}`);
+    reply.header("cache-control", "no-store");
+    reply.header("x-row-count", String(count));
     return reply.send(csv);
-  });
+  };
+  app.get("/api/export/:token", exportHandler);
+  app.get("/api/export/:token/:file", exportHandler);
 
   app.get("/api/admin/crm/segments", async (req, reply) => {
     if (!(await admin(req, reply))) return;
@@ -307,4 +325,9 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
     return recordTap((req.params as { id: string }).id, user.id, body.surface);
   });
 
+}
+
+function crmFileName(): string {
+  const d = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return `livelinepro-crm-users-${d}.csv`;
 }
