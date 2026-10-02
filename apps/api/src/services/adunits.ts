@@ -57,7 +57,8 @@ function toData(input: AdUnitInput) {
   if (input.kind === "video" && !input.videoUrl) throw httpError(400, "NO_VIDEO", "Upload an mp4 or webm video.");
   if (input.kind === "html" && !input.html.trim()) throw httpError(400, "NO_HTML", "Paste the ad network code.");
   if (input.kind === "html" && !input.placements.some((p) => p.startsWith("site_"))) throw httpError(400, "HTML_SITE", "HTML / script embeds run on the website only. Pick a website placement.");
-  if (input.kind !== "html" && !input.targetUrl) throw httpError(400, "NO_LINK", "Add the link the ad opens.");
+  // Drafts (off) may wait for their link (bulk upload); an ad that is switched on needs one.
+  if (input.kind !== "html" && !input.targetUrl && input.enabled) throw httpError(400, "NO_LINK", "Add the link the ad opens before switching it on.");
   return {
     name: input.name, kind: input.kind, title: input.title, body: input.body, cta: input.cta, images,
     videoUrl: input.kind === "video" ? input.videoUrl : "", posterUrl: input.posterUrl, html: input.kind === "html" ? input.html : "",
@@ -98,6 +99,10 @@ export async function updateAdUnit(id: string, input: AdUnitInput) {
 }
 
 export async function setAdUnitEnabled(id: string, enabled: boolean) {
+  if (enabled) {
+    const cur = await prisma.adUnit.findUnique({ where: { id }, select: { kind: true, targetUrl: true } });
+    if (cur && cur.kind !== "html" && !cur.targetUrl) throw httpError(400, "NO_LINK", "Add the link the ad opens before switching it on.");
+  }
   const row = await prisma.adUnit.update({ where: { id }, data: { enabled } }).catch(() => null);
   if (!row) throw httpError(404, "NOT_FOUND", "Ad not found.");
   await publishAdUnits();
