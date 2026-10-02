@@ -554,3 +554,39 @@ table.attr td i { color: var(--muted); font-style: normal; font-size: 11px; }
 .vg-legal { font-size: 12.5px; color: var(--muted); text-align: center; margin: 10px 4px 0; }
 .vg-note { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(231, 255, 77, 0.1); border: 1px solid rgba(231, 255, 77, 0.35); font-size: 14px; }
 .vg-privacy { margin-top: 14px; color: var(--muted); font-size: 13px; }
+
+/* Sponsor buttons */
+.sponsor-stack { display: grid; gap: 8px; margin: 4px 0 12px; }
+.sponsor-banner { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 16px; border: 0; border-radius: 18px; color: #fff; font-size: 17px; box-shadow: 0 0 0 1px rgba(255,255,255,0.18) inset, 0 10px 26px rgba(0,0,0,0.28); }
+.sponsor-banner .sp-emoji { font-size: 28px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: rgba(255,255,255,0.18); }
+.sponsor-banner .sp-text { flex: 1; display: grid; }
+.sponsor-banner .sp-text b { font-size: 18px; line-height: 1.15; }
+.sponsor-banner .sp-text small { font-size: 11px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.8px; }
+.sponsor-banner .sp-go { font-size: 26px; opacity: 0.9; }
+.sp-success { background: linear-gradient(135deg, #2fe07a, #13a85a); color: #04220f; box-shadow: 0 10px 28px rgba(31, 211, 106, 0.4); }
+.sp-primary { background: linear-gradient(135deg, #3aa0ff, #1f6fe0); }
+.sp-danger { background: linear-gradient(135deg, #ff6b7d, #e0334d); }
+.sp-default { background: linear-gradient(135deg, #2a3550, #1b2438); }
+.sponsor-view { display: flex; flex-direction: column; min-height: 100vh; }
+.sp-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; padding: 10px 4px; background: var(--nav); backdrop-filter: blur(10px); }
+.sp-tag { flex: 1; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-frame-wrap { position: relative; flex: 1; min-height: calc(100vh - 60px); border-radius: 14px; overflow: hidden; background: #fff; }
+.sp-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.sp-frame-skel { position: absolute; inset: 0; height: auto; }
+.sp-external { text-align: center; display: grid; gap: 10px; padding: 22px; }
+.sp-emoji.big { font-size: 44px; }
+.sp-legal { margin: 6px 0 12px; padding: 9px 12px; border-radius: 12px; font-size: 13.5px; font-weight: 600; background: rgba(231, 255, 77, 0.1); border: 1px solid rgba(231, 255, 77, 0.35); }
+.sp-form { display: grid; gap: 6px; }
+.sp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sp-colours button.swatch-success.on { background: #1fd36a; color: #04220f; }
+.sp-colours button.swatch-primary.on { background: #2f86f0; color: #fff; }
+.sp-colours button.swatch-danger.on { background: #e8455c; color: #fff; }
+.sp-on { margin: 6px 0; }
+.sp-btn { padding: 12px; border-radius: 10px; text-align: center; font-weight: 700; font-size: 15px; color: #fff; }
+.sp-btn.sp-success { color: #04220f; }
+.sp-mini { flex: 1; margin-right: 10px; padding: 9px; font-size: 14px; }
+.sp-url { word-break: break-all; }
+.sp-warn { font-size: 13px; color: #ffb547; margin: 4px 0; }
+.sp-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--muted); margin: 6px 0 8px; }
+.sp-stats b { color: var(--ink); }
+.ghost.danger { color: var(--wicket); }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SponsorBanner } from "./Sponsor";
 import { api, haptic, t, type Match, type Me } from "../lib";
 import { AdSlot } from "./Ad";
 import { Flag } from "../flags";
@@ -37,6 +38,7 @@ export function Home({ me }: { me: Me }) {
 
   return (
     <>
+      <SponsorBanner />
       {me.user.admin && (
         <button className="admin-tile" onClick={() => { haptic("medium"); nav("/admin"); }}>
           <span className="admin-tile-icon">🛠</span>

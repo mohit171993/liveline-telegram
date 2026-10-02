@@ -786,3 +786,34 @@ model AutoSend {
   @@index([userId, sentAt])
   @@index([ruleKey, sentAt])
 }
+
+model SponsorButton {
+  id        String       @id @default(cuid())
+  text      String
+  emoji     String       @default("")
+  style     String       @default("success")
+  url       String
+  enabled   Boolean      @default(false)
+  target    String       @default("verified")
+  startsAt  DateTime?
+  endsAt    DateTime?
+  frameable Boolean      @default(true)
+  frameNote String       @default("")
+  sort      Int          @default(0)
+  createdBy String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  taps      SponsorTap[]
+}
+
+model SponsorTap {
+  id        String        @id @default(cuid())
+  sponsorId String
+  sponsor   SponsorButton @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  userId    String?
+  surface   String        @default("home")
+  createdAt DateTime      @default(now())
+
+  @@index([sponsorId, createdAt])
+  @@index([userId])
+}

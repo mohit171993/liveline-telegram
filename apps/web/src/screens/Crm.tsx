@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, haptic, toast } from "../lib";
 import { Empty } from "../ui";
+import { SponsorTapsTable } from "./Sponsor";
 
 /* ---------------------------------------------------------------- shared bits */
 
@@ -11,6 +12,7 @@ const ADMIN_TABS = [
   { to: "/admin/broadcasts", label: "📣 Broadcast" },
   { to: "/admin/automation", label: "⚙️ Automations" },
   { to: "/admin/channel", label: "📢 Channel" },
+  { to: "/admin/sponsors", label: "💚 Sponsors" },
   { to: "/admin/funnel", label: "🧭 Funnel" },
   { to: "/admin/settings", label: "🔔 Alerts" },
   { to: "/admin/reports", label: "📈 Reports" },
@@ -42,7 +44,7 @@ function ago(iso?: string | null) {
   return `${Math.round(s / 86400)}d ago`;
 }
 
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label?: string }) {
+export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <button type="button" className={`toggle ${on ? "on" : ""}`} aria-pressed={on} aria-label={label} onClick={() => { haptic("light"); onChange(!on); }}>
       <span />
@@ -632,6 +634,7 @@ export function Funnel() {
           </table>
         </div>
       )}
+      <SponsorTapsTable rows={a?.sponsors} />
     </div>
   );
 }

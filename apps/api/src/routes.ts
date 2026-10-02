@@ -11,6 +11,7 @@ import { env, channelUrl, matchLink } from "./env";
 import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
+import { sponsorReport } from "./services/sponsors";
 import type { authenticate as AuthFn } from "./server";
 import { acceptTerms, oneTapConsent, parseSignedContact, verifyPhone, avatarShop, listUsers, publicUser, saveAvatar, setAge, setBlocked, setLanguage, usersCsv } from "./services/users";
 import { addAdmin, listAdminRoster, removeAdmin, setAdminRole, adminChatIds } from "./services/admins";
@@ -815,7 +816,7 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
   app.get("/api/admin/reports", async (req, reply) => {
     if (!(await authenticate(req, reply, { admin: true }))) return;
     const campaignId = (req.query as { campaignId?: string }).campaignId;
-    return { rows: await reportRows(campaignId) };
+    return { rows: await reportRows(campaignId), sponsors: (await sponsorReport(30)).rows };
   });
 
   app.get("/api/admin/reports.csv", async (req, reply) => {

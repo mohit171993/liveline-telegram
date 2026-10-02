@@ -11,6 +11,7 @@ import { BuddyPage } from "./screens/Buddy";
 import { Admins, CreateCampaign, Dash, Fulfilment, Users } from "./screens/Admin";
 import { AdminSettings, Automation, Broadcasts, ChannelAdmin, CrmUser, CrmUsers, Funnel } from "./screens/Crm";
 import { Reports } from "./screens/Reports";
+import { SponsorView, SponsorsAdmin } from "./screens/Sponsor";
 import { AdvertisePage, AgeGate, Gate } from "./screens/Gate";
 import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
@@ -85,6 +86,10 @@ export function App() {
       </div>
     );
   }
+  // Sponsor pages (target "everyone") open even before verification.
+  if (me && (!me.user.registered || me.user.needsAge) && location.pathname.startsWith("/sponsor/")) {
+    return <div className="app"><Routes><Route path="/sponsor/:id" element={<SponsorView />} /></Routes></div>;
+  }
   if (me && !me.user.registered) return <Gate mode="register" me={me} onDone={setMe} />;
   if (me?.user.needsAge) return <AgeGate me={me} onDone={setMe} />;
 
@@ -96,6 +101,7 @@ export function App() {
       <ErrorBoundary resetKey={location.pathname}>
       <Routes>
         <Route path="/" element={<Home me={me!} />} />
+        <Route path="/sponsor/:id" element={<SponsorView />} />
         <Route path="/live" element={<LiveRedirect />} />
         <Route path="/match/:key" element={<MatchPage lang={lang} />} />
         <Route path="/predict" element={<PredictPage lang={lang} />} />
@@ -131,6 +137,7 @@ function adminRoutes() {
     <Route key="b" path="/admin/broadcasts" element={<Broadcasts />} />,
     <Route key="au" path="/admin/automation" element={<Automation />} />,
     <Route key="ch" path="/admin/channel" element={<ChannelAdmin />} />,
+    <Route key="sp" path="/admin/sponsors" element={<SponsorsAdmin />} />,
     <Route key="fu" path="/admin/funnel" element={<Funnel />} />,
     <Route key="s" path="/admin/settings" element={<AdminSettings />} />,
   ];

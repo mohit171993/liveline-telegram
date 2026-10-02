@@ -13,6 +13,7 @@ import { adminChatIds } from "./services/admins";
 import { confirmBroadcast, createBroadcast, findUserBrief, cancelBroadcast } from "./services/crm";
 import { maskPhone } from "./services/automation";
 import { sendVerifyCard, VERIFY_CAPTION } from "./verifyCard";
+import { liveSponsors, sponsorLabel } from "./services/sponsors";
 import { formatIst } from "@liveline/shared";
 import { signInitData } from "@liveline/shared";
 
@@ -118,14 +119,25 @@ function verifyCardCaption() {
 }
 
 /** Verified home grid: 2 columns, every button opens the Mini App deep link. */
-function homeKeyboard(telegramId: number, admin = false) {
-  const kb = homeGrid(telegramId);
+async function homeKeyboard(telegramId: number, admin = false, privateChat = true) {
+  // Sponsor buttons (Admin → Sponsors) go first, full width, in their chosen colour.
+  // web_app buttons only work in private chats.
+  const sponsors = privateChat ? await liveSponsors(true).catch(() => []) : [];
+  const kb = homeGrid(telegramId, sponsors);
   if (admin) kb.row().webApp("🛠 Admin panel", webApp("/admin")).danger();
   return kb;
 }
 
-function homeGrid(telegramId: number) {
-  return new InlineKeyboard()
+function homeGrid(telegramId: number, sponsors: Awaited<ReturnType<typeof liveSponsors>> = []) {
+  const kb = new InlineKeyboard();
+  for (const sp of sponsors) {
+    kb.webApp(sponsorLabel(sp), webApp(`/sponsor/${sp.id}?src=bot`));
+    if (sp.style === "success") kb.success();
+    else if (sp.style === "primary") kb.primary();
+    else if (sp.style === "danger") kb.danger();
+    kb.row();
+  }
+  return kb
     .url("🏏 Live Scores", miniAppLink("live")).primary()
     .url("🎯 Predict", miniAppLink("predict")).success()
     .row()
@@ -218,7 +230,7 @@ export function createBot() {
       }
       await setChatMenu(ctx.api, ctx.chat.id, true);
       const isAdmin = await userIsAdmin(ctx.from!.id, ctx.from!.username);
-      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from!.id, isAdmin));
+      await sendWelcome(ctx.api, ctx.chat.id, await homeKeyboard(ctx.from!.id, isAdmin));
       if (user.optOut) await ctx.reply("🔕 Reminders are off. Send /resume to turn them back on.");
       return;
     }
@@ -239,7 +251,7 @@ export function createBot() {
         user.status === "ACTIVE" ? "You're in." : "You're in. Accept the terms in the app to finish.",
         { reply_markup: { remove_keyboard: true } },
       );
-      await sendWelcome(ctx.api, ctx.chat.id, homeKeyboard(ctx.from.id, await userIsAdmin(ctx.from.id, ctx.from.username)));
+      await sendWelcome(ctx.api, ctx.chat.id, await homeKeyboard(ctx.from.id, await userIsAdmin(ctx.from.id, ctx.from.username)));
     } catch (err) {
       await ctx.reply(err instanceof Error ? err.message : "Could not verify that contact.", {
         reply_markup: verifyKeyboard(),
@@ -260,7 +272,7 @@ export function createBot() {
     const verified = ctx.from ? await isVerified(ctx.from.id) : false;
     await ctx.reply(HOW_IT_WORKS, {
       parse_mode: "HTML",
-      reply_markup: verified || ctx.chat.type !== "private" ? homeKeyboard(ctx.from?.id || 0) : verifyKeyboard(),
+      reply_markup: verified || ctx.chat.type !== "private" ? await homeKeyboard(ctx.from?.id || 0, false, ctx.chat.type === "private") : verifyKeyboard(),
     });
   });
 

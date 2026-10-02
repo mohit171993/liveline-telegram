@@ -12,6 +12,7 @@ import { alertAdmins } from "./services/users";
 import crypto from "crypto";
 import { redis } from "./redis";
 import { env } from "./env";
+import { createSponsor, deleteSponsor, getSponsorForUser, listSponsors, liveSponsors, publicSponsor, recordTap, sponsorInput, sponsorReport, updateSponsor } from "./services/sponsors";
 import { channelLog, channelSettings, channelStats, sendTestCard, updateChannelSettings } from "./services/channel";
 
 function q(req: { query: unknown }) {
@@ -121,7 +122,9 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
   });
   app.get("/api/admin/crm/attribution", async (req, reply) => {
     if (!(await admin(req, reply))) return;
-    return attribution(Number((req.query as { days?: string }).days || 30) || 30);
+    const days = Number((req.query as { days?: string }).days || 30) || 30;
+    const [a, sp] = await Promise.all([attribution(days), sponsorReport(days)]);
+    return { ...a, sponsors: sp.rows };
   });
   app.get("/api/admin/crm/attribution.csv", async (req, reply) => {
     if (!(await admin(req, reply))) return;
@@ -245,4 +248,45 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
     const body = z.object({ kind: z.enum(["start", "moment", "innings", "result", "today"]).default("start") }).parse(req.body || {});
     return sendTestCard(me.telegramId, body.kind);
   });
+
+  /* ---------- Sponsor buttons ---------- */
+  app.get("/api/admin/sponsors", async (req, reply) => {
+    if (!(await admin(req, reply))) return;
+    return listSponsors();
+  });
+  app.get("/api/admin/sponsors/report", async (req, reply) => {
+    if (!(await admin(req, reply))) return;
+    return sponsorReport(Number((req.query as { days?: string }).days || 30) || 30);
+  });
+  app.post("/api/admin/sponsors", async (req, reply) => {
+    const me = await admin(req, reply);
+    if (!me) return;
+    return createSponsor(sponsorInput.parse(req.body), me.telegramId);
+  });
+  app.put("/api/admin/sponsors/:id", async (req, reply) => {
+    if (!(await admin(req, reply))) return;
+    return updateSponsor((req.params as { id: string }).id, sponsorInput.parse(req.body));
+  });
+  app.delete("/api/admin/sponsors/:id", async (req, reply) => {
+    if (!(await admin(req, reply))) return;
+    return deleteSponsor((req.params as { id: string }).id);
+  });
+  // Public: live sponsors for this user (Home banner), one sponsor (in-app /sponsor/:id view), tap tracking.
+  app.get("/api/sponsors", async (req, reply) => {
+    const user = await authenticate(req, reply, { registered: false });
+    if (!user) return;
+    return { sponsors: (await liveSponsors(Boolean(user.phoneVerifiedAt))).map(publicSponsor) };
+  });
+  app.get("/api/sponsors/:id", async (req, reply) => {
+    const user = await authenticate(req, reply, { registered: false });
+    if (!user) return;
+    return getSponsorForUser((req.params as { id: string }).id, Boolean(user.phoneVerifiedAt));
+  });
+  app.post("/api/sponsors/:id/tap", async (req, reply) => {
+    const user = await authenticate(req, reply, { registered: false });
+    if (!user) return;
+    const body = z.object({ surface: z.enum(["bot", "home"]).default("home") }).parse(req.body || {});
+    return recordTap((req.params as { id: string }).id, user.id, body.surface);
+  });
+
 }
