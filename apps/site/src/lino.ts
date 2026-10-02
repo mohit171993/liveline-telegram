@@ -1,3 +1,4 @@
+import { realToss } from "./html";
 import { containsBetting } from "@liveline/shared";
 import { env } from "./env";
 import { redis, type SiteMatch } from "./data";
@@ -34,7 +35,7 @@ export function linoFacts(m: SiteMatch): Insight[] {
   } else if (m.status === "upcoming") {
     out.push({ icon: "📍", text: `${m.venue}${m.city ? `, ${m.city}` : ""}.` });
     if (m.pitch) out.push({ icon: "🌱", text: `Pitch: ${m.pitch}` });
-    if (m.toss && !/coming up/i.test(m.toss)) out.push({ icon: "🪙", text: m.toss });
+    if (realToss(m.toss)) out.push({ icon: "🪙", text: m.toss! });
     if (m.h2h?.played) out.push({ icon: "📊", text: `Head-to-head: ${m.h2h.played} played — ${A.code} ${m.h2h.aWins}, ${B.code} ${m.h2h.bWins}.${m.h2h.last ? ` Last time: ${m.h2h.last}.` : ""}` });
   } else {
     if (m.result) out.push({ icon: "🏁", text: m.result });

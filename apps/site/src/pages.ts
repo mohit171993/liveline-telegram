@@ -2,7 +2,7 @@ import { abs, appLink, channelLink, env } from "./env";
 import { listMatches, matchPath, slugify, type SiteMatch } from "./data";
 import { PREVIEWS, SERIES, type CuratedSeries, type Fixture } from "./content";
 import { linoFacts, linoTake } from "./lino";
-import { ball, empty, esc, flag, istDate, istDayKey, istTime, layout, matchCard, sectionHead, statusPill, tgCta, tgIcon, when } from "./html";
+import { ball, empty, esc, flag, istDate, istDayKey, istTime, layout, matchCard, realToss, sectionHead, statusPill, tgCta, tgIcon, when } from "./html";
 
 /* ---------------- helpers ---------------- */
 
@@ -66,13 +66,11 @@ export async function homePage(): Promise<string> {
   const series = await allSeries();
   const body = `
 <section class="hero">
-  <div class="hero-txt">
-    <span class="kicker">Free · Telegram · Ball-by-ball</span>
-    <h1>Cricket <span class="lime">live line</span>, faster than the TV.</h1>
-    <p>Live scores, scorecards, wicket alerts and Lino AI insights for every big match — free on Telegram.</p>
-    <div class="hero-btns"><a class="tg-btn" href="${esc(appLink("home"))}" rel="noopener">${tgIcon()}Open in Telegram</a><a class="ghost-btn" href="/schedule">Schedule</a></div>
-  </div>
   <img class="hero-lino bob" src="/brand/mascot.svg" width="112" height="112" alt="Lino, the LiveLinePro mascot">
+  <span class="kicker"><i class="ldot" aria-hidden="true"></i>${live.length ? `${live.length} live now` : "Ball-by-ball"} · Free</span>
+  <h1>Cricket <span class="lime">live line</span>, faster than the TV.</h1>
+  <p>Live scores, scorecards, wicket alerts and Lino AI insights for every big match.</p>
+  <div class="hero-btns"><a class="tg-btn" href="${esc(appLink("home"))}" rel="noopener">${tgIcon()}Open in Telegram</a><a class="ghost-btn" href="/live">Live scores</a></div>
 </section>
 <div id="home-live" data-fragment="/fragment/home-live">${homeLive(live)}</div>
 <!--ad:infeed-->
@@ -95,12 +93,12 @@ ${tgCta("Never miss a wicket", "Toss, wicket, fifty and result alerts straight t
 }
 
 export function homeLive(live: SiteMatch[]): string {
-  return `${sectionHead(live.length ? "Live now" : "Live now", "/live", "Live centre")}
+  return `${sectionHead("Live now", "/live", "Live centre", live.length > 0)}
 <div class="list">${live.length ? live.map(matchCard).join("") : empty("No match is live right now. Upcoming fixtures are below — turn on alerts to get the toss in Telegram.")}</div>`;
 }
 
 function previewCard(p: (typeof PREVIEWS)[number]): string {
-  return `<a class="card pv" href="/preview/${p.slug}"><div class="pv-teams">${flag(p.a, 30)}<b>vs</b>${flag(p.b, 30)}</div><div><span class="series">${esc(p.stage)}</span><h3>${esc(p.a.name)} vs ${esc(p.b.name)}</h3><p>${esc(p.when)}</p></div></a>`;
+  return `<a class="card pv" href="/preview/${p.slug}"><div class="pv-teams">${flag(p.a, 34)}<b>vs</b>${flag(p.b, 34)}</div><div class="pv-txt"><span class="series">${esc(p.stage)}</span><h3>${esc(p.a.name)} vs ${esc(p.b.name)}</h3><p>${esc(p.when.replace(/\s*\([^)]*local\)/i, ""))}</p></div><span class="arrow" aria-hidden="true">→</span></a>`;
 }
 
 /* ---------------- live centre ---------------- */
@@ -152,7 +150,8 @@ export function matchLive(m: SiteMatch, take: string | null): string {
   const live = m.live;
   const score = (side: "a" | "b") => {
     const t = m.teams[side];
-    return `<div class="sb-team${live?.batting === side ? " bat" : ""}">${flag(t, 40)}<div><b>${esc(t.name)}</b><span>${esc(m.scoreline[side] && m.scoreline[side] !== "—" ? m.scoreline[side] : m.status === "upcoming" ? t.code : "Yet to bat")}</span></div></div>`;
+    const sc = m.scoreline[side] && m.scoreline[side] !== "—" ? m.scoreline[side] : m.status === "upcoming" ? "" : "Yet to bat";
+    return `<div class="sb-team${live?.batting === side ? " bat" : ""}">${flag(t, 40)}<b class="sb-name">${esc(t.name)}</b>${sc ? `<span class="sb-sc${sc === "Yet to bat" ? " ytb" : ""}">${esc(sc)}</span>` : ""}</div>`;
   };
   const scoreboard = `<section class="card sb ${m.status}">
   <div class="mc-head"><span class="series">${esc(m.format)} · ${esc(m.venue)}${m.city ? `, ${esc(m.city)}` : ""}</span>${statusPill(m)}</div>
@@ -162,7 +161,7 @@ export function matchLive(m: SiteMatch, take: string | null): string {
   ${live.need ? `<p class="need">${esc(live.need)}</p>` : ""}` : ""}
   ${m.status === "completed" ? `<p class="need done">${esc(m.result || "Match complete")}</p>` : ""}
   ${m.status === "upcoming" ? `<p class="need soon">Starts ${esc(when(m.startAt))}</p>` : ""}
-  ${m.toss && !/coming up/i.test(m.toss) ? `<p class="toss">🪙 ${esc(m.toss)}</p>` : ""}
+  ${realToss(m.toss) ? `<p class="toss">🪙 ${esc(m.toss)}</p>` : ""}
 </section>`;
 
   const crease = live ? `<section class="card crease">
@@ -204,7 +203,8 @@ export function matchLive(m: SiteMatch, take: string | null): string {
   ${m.points.map((r) => `<tr><td>${esc(r.team)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.nrr)}</td><td><b>${r.pts}</b></td></tr>`).join("")}</tbody></table></section>` : "";
 
   const tabs = `<nav class="seg"><a href="#lino">Lino</a>${m.commentary?.length ? `<a href="#commentary">Commentary</a>` : ""}${cards ? `<a href="#scorecard">Scorecard</a>` : ""}</nav>`;
-  return `${scoreboard}${m.status !== "upcoming" ? tabs : ""}${crease}${lino}${comm}${cards ? `<div id="scorecard">${sectionHead("Scorecard")}${cards}</div>` : ""}${preview}${points}<p class="updated">Updated ${esc(istTime(Date.now()))} IST${m.status === "live" ? " · auto-refreshing" : ""}</p>`;
+  // Mobile: one column in reading order (flex + order). Desktop: scoreboard/crease/scorecard left, Lino + commentary right.
+  return `<div class="ml"><div class="ml-a">${scoreboard}${m.status !== "upcoming" ? tabs : ""}${crease}${cards ? `<div id="scorecard" class="o6">${sectionHead("Scorecard")}${cards}</div>` : ""}${preview}${points}</div><div class="ml-b">${lino}${comm}</div></div><p class="updated">Updated ${esc(istTime(Date.now()))} IST${m.status === "live" ? " · auto-refreshing" : ""}</p>`;
 }
 
 /* ---------------- schedule / series ---------------- */
@@ -326,5 +326,5 @@ export function aboutPage(): string {
 }
 
 export function notFoundPage(): string {
-  return layout({ title: "Page not found", description: "This page does not exist.", path: "/404", noindex: true }, `${empty("That page is out — caught at long-on. Try the live centre or schedule.")}<div class="hero-btns center"><a class="tg-btn" href="/live">Live scores</a><a class="ghost-btn" href="/schedule">Schedule</a></div>`);
+  return layout({ title: "Page not found", description: "This page does not exist.", path: "/404", noindex: true }, `<section class="nf"><img src="/brand/mascot.svg" width="120" height="120" alt="" class="bob"><b class="nf-code">404</b><h1>That page is out</h1><p>Caught at long-on. Try the live centre or the schedule.</p><div class="hero-btns center"><a class="tg-btn" href="/live">Live scores</a><a class="ghost-btn" href="/schedule">Schedule</a></div></section>`);
 }

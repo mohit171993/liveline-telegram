@@ -66,3 +66,29 @@ fieldset[disabled] input,fieldset[disabled] label{cursor:not-allowed}
 .vf-legal h1{font-size:32px;margin:12px 0 14px}.vf-legal .vf-card p{color:#c5cee0;font-size:14.5px;margin-top:6px}
 @keyframes vfspin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.vf-ring,.vf-spin{animation:none}}
+/* ---- polish v2 ---- */
+.vf-perks{list-style:none;margin:0 auto 16px;padding:0;display:flex;justify-content:center;flex-wrap:wrap;gap:6px;max-width:420px}
+.vf-perks li{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);font:600 12px/1.2 var(--ui);color:#c5cee0}
+.vf-perks b{color:var(--ink);font-weight:600}
+.vf-perk-i{font-size:13px}
+.vf-pill{font-family:var(--ui);font-weight:600;letter-spacing:.6px}
+.vf-card h2{font-size:24px;letter-spacing:.3px}
+.vf-btn{font-family:var(--ui);font-weight:600;letter-spacing:.2px}
+.vf-label{font-family:var(--ui);font-weight:600}
+.vf-or span{font-family:var(--ui);font-weight:600}
+@media (max-width:370px){.vf h1{font-size:34px}.vf-perks li:nth-child(3){display:none}.vf-card{padding:14px}}
+@media (min-width:900px){
+  .vf{max-width:1040px;display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:20px 64px;align-items:center;min-height:100svh;padding-top:32px;padding-bottom:32px}
+  .vf-head{text-align:left;position:sticky;top:32px}
+  .vf-mascot{margin:28px 0 8px;width:150px;height:150px}.vf-mascot img{width:132px;height:132px}
+  .vf h1{font-size:68px;line-height:.95}
+  .vf-sub{margin:16px 0 22px;font-size:17px;max-width:460px}
+  .vf-perks{flex-direction:column;align-items:flex-start;margin:0;max-width:none;gap:10px}
+  .vf-perks li{padding:10px 16px;font-size:15px;border-radius:16px}
+  .vf-perk-i{font-size:18px}
+  .vf-main{grid-column:2}
+  .vf-alert{grid-column:2}
+  .vf-foot{grid-column:1 / -1;margin-top:0}
+  .vf-legal{display:block;max-width:720px;min-height:0}
+  .vf-legal .vf-head{position:static}
+}

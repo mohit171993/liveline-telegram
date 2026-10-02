@@ -75,7 +75,8 @@ ${env.siteUrl ? `<meta property="og:url" content="${esc(url)}">` : ""}
 <body>
 <header class="top">
   <a class="brand" href="/" aria-label="LiveLinePro home"><img src="/brand/icon.svg" width="32" height="32" alt=""><span><b>LIVELINE</b><i>Pro</i></span></a>
-  <a class="tg-btn sm" href="${esc(appLink(meta.tgParam || meta.active || "home"))}" rel="noopener">${tgIcon()}Open app</a>
+  <nav class="topnav" aria-label="Main">${NAV.map(([k, href, label]) => `<a href="${href}"${meta.active === k ? ` aria-current="page"` : ""}>${label}</a>`).join("")}</nav>
+  <a class="tg-btn sm" href="${esc(appLink(meta.tgParam || meta.active || "home"))}" rel="noopener">${tgIcon()}<span>Open app</span></a>
 </header>
 <main class="wrap"${meta.refresh ? ` data-refresh="${esc(meta.refresh)}"` : ""}>
 ${meta.adPage ? `<!--adpage:${meta.adPage}--><!--ad:top-->` : ""}${body}
@@ -98,7 +99,7 @@ export function tgIcon(): string {
 
 function footer(): string {
   return `<footer class="foot">
-  <div class="foot-brand"><img src="/brand/mascot.svg" width="44" height="44" alt=""><p><b>LiveLinePro</b> — free ball-by-ball cricket live line, scorecards, alerts and Lino AI on Telegram.</p></div>
+  <div class="foot-brand"><img src="/brand/icon.svg" width="36" height="36" alt=""><p><b>LiveLinePro</b> — free ball-by-ball cricket live line, scorecards, alerts and Lino AI on Telegram.</p></div>
   <div class="foot-links">
     <a href="/schedule">Schedule</a><a href="/live">Live scores</a><a href="/lino">Lino AI</a><a href="/alerts">Match alerts</a><a href="/about">About</a>
     <a href="${esc(appLink("footer"))}" rel="noopener">@${esc(env.botUsername)}</a><a href="${esc(channelLink())}" rel="noopener">@${esc(env.channelUsername)}</a>
@@ -114,6 +115,11 @@ function footer(): string {
 export function flag(team: { code: string; color?: string; color2?: string; flag?: string }, size = 34): string {
   const c1 = team.color || "#1d2a48", c2 = team.color2 || "#0d1424";
   return `<span class="flag" style="--c1:${esc(c1)};--c2:${esc(c2)};--s:${size}px" aria-hidden="true">${esc(team.code.slice(0, 3))}</span>`;
+}
+
+/** Feeds sometimes put a time label ("Tomorrow") in the toss field — only show a real toss result. */
+export function realToss(t?: string | null): string {
+  return t && /toss|elect|chose|opt/i.test(t) && !/coming up/i.test(t) ? t : "";
 }
 
 export function statusPill(m: SiteMatch): string {
@@ -156,10 +162,10 @@ export function tgCta(title: string, sub: string, param: string, opts: { channel
 </section>`;
 }
 
-export function sectionHead(title: string, href?: string, more = "See all"): string {
-  return `<div class="sh"><h2>${esc(title)}</h2>${href ? `<a href="${href}">${esc(more)} →</a>` : ""}</div>`;
+export function sectionHead(title: string, href?: string, more = "See all", live = false): string {
+  return `<div class="sh"><h2>${live ? `<i class="ldot" aria-hidden="true"></i>` : ""}${esc(title)}</h2>${href ? `<a href="${href}">${esc(more)} →</a>` : ""}</div>`;
 }
 
 export function empty(text: string): string {
-  return `<div class="card empty"><img src="/brand/mascot.svg" width="56" height="56" alt=""><p>${esc(text)}</p></div>`;
+  return `<div class="card empty"><img src="/brand/mascot.svg" width="48" height="48" alt=""><p>${esc(text)}</p></div>`;
 }

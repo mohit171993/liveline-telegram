@@ -44,13 +44,19 @@ export function verifyPage(v: VerifyView): string {
     <div class="vf-mascot"><span class="vf-ring"></span><img src="/brand/mascot.svg" width="104" height="104" alt="Lino, the LiveLinePro mascot" class="bob"></div>
     <h1>Verify to <span class="lime">enter</span></h1>
     <p class="vf-sub">Live line, scorecards and Lino AI are free for verified fans aged <b>18+</b>. Verify your phone once — it takes about 10 seconds.</p>
+    <ul class="vf-perks" aria-label="What you get">
+      <li><span class="vf-perk-i">⚡</span><span><b>Ball-by-ball</b> live line</span></li>
+      <li><span class="vf-perk-i">🤖</span><span><b>Lino AI</b> match insights</span></li>
+      <li><span class="vf-perk-i">🔔</span><span><b>Wicket alerts</b> on Telegram</span></li>
+    </ul>
   </header>
+  <div class="vf-main">
   ${err ? `<p class="vf-alert" role="alert">${esc(err)}</p>` : ""}
 
   <section class="vf-card vf-tg" id="tg-card" aria-labelledby="tg-h">
     <div class="vf-card-top">
       <span class="vf-ic tg">${tgIcon()}</span>
-      <div><span class="vf-pill live">Free · Live now</span><h2 id="tg-h">Verify with Telegram</h2><p>One tap in <b>@${bot}</b> — Telegram shares your number securely.</p></div>
+      <div><span class="vf-pill live">Recommended · 1 tap</span><h2 id="tg-h">Telegram</h2><p>Open <b>@${bot}</b> and tap Start — Telegram shares your number securely.</p></div>
     </div>
     <div class="vf-tg-idle" id="tg-idle">
       ${tgReady
@@ -78,7 +84,7 @@ export function verifyPage(v: VerifyView): string {
   <section class="vf-card vf-sms${v.smsEnabled ? "" : " soon"}" id="sms-card" aria-labelledby="sms-h">
     <div class="vf-card-top">
       <span class="vf-ic sms" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm3 6v2h2v-2zm4 0v2h2v-2zm4 0v2h2v-2z"/></svg></span>
-      <div>${v.smsEnabled ? `<span class="vf-pill">SMS</span>` : `<span class="vf-pill soon">Coming soon</span>`}<h2 id="sms-h">Verify with SMS OTP</h2><p>We text a 6-digit code to your mobile.</p></div>
+      <div>${v.smsEnabled ? `<span class="vf-pill">Indian mobiles</span>` : `<span class="vf-pill soon">Coming soon</span>`}<h2 id="sms-h">SMS code</h2><p>We text a 6-digit code to your mobile.</p></div>
     </div>
     <form class="vf-form" id="sms-form" novalidate>
       <fieldset id="sms-step-phone"${dis}>
@@ -100,6 +106,7 @@ export function verifyPage(v: VerifyView): string {
     </form>
   </section>
 
+  </div>
   <footer class="vf-foot">
     <p><span class="pill18">18+</span> A free cricket fan app for adults. Your number is used only to keep one account per person — never shown publicly.</p>
     <p><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="https://t.me/${esc(env.channelUsername)}" rel="noopener">@${esc(env.channelUsername)}</a></p>
