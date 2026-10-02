@@ -32,16 +32,8 @@ export function MatchPage({ lang }: { lang: string }) {
     return () => clearTimeout(id);
   }, [moments[0]]);
 
-  useEffect(() => {
-    window.Telegram?.WebApp?.MainButton.setText(t(lang, "predict"));
-    window.Telegram?.WebApp?.MainButton.show();
-    const go = () => nav(`/predict/${key}`);
-    window.Telegram?.WebApp?.MainButton.onClick(go);
-    return () => {
-      window.Telegram?.WebApp?.MainButton.hide();
-      window.Telegram?.WebApp?.MainButton.offClick(go);
-    };
-  }, [key, lang, nav]);
+  // No Telegram MainButton here: it sits under our tab bar and hides content. Predict is a card in the page.
+  useEffect(() => { window.Telegram?.WebApp?.MainButton?.hide(); }, [key]);
 
   useEffect(() => {
     const ws = new WebSocket(`${wsBase()}/ws`);

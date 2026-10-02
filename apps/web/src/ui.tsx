@@ -47,10 +47,19 @@ export function useTelegramBackButton() {
 }
 
 /** Visible "← Back" (desktop Telegram has no native back button in some clients). */
+/** True inside a real Telegram client whose header shows the native Back button (Bot API 6.1+). */
+export function hasNativeBack(): boolean {
+  const tg = window.Telegram?.WebApp as any;
+  if (!tg?.BackButton || !tg.initData) return false;
+  if (!tg.platform || tg.platform === "unknown") return false;
+  return typeof tg.isVersionAtLeast === "function" ? tg.isVersionAtLeast("6.1") : true;
+}
+
 export function BackArrow() {
   const { pathname } = useLocation();
   const goBack = useGoBack();
   if (pathname === "/" || pathname === "") return null;
+  if (hasNativeBack()) return null;
   return <button type="button" className="back-arrow" aria-label="Back" onClick={goBack}><span aria-hidden>←</span><span className="lbl"> Back</span></button>;
 }
 
@@ -72,10 +81,10 @@ export function AppHeader({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       <header className="topbar">
         <div className="top-left"><BackArrow /><Wordmark theme={theme} /></div>
         <div className="top-actions">
-          {me.user.admin && <button className="admin-chip" aria-label="Admin panel" onClick={() => { haptic("light"); nav("/admin"); }}>🛠 Admin</button>}
+          {me.user.admin && <button className="admin-chip" aria-label="Admin panel" onClick={() => { haptic("light"); nav("/admin"); }}><span aria-hidden="true">🛠</span><span className="lbl">Admin</span></button>}
           <button className="points" onClick={() => { haptic("light"); nav("/board"); }}>{me.user.points} {t(lang, "points")}</button>
           <button className="avatar-btn" aria-label="Settings" onClick={() => { haptic("light"); setOpen(true); }}>
-            <Avatar look={me.user.look} size={36} />
+            <Avatar look={me.user.look} size={32} />
           </button>
         </div>
       </header>

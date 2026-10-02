@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, haptic, toast, type Match, type Player } from "../lib";
-import { Flag, hasFlag } from "../flags";
+import { FlagArt, flagCode, hasFlag } from "../flags";
 
 /** Real pre-match data only (see @liveline/shared buildMatchPreview); empty blocks are hidden. */
 type Form = { r: "W" | "L" | "T"; vs: string; key: string; at: number };
@@ -27,13 +27,31 @@ function initials(name: string, code: string): string {
   return (words.length >= 2 ? words[0][0] + words[1][0] : code.slice(0, 2)).toUpperCase();
 }
 
+const SHIELD = "M32 2 L60 11 V35 C60 53 47.5 64.5 32 70 C16.5 64.5 4 53 4 35 V11 Z";
+const SHIELD_IN = "M32 7.5 L55 15 V35 C55 50 44.5 59.8 32 64.5 C19.5 59.8 9 50 9 35 V15 Z";
+
+/** Crest badge: the real flag (national sides) clipped to a shield, otherwise a team-coloured shield with initials.
+ *  The provider gives no logos or brand colours, so club colours are a stable hash of the team key. */
 export function TeamBadge({ team, size = 64 }: { team: Match["teams"]["a"]; size?: number }) {
-  if (hasFlag(team.code, team.name)) return <span className="pv-flag" style={{ width: size, height: size }}><Flag code={team.code} size={Math.round(size * 0.78)} /></span>;
-  const h = teamHue(team.key || team.name);
+  const uid = useId().replace(/:/g, "");
+  const flag = hasFlag(team.code, team.name);
+  const h = teamHue(team.key || team.name), h2 = (h + 38) % 360;
+  const glow = flag ? "rgba(61,255,232,.35)" : `hsl(${h} 90% 55% / .45)`;
   return (
-    <span className="pv-mono" style={{ width: size, height: size, fontSize: size * 0.34, background: `linear-gradient(140deg, hsl(${h} 85% 58%), hsl(${(h + 40) % 360} 80% 38%))`, boxShadow: `0 0 0 2px hsl(${h} 90% 70% / .55), 0 10px 28px hsl(${h} 90% 50% / .35)` }} aria-label={team.name}>
-      {initials(team.name, team.code)}
-    </span>
+    <svg className="crest" width={size} height={Math.round(size * 1.125)} viewBox="0 0 64 72" role="img" aria-label={team.name} style={{ filter: `drop-shadow(0 6px 14px ${glow})` }}>
+      <defs>
+        <linearGradient id={`g${uid}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={`hsl(${h} 85% 60%)`} /><stop offset="1" stopColor={`hsl(${h2} 80% 30%)`} /></linearGradient>
+        <linearGradient id={`s${uid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".38" /><stop offset=".5" stopColor="#fff" stopOpacity="0" /></linearGradient>
+        <clipPath id={`c${uid}`}><path d={SHIELD} /></clipPath>
+      </defs>
+      {flag
+        ? <g clipPath={`url(#c${uid})`}><rect width="64" height="72" fill="#0c1428" /><g transform="translate(-19.4 0) scale(1.714)"><FlagArt id={flagCode(team.code)} /></g></g>
+        : <path d={SHIELD} fill={`url(#g${uid})`} />}
+      <path d={SHIELD} fill={`url(#s${uid})`} />
+      <path d={SHIELD_IN} fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="1.2" />
+      <path d={SHIELD} fill="none" stroke="rgba(231,255,77,.75)" strokeWidth="2" />
+      {!flag && <text x="32" y="44" textAnchor="middle" fontFamily="Sora, Inter, sans-serif" fontWeight="800" fontSize="21" fill="#fff" style={{ paintOrder: "stroke" }} stroke="rgba(0,0,0,.25)" strokeWidth="1.5">{initials(team.name, team.code)}</text>}
+    </svg>
   );
 }
 
@@ -152,16 +170,15 @@ export function UpcomingPreview({ match }: { match: Match }) {
           <span className="pv-chips"><span className="pv-chip">{match.format}</span><span className="pv-chip up">⏳ Upcoming</span></span>
         </div>
         <div className="pv-teams">
-          <div className="pv-team"><TeamBadge team={a} /><b>{a.name}</b><span>{a.code}</span>{pv && pv.form.a.length > 0 && <FormDots list={pv.form.a} />}</div>
+          <div className="pv-team"><TeamBadge team={a} size={58} /><b>{a.name}</b>{pv && pv.form.a.length > 0 && <FormDots list={pv.form.a} />}</div>
           <div className="pv-vs" aria-hidden="true">VS</div>
-          <div className="pv-team"><TeamBadge team={b} /><b>{b.name}</b><span>{b.code}</span>{pv && pv.form.b.length > 0 && <FormDots list={pv.form.b} />}</div>
+          <div className="pv-team"><TeamBadge team={b} size={58} /><b>{b.name}</b>{pv && pv.form.b.length > 0 && <FormDots list={pv.form.b} />}</div>
         </div>
         <Countdown to={match.startAt} />
-        <div className="pv-when">
-          <span>🕒 {fmtTime(match.startAt, IST)} <b>IST</b></span>
-          {showLocal && <span className="muted">{fmtTime(match.startAt)} your time ({shortTz(localTz)})</span>}
+        <div className="pv-meta">
+          <div className="pv-meta-row"><span className="pv-meta-ic" aria-hidden="true">🗓</span><span><b>{fmtTime(match.startAt, IST)} IST</b>{showLocal && <span className="muted">{fmtTime(match.startAt)} your time ({shortTz(localTz)})</span>}</span></div>
+          {(match.venue || match.city) && <div className="pv-meta-row"><span className="pv-meta-ic" aria-hidden="true">📍</span><span>{[match.venue, match.city].filter(Boolean).join(", ")}</span></div>}
         </div>
-        {(match.venue || match.city) && <div className="pv-venue">📍 {[match.venue, match.city].filter(Boolean).join(", ")}</div>}
         <div className="pv-actions">
           <button type="button" className={`pv-btn primary ${pv?.reminder ? "set" : ""}`} disabled={busy} onClick={remind} aria-pressed={Boolean(pv?.reminder)}>
             {pv?.reminder ? "🔔 Reminder on" : "🔔 Remind me"}

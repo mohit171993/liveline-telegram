@@ -25,7 +25,7 @@ export function flagCode(code: string): string {
   return ALIAS[raw] || code.slice(0, 3).toUpperCase();
 }
 
-function Art({ id }: { id: string }) {
+export function FlagArt({ id }: { id: string }) {
   switch (id) {
     case "IND":
       return (
@@ -209,7 +209,7 @@ export function Flag({ code, size = 32 }: { code: string; size?: number }) {
       <defs>
         <clipPath id={clip}><rect width="60" height="42" rx="7" /></clipPath>
       </defs>
-      <g clipPath={`url(#${clip})`}><Art id={id} /></g>
+      <g clipPath={`url(#${clip})`}><FlagArt id={id} /></g>
       <rect width="60" height="42" rx="7" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" />
     </svg>
   );
