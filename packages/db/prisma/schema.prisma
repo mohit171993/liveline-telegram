@@ -61,6 +61,12 @@ model User {
   lastSeenAt      DateTime?
   optOut          Boolean   @default(false)
   botBlockedAt    DateTime?
+  /// Where the account came from: "telegram" (bot / Mini App) or "website" (LiveLinePro site verify gate).
+  source          String    @default("telegram")
+  /// How the phone was verified: "telegram" (contact share) or "sms" (website OTP).
+  verifyMethod    String?
+  /// Last website login through the verify gate.
+  webLoginAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
