@@ -660,3 +660,33 @@ table.attr td i { color: var(--muted); font-style: normal; font-size: 11px; }
 .top-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .back-arrow { flex: none; border: 1px solid var(--line, rgba(255,255,255,.14)); background: transparent; color: inherit; border-radius: 999px; padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; line-height: 1; }
 .back-arrow:hover { background: rgba(255,255,255,.06); }
+
+/* ---- Overflow safety (Sponsors form overflowed: auto-sized grid track + datetime-local min-width) ---- */
+html, body { max-width: 100%; overflow-x: hidden; }
+.app { overflow-x: clip; }
+.sp-form { grid-template-columns: minmax(0, 1fr); }
+.sp-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sp-two > *, .sp-form > *, .admin-grid > *, .card > *, .row > * { min-width: 0; }
+.field, .area, select, input, textarea { max-width: 100%; min-width: 0; box-sizing: border-box; }
+input[type="datetime-local"], input[type="date"], input[type="time"] { width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
+.seg { flex-wrap: wrap; }
+.seg > button { min-width: 0; }
+.admin img, .admin video, .admin iframe, .admin table { max-width: 100%; }
+.admin .card, .admin .rule { min-width: 0; overflow-wrap: anywhere; }
+.admin pre, .admin code { white-space: pre-wrap; word-break: break-word; }
+@media (max-width: 380px) { .sp-two.dates { grid-template-columns: minmax(0, 1fr); } }
+.topbar .points, .admin-chip { white-space: nowrap; }
+.top-actions { min-width: 0; flex-shrink: 1; }
+@media (max-width: 440px) {
+  .back-arrow { padding: 7px 10px; font-size: 15px; }
+  .back-arrow .lbl { display: none; }
+  .top-actions { gap: 6px; }
+}
+.topbar { gap: 8px; }
+.topbar .top-left { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.topbar .top-left > * { flex-shrink: 0; }
+.topbar .top-actions { flex: none; }
+@media (max-width: 380px) {
+  .topbar .admin-chip { padding: 6px 8px; font-size: 11px; }
+  .topbar .points { padding-left: 8px; padding-right: 8px; }
+}

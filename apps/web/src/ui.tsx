@@ -51,7 +51,7 @@ export function BackArrow() {
   const { pathname } = useLocation();
   const goBack = useGoBack();
   if (pathname === "/" || pathname === "") return null;
-  return <button type="button" className="back-arrow" aria-label="Back" onClick={goBack}>← Back</button>;
+  return <button type="button" className="back-arrow" aria-label="Back" onClick={goBack}><span aria-hidden>←</span><span className="lbl"> Back</span></button>;
 }
 
 export function AppHeader({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {

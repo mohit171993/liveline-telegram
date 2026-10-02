@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, haptic, toast } from "../lib";
 import { AdminNav, Toggle, ist } from "./Crm";
 
-export type PublicSponsor = { id: string; text: string; emoji: string; style: "success" | "primary" | "danger" | "default"; url: string; frameable: boolean };
+export type PublicSponsor = { id: string; text: string; emoji: string; style: "success" | "primary" | "danger" | "default"; url: string; frameable: boolean; go?: string };
 
 const label = (s: { emoji: string; text: string }) => `${s.emoji ? `${s.emoji} ` : ""}${s.text}`;
 
@@ -17,7 +17,7 @@ export function SponsorBanner() {
   return (
     <div className="sponsor-stack">
       {rows.map((s) => (
-        <button key={s.id} className={`sponsor-banner sp-${s.style}`} onClick={() => { haptic("medium"); nav(`/sponsor/${s.id}?src=home`); }}>
+        <button key={s.id} className={`sponsor-banner sp-${s.style}`} onClick={() => openSponsor(s, nav)}>
           <span className="sp-emoji">{s.emoji || "⭐"}</span>
           <span className="sp-text"><b>{s.text}</b><small>Sponsored</small></span>
           <span className="sp-go">›</span>
@@ -25,6 +25,18 @@ export function SponsorBanner() {
       ))}
     </div>
   );
+}
+
+/**
+ * One tap from the Home tile: the current Mini App webview navigates straight to the sponsor site
+ * (through the api's tracking 302), so it stays inside Telegram — never the external browser.
+ */
+function openSponsor(s: PublicSponsor, nav: (to: string) => void) {
+  haptic("medium");
+  if (s.go) { window.location.assign(s.go); return; }
+  api(`/api/sponsors/${s.id}/tap`, { method: "POST", body: JSON.stringify({ surface: "home" }) }).catch(() => undefined);
+  if (/^https:\/\//.test(s.url)) window.location.assign(s.url);
+  else nav(`/sponsor/${s.id}?src=home`);
 }
 
 /* ---------------------------------------------------------------- In-app sponsor view */
@@ -43,11 +55,12 @@ export function SponsorView() {
       setS(row);
       const surface = qs.get("src") === "bot" ? "bot" : "home";
       api(`/api/sponsors/${id}/tap`, { method: "POST", body: JSON.stringify({ surface }) }).catch(() => undefined);
-      if (!row.frameable) window.Telegram?.WebApp?.openLink?.(row.url);
+      // Older /start buttons still land here: go straight to the sponsor inside this webview.
+      if (/^https:\/\//.test(row.url)) window.location.replace(row.url);
     }).catch((e) => alive && setErr(e instanceof Error ? e.message : "This offer has ended."));
     return () => { alive = false; };
   }, [id]);
-  const open = () => s && window.Telegram?.WebApp?.openLink?.(s.url);
+  const open = () => s && window.location.assign(s.url);
   if (err) return <div className="sponsor-view"><p className="err">{err}</p><button className="ghost w-full" onClick={() => nav("/")}>Back to LiveLine</button></div>;
   if (!s) return <div className="sponsor-view"><div className="skel" /></div>;
   return (
@@ -147,7 +160,7 @@ export function SponsorsAdmin() {
           <input className="field" inputMode="url" value={form.url} onChange={(e) => set("url", e.target.value)} />
           <label className="small">Who sees it</label>
           <div className="seg">{(["verified", "all"] as const).map((t) => <button key={t} className={form.target === t ? "on" : ""} onClick={() => set("target", t)}>{t === "verified" ? "Verified users" : "Everyone"}</button>)}</div>
-          <div className="sp-two">
+          <div className="sp-two dates">
             <div><label className="small">Start (optional)</label><input className="field" type="datetime-local" value={form.startsAt} onChange={(e) => set("startsAt", e.target.value)} /></div>
             <div><label className="small">End (optional)</label><input className="field" type="datetime-local" value={form.endsAt} onChange={(e) => set("endsAt", e.target.value)} /></div>
           </div>

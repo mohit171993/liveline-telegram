@@ -14,7 +14,7 @@ import { adminChatIds } from "./services/admins";
 import { confirmBroadcast, createBroadcast, findUserBrief, cancelBroadcast } from "./services/crm";
 import { maskPhone } from "./services/automation";
 import { sendVerifyCard, VERIFY_CAPTION } from "./verifyCard";
-import { liveSponsors, sponsorLabel } from "./services/sponsors";
+import { liveSponsors, sponsorGoUrl, sponsorLabel } from "./services/sponsors";
 import { formatIst } from "@liveline/shared";
 import { signInitData } from "@liveline/shared";
 
@@ -149,7 +149,8 @@ async function homeKeyboard(telegramId: number, admin = false, privateChat = tru
 function homeGrid(telegramId: number, sponsors: Awaited<ReturnType<typeof liveSponsors>> = []) {
   const kb = new InlineKeyboard();
   for (const sp of sponsors) {
-    kb.webApp(sponsorLabel(sp), webApp(`/sponsor/${sp.id}?src=bot`));
+    // One tap: opens the sponsor site itself in Telegram's Mini App webview (tap logged by the 302 hop).
+    kb.webApp(sponsorLabel(sp), env.apiOrigin ? sponsorGoUrl(sp.id, telegramId, "bot") : webApp(`/sponsor/${sp.id}?src=bot`));
     if (sp.style === "success") kb.success();
     else if (sp.style === "primary") kb.primary();
     else if (sp.style === "danger") kb.danger();

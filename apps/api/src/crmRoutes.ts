@@ -14,7 +14,7 @@ import { adminAlertStatus, alertAdmins } from "./services/users";
 import crypto from "crypto";
 import { redis } from "./redis";
 import { env } from "./env";
-import { createSponsor, deleteSponsor, getSponsorForUser, listSponsors, liveSponsors, publicSponsor, recordTap, sponsorInput, sponsorReport, updateSponsor } from "./services/sponsors";
+import { createSponsor, deleteSponsor, getSponsorForUser, listSponsors, liveSponsors, publicSponsor, recordTap, sponsorGo, sponsorGoUrl, sponsorInput, sponsorReport, updateSponsor } from "./services/sponsors";
 import { channelLog, channelSettings, channelStats, sendTestCard, updateChannelSettings } from "./services/channel";
 
 function q(req: { query: unknown }) {
@@ -86,7 +86,7 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
     const body = z.object({ kind: z.enum(["users", "attribution"]), filter: z.unknown().optional(), days: z.number().int().optional() }).parse(req.body);
     const token = crypto.randomBytes(24).toString("base64url");
     await redis.set(`ll:export:${token}`, JSON.stringify({ ...body, by: me.telegramId }), "EX", 600);
-    const host = env.publicApiUrl || `https://${req.headers.host}`;
+    const host = env.publicApiUrl || `https://${req.headers.host}`; // export links
     const fileName = body.kind === "users" ? crmFileName() : "liveline-attribution.csv";
     return { url: `${host.replace(/^http:\/\//, "https://")}/api/export/${token}/${fileName}`, fileName, expiresInSec: 600 };
   });
@@ -307,11 +307,18 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
     if (!(await admin(req, reply))) return;
     return deleteSponsor((req.params as { id: string }).id);
   });
+  // One-tap sponsor link (bot web_app button opens this; we log the tap and 302 to the sponsor).
+  app.get("/go/sp/:id", async (req, reply) => {
+    const url = await sponsorGo((req.params as { id: string }).id, req.query as { t?: string; s?: string; g?: string });
+    reply.header("cache-control", "no-store");
+    if (!url) return reply.code(410).type("text/html; charset=utf-8").send('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;background:#0b1220;color:#e7eefc;display:grid;place-items:center;height:100vh;margin:0"><p>This offer has ended.</p></body>');
+    return reply.redirect(url, 302);
+  });
   // Public: live sponsors for this user (Home banner), one sponsor (in-app /sponsor/:id view), tap tracking.
   app.get("/api/sponsors", async (req, reply) => {
     const user = await authenticate(req, reply, { registered: false });
     if (!user) return;
-    return { sponsors: (await liveSponsors(Boolean(user.phoneVerifiedAt))).map(publicSponsor) };
+    return { sponsors: (await liveSponsors(Boolean(user.phoneVerifiedAt))).map((sp) => ({ ...publicSponsor(sp), go: sponsorGoUrl(sp.id, user.telegramId, "home") })) };
   });
   app.get("/api/sponsors/:id", async (req, reply) => {
     const user = await authenticate(req, reply, { registered: false });

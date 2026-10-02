@@ -20,6 +20,8 @@ export const env = {
   // Channel auto-posting is OFF unless explicitly enabled.
   channelAutopost: bool("CHANNEL_AUTOPOST", false),
   publicApiUrl: (process.env.PUBLIC_API_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "")).replace(/\/$/, ""),
+  /** The api's public https origin from any service (bot/worker have no domain of their own). */
+  apiOrigin: (process.env.PUBLIC_API_URL || (process.env.RAILWAY_SERVICE_LIVELINE_API_URL ? `https://${process.env.RAILWAY_SERVICE_LIVELINE_API_URL}` : "") || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "")).replace(/\/$/, ""),
   botUsername: (process.env.BOT_USERNAME || "LiveLineProBot").replace(/^@/, ""),
   webappUrl: (process.env.WEBAPP_URL || "http://localhost:5173").replace(/\/$/, ""),
   authMaxAge: Number(process.env.AUTH_MAX_AGE_SECONDS || 86400),

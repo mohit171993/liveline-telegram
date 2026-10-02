@@ -1,4 +1,5 @@
 import { prisma } from "@liveline/db";
+import nodeCrypto from "node:crypto";
 import { z } from "zod";
 import { env } from "../env";
 import { httpError } from "../httpError";
@@ -199,4 +200,28 @@ export async function recordTap(sponsorId: string, userId: string | null, surfac
   if (!exists) return { ok: false };
   await prisma.sponsorTap.create({ data: { sponsorId, userId, surface: surface === "bot" ? "bot" : "home" } });
   return { ok: true };
+}
+
+/* ---------------- one-tap sponsor links (bot web_app button → api 302 → sponsor URL) ---------------- */
+
+const goSig = (id: string, t: string, src: string) =>
+  nodeCrypto.createHmac("sha256", process.env.WEB_AUTH_SECRET || process.env.TELEGRAM_BOT_TOKEN || "ll").update(`sp:${id}:${t}:${src}`).digest("base64url").slice(0, 16);
+
+/** Tracking link that records the tap and redirects straight to the sponsor (no intermediate page). */
+export function sponsorGoUrl(id: string, telegramId: string | number, src: "bot" | "home" = "bot"): string {
+  const t = String(telegramId);
+  return `${env.apiOrigin || env.publicApiUrl}/go/sp/${encodeURIComponent(id)}?t=${encodeURIComponent(t)}&s=${src}&g=${goSig(id, t, src)}`;
+}
+
+/** Resolve a /go/sp link: record the tap (user only if the signature checks out) and return the target. */
+export async function sponsorGo(id: string, q: { t?: string; s?: string; g?: string }): Promise<string | null> {
+  const s = await prisma.sponsorButton.findUnique({ where: { id } }).catch(() => null);
+  if (!s || !isLive(s)) return null;
+  const src = q.s === "home" ? "home" : "bot";
+  let userId: string | null = null;
+  if (q.t && q.g && q.g === goSig(id, q.t, src)) {
+    userId = (await prisma.user.findUnique({ where: { telegramId: q.t }, select: { id: true } }).catch(() => null))?.id || null;
+  }
+  void prisma.sponsorTap.create({ data: { sponsorId: id, userId, surface: src } }).catch(() => undefined);
+  return s.url;
 }
