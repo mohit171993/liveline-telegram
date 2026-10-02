@@ -103,11 +103,18 @@ function inviteLink(telegramId: number) {
   return `https://t.me/share/url?url=${encodeURIComponent(ref)}&text=${encodeURIComponent(text)}`;
 }
 
+/**
+ * Unverified welcome banner: ONE big green "✅ Verify now" button. It opens the Mini App's
+ * verify screen, where a single tap accepts terms/18+ and calls WebApp.requestContact()
+ * (the signed contact is checked server-side, and the bot also gets the contact message).
+ */
 function guestKeyboard() {
-  return new InlineKeyboard()
-    .url("📢 Join @LiveLine_Pro", channelLink())
-    .row()
-    .text("ℹ️ How it works", "howto");
+  return new InlineKeyboard().webApp("✅ Verify now", webApp("/verify")).success();
+}
+
+/** Verify card caption + the links that used to sit on the welcome banner. */
+function verifyCardCaption() {
+  return `${VERIFY_CAPTION}\n\n📢 <a href="${escHtml(channelLink())}">Join @LiveLine_Pro</a>  ·  ℹ️ /help how it works`;
 }
 
 /** Verified home grid: 2 columns, every button opens the Mini App deep link. */
@@ -203,9 +210,9 @@ export function createBot() {
         await sendWelcome(ctx.api, ctx.chat.id, guestKeyboard());
         // Big, highlighted verify prompt: branded image card + bold/blockquote caption,
         // carrying the persistent green "Share phone to verify" reply keyboard.
-        const sent = await sendVerifyCard(ctx.chat.id, VERIFY_CAPTION, verifyKeyboard());
+        const sent = await sendVerifyCard(ctx.chat.id, verifyCardCaption(), verifyKeyboard());
         if (!sent.ok) {
-          await ctx.reply(VERIFY_CAPTION, { parse_mode: "HTML", reply_markup: verifyKeyboard() });
+          await ctx.reply(verifyCardCaption(), { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: verifyKeyboard() });
         }
         return;
       }

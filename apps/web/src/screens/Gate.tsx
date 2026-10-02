@@ -5,7 +5,7 @@ import { api, type Me } from "../lib";
 const privacy = `LiveLine Pro stores only what Telegram gives us (ID, name, username, language, Premium flag) and the phone number you choose to share with Telegram's contact button. We use it to keep one account per person, send reminders, and deliver gift vouchers to that number. We never read your phone book. Points, spins and vouchers have no cash value. There is no betting.`;
 
 export function Gate({ mode, me, message, onDone }: { mode: "outside" | "register" | "blocked" | "error"; me?: Me; message?: string; onDone?: (me: Me) => void }) {
-  const [terms, setTerms] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const nav = useNavigate();
   if (mode === "outside") {
@@ -22,8 +22,46 @@ export function Gate({ mode, me, message, onDone }: { mode: "outside" | "registe
   }
   if (mode === "blocked") return <div className="gate"><h1>Blocked</h1><p>An admin has paused this account.</p></div>;
   if (mode === "error") return <div className="gate"><h1>LiveLine</h1><p>{message}</p></div>;
+  const tg = window.Telegram?.WebApp;
+  const canAsk = Boolean(tg?.requestContact) && (tg?.isVersionAtLeast ? tg.isVersionAtLeast("6.9") : true);
+  const waitForRegistered = () => {
+    let n = 0;
+    const tick = setInterval(async () => {
+      n += 1;
+      const next = await api<Me>("/api/me").catch(() => null);
+      if (next?.user.registered) { clearInterval(tick); nav("/", { replace: true }); onDone?.(next); }
+      else if (n > 45) { clearInterval(tick); setBusy(false); setNote("Still waiting for your phone. Tap ✅ Share phone to verify in the chat, then reopen LiveLine."); }
+    }, 2000);
+  };
+  const verifyNow = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNote("");
+    try {
+      // The tap accepts the terms and confirms 18+ (shown right under the button).
+      await api("/api/auth/onetap", { method: "POST", body: JSON.stringify({ accepted: true, adult: true }) });
+      if (!me?.user.needsPhone) { const next = await api<Me>("/api/me"); nav("/", { replace: true }); onDone?.(next); return; }
+      if (!canAsk) { setBusy(false); setNote("Your Telegram app is too old for in-app sharing. Close this and tap ✅ Share phone to verify in the chat."); return; }
+      tg!.requestContact!(async (ok, res) => {
+        if (!ok) { setBusy(false); setNote("No problem. Tap ✅ Verify now again whenever you're ready, or use the green button in the chat."); return; }
+        setNote("Verifying…");
+        if (res?.response) {
+          try {
+            const r = await api<{ user: Me["user"] }>("/api/auth/contact", { method: "POST", body: JSON.stringify({ response: res.response }) });
+            if (r.user.registered) { const next = await api<Me>("/api/me"); nav("/", { replace: true }); onDone?.(next); return; }
+          } catch (err) {
+            setNote(err instanceof Error ? err.message : "Could not verify that contact.");
+          }
+        }
+        waitForRegistered(); // the bot also receives the contact and verifies it
+      });
+    } catch (err) {
+      setBusy(false);
+      setNote(err instanceof Error ? err.message : "Something went wrong. Try again.");
+    }
+  };
   return (
-    <div className="app">
+    <div className="app verify-gate">
       {me?.user.admin && (
         <button className="admin-tile" onClick={() => nav("/admin")}>
           <span className="admin-tile-icon">🛠</span>
@@ -31,19 +69,20 @@ export function Gate({ mode, me, message, onDone }: { mode: "outside" | "registe
           <span className="admin-tile-go">›</span>
         </button>
       )}
-      <h1 className="font-display text-5xl">Verify</h1>
-      <p className="small">{privacy}</p>
-      <label className="flex gap-2 items-start mt-4"><input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} /> <span>{me?.user.language === "hi" ? "मैं नियम और गोपनीयता सूचना मानता हूँ" : "I agree to the terms and privacy notice"}</span></label>
-      <button className="primary" disabled={!terms} onClick={async () => {
-        await api("/api/auth/terms", { method: "POST", body: JSON.stringify({ accepted: true }) });
-        window.Telegram?.WebApp?.requestContact?.(() => undefined);
-        setNote("If Telegram asks, share your own phone. We'll check it belongs to this account.");
-        const tick = setInterval(async () => {
-          const next = await api<Me>("/api/me");
-          if (next.user.registered && onDone) { clearInterval(tick); onDone(next); }
-        }, 2000);
-      }}>Share phone & continue</button>
-      {note && <p className="small">{note}</p>}
+      <div className="vg-hero">
+        <div className="vg-shield">🔐</div>
+        <h1 className="font-display">VERIFY YOUR <span>PHONE</span></h1>
+        <p>1 tap to unlock Live line, Predict, Spin &amp; Lino</p>
+      </div>
+      <ul className="vg-perks">
+        <li>⚡ <b>Live line</b>, ball by ball</li>
+        <li>🎯 <b>Free predictions</b> &amp; leaderboard</li>
+        <li>🎡 <b>Daily free spin</b> &amp; Lino, your AI buddy</li>
+      </ul>
+      <button className="vg-cta" disabled={busy} onClick={verifyNow}>{busy ? "Waiting for Telegram…" : "✅ Verify now"}</button>
+      <p className="vg-legal">By tapping you confirm you're <b>18+</b> and accept the terms and privacy notice. Telegram shares your number, nothing to type.</p>
+      {note && <p className="vg-note">{note}</p>}
+      <details className="vg-privacy"><summary>Privacy notice</summary><p className="small">{privacy}</p></details>
     </div>
   );
 }

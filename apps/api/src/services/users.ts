@@ -26,6 +26,7 @@ import { bumpFriendStreaks, joinSquad } from "./play";
 import { env } from "../env";
 import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
+import nodeCrypto from "node:crypto";
 import { sendTelegramMessage } from "../telegram";
 
 export { userIsAdmin };
@@ -247,6 +248,38 @@ function parseGroup(startParam?: string | null): string | null {
 function parseSquad(startParam?: string | null): string | null {
   const match = (startParam || "").match(/^sq_(.+)$/);
   return match ? match[1] : null;
+}
+
+/** One-tap verify from the Mini App: the tap accepts the terms and self-declares 18+. */
+export async function oneTapConsent(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  if (user.ageStatus !== "adult" && user.ageStatus !== "consent") {
+    await prisma.user.update({ where: { id: userId }, data: { ageStatus: "adult" } });
+  }
+  return acceptTerms(userId);
+}
+
+/**
+ * Validates the signed string Telegram returns from WebApp.requestContact()
+ * ("contact=<json>&auth_date=..&hash=..", same HMAC scheme as initData).
+ */
+export function parseSignedContact(raw: string, botToken: string): { userId: number; phone: string } | null {
+  let params: URLSearchParams;
+  try { params = new URLSearchParams(raw); } catch { return null; }
+  const hash = params.get("hash") || "";
+  if (!/^[0-9a-f]{64}$/i.test(hash)) return null;
+  const check = [...params.entries()].filter(([k]) => k !== "hash").sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => `${k}=${v}`).join("\n");
+  const secret = nodeCrypto.createHmac("sha256", "WebAppData").update(botToken).digest();
+  const calc = nodeCrypto.createHmac("sha256", secret).update(check).digest();
+  const given = Buffer.from(hash, "hex");
+  if (calc.length !== given.length || !nodeCrypto.timingSafeEqual(calc, given)) return null;
+  const age = Date.now() / 1000 - Number(params.get("auth_date") || 0);
+  if (!(age < 3600 && age > -300)) return null;
+  try {
+    const c = JSON.parse(params.get("contact") || "{}") as { user_id?: number; phone_number?: string };
+    if (!c.user_id || !c.phone_number) return null;
+    return { userId: Number(c.user_id), phone: String(c.phone_number) };
+  } catch { return null; }
 }
 
 export async function setAge(userId: string, birthYear: number, parentConsent: boolean) {

@@ -184,7 +184,9 @@ declare global {
         HapticFeedback?: { impactOccurred: (s: string) => void; notificationOccurred: (s: string) => void; selectionChanged: () => void };
         BackButton: { show: () => void; hide: () => void; onClick: (fn: () => void) => void; offClick: (fn: () => void) => void };
         MainButton: { setText: (s: string) => void; show: () => void; hide: () => void; onClick: (fn: () => void) => void; offClick: (fn: () => void) => void; enable: () => void };
-        requestContact?: (cb?: (ok: boolean) => void) => void;
+        requestContact?: (cb?: (ok: boolean, res?: { status?: string; response?: string }) => void) => void;
+        close?: () => void;
+        isVersionAtLeast?: (v: string) => boolean;
         openTelegramLink: (url: string) => void;
         openLink: (url: string) => void;
         addToHomeScreen?: () => void;

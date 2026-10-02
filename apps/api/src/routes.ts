@@ -12,7 +12,7 @@ import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
 import type { authenticate as AuthFn } from "./server";
-import { acceptTerms, avatarShop, listUsers, publicUser, saveAvatar, setAge, setBlocked, setLanguage, usersCsv } from "./services/users";
+import { acceptTerms, oneTapConsent, parseSignedContact, verifyPhone, avatarShop, listUsers, publicUser, saveAvatar, setAge, setBlocked, setLanguage, usersCsv } from "./services/users";
 import { addAdmin, listAdminRoster, removeAdmin, setAdminRole, adminChatIds } from "./services/admins";
 import { leaderboard, placePrediction, predictionState } from "./services/game";
 import { assertCleanCopy, assertSponsorCategory, recordAdEvent, reportCsv, reportRows, serveSlot } from "./services/ads";
@@ -64,6 +64,26 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     const body = z.object({ accepted: z.literal(true) }).parse(req.body);
     if (!body.accepted) throw httpError(400, "TERMS");
     return { user: await publicUser(await acceptTerms(user.id)) };
+  });
+
+  // One-tap verify (Mini App "✅ Verify now"): the tap accepts terms + self-declares 18+.
+  app.post("/api/auth/onetap", async (req, reply) => {
+    const user = await authenticate(req, reply, { registered: false });
+    if (!user) return;
+    z.object({ accepted: z.literal(true), adult: z.literal(true) }).parse(req.body);
+    return { user: await publicUser(await oneTapConsent(user.id)) };
+  });
+
+  // Signed contact from Telegram.WebApp.requestContact(); verified server-side (HMAC), so the
+  // phone is trusted even if the bot's contact message is delayed.
+  app.post("/api/auth/contact", async (req, reply) => {
+    const user = await authenticate(req, reply, { registered: false });
+    if (!user) return;
+    const body = z.object({ response: z.string().min(10).max(4096) }).parse(req.body);
+    const contact = parseSignedContact(body.response, env.botToken);
+    if (!contact) throw httpError(400, "BAD_CONTACT", "Could not confirm that contact. Use the green Share phone button in the chat.");
+    if (String(contact.userId) !== user.telegramId) throw httpError(403, "NOT_YOUR_PHONE", "Share your own phone number.");
+    return { user: await publicUser(await verifyPhone(user.telegramId, contact.userId, contact.phone)) };
   });
 
   app.post("/api/auth/age", async (req, reply) => {
