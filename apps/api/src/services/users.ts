@@ -538,7 +538,7 @@ export async function adminAlertStatus(probe = false) {
     ]);
     const last = lastRaw ? JSON.parse(lastRaw) as { ok: boolean; code: number | null; description: string | null; at: string; kind: string } : null;
     let state: AlertState = last ? (last.ok ? "ok" : classify(last.code, last.description)) : "unknown";
-    let detail = last ? (last.ok ? `Last alert delivered ${last.at}` : `Last alert failed: ${last.description || last.code}`) : "No alert sent since this check was added.";
+    let detail = last ? (last.ok ? `Last alert (${last.kind}) delivered ${formatIst(new Date(last.at))} IST` : `Last alert failed ${formatIst(new Date(last.at))} IST: ${last.description || last.code}`) : "No alert sent since this check was added.";
     if (probe) {
       const r = await tgCall("sendChatAction", { chat_id: id, action: "typing" });
       state = r.ok ? "ok" : classify(r.code, r.description);
