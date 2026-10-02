@@ -32,16 +32,11 @@ export function MatchPage({ lang }: { lang: string }) {
   }, [moments[0]]);
 
   useEffect(() => {
-    const back = () => nav(-1);
-    window.Telegram?.WebApp?.BackButton.show();
-    window.Telegram?.WebApp?.BackButton.onClick(back);
     window.Telegram?.WebApp?.MainButton.setText(t(lang, "predict"));
     window.Telegram?.WebApp?.MainButton.show();
     const go = () => nav(`/predict/${key}`);
     window.Telegram?.WebApp?.MainButton.onClick(go);
     return () => {
-      window.Telegram?.WebApp?.BackButton.hide();
-      window.Telegram?.WebApp?.BackButton.offClick(back);
       window.Telegram?.WebApp?.MainButton.hide();
       window.Telegram?.WebApp?.MainButton.offClick(go);
     };

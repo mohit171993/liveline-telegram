@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { api, haptic, t, type Match, type Me } from "./lib";
 import { Avatar } from "./Avatar";
@@ -10,6 +10,48 @@ export function pillClass(ball: string) {
   if (ball === "4") return "pill b4";
   if (ball === "6") return "pill b6";
   return "pill";
+}
+
+/** Where "back" goes when there's no in-app history (opened by deep link): /admin/x → /admin, else Home. */
+function parentOf(path: string): string {
+  if (path.startsWith("/admin/crm/user/")) return "/admin/crm";
+  if (path.startsWith("/admin/") ) return "/admin";
+  if (path.startsWith("/predict/")) return "/predict";
+  return "/";
+}
+
+export function useGoBack() {
+  const nav = useNavigate();
+  const { pathname } = useLocation();
+  return () => {
+    haptic("light");
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) nav(-1);
+    else nav(parentOf(pathname), { replace: true });
+  };
+}
+
+/** Telegram's native header Back button on every screen except Home. */
+export function useTelegramBackButton() {
+  const { pathname } = useLocation();
+  const goBack = useGoBack();
+  useEffect(() => {
+    const bb = window.Telegram?.WebApp?.BackButton;
+    if (!bb) return;
+    if (pathname === "/" || pathname === "") { bb.hide(); return; }
+    bb.show();
+    bb.onClick(goBack);
+    return () => { bb.offClick(goBack); };
+  }, [pathname]);
+  useEffect(() => () => window.Telegram?.WebApp?.BackButton?.hide(), []);
+}
+
+/** Visible "← Back" (desktop Telegram has no native back button in some clients). */
+export function BackArrow() {
+  const { pathname } = useLocation();
+  const goBack = useGoBack();
+  if (pathname === "/" || pathname === "") return null;
+  return <button type="button" className="back-arrow" aria-label="Back" onClick={goBack}>← Back</button>;
 }
 
 export function AppHeader({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
@@ -28,7 +70,7 @@ export function AppHeader({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   return (
     <>
       <header className="topbar">
-        <Wordmark theme={theme} />
+        <div className="top-left"><BackArrow /><Wordmark theme={theme} /></div>
         <div className="top-actions">
           {me.user.admin && <button className="admin-chip" aria-label="Admin panel" onClick={() => { haptic("light"); nav("/admin"); }}>🛠 Admin</button>}
           <button className="points" onClick={() => { haptic("light"); nav("/board"); }}>{me.user.points} {t(lang, "points")}</button>

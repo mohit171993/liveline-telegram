@@ -215,7 +215,7 @@ export function CrmUsers() {
         </div>
       )}
       <div className="actions-row">
-        <button className="ghost" onClick={() => exportCsv("users", { filter })}>⬇️ Download CSV</button>
+        <button className="ghost" onClick={() => exportCsv("users", { filter })}>⬇️ CSV</button>
         <button className="ghost" onClick={saveSegment}>💾 Save segment</button>
         <button className="ghost" onClick={bulkTag}>🏷 Tag all</button>
         <button className="ghost" onClick={() => { sessionStorage.setItem("ll:bc:filter", JSON.stringify(filter)); nav("/admin/broadcasts?new=1"); }}>📣 Message</button>

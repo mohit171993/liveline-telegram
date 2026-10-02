@@ -655,3 +655,8 @@ table.attr td i { color: var(--muted); font-style: normal; font-size: 11px; }
 .am-form .field, .am-form .area { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .am-form .am-upload .field { width: auto; }
 .am-check { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Back: native Telegram BackButton + visible arrow (desktop Telegram) */
+.top-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.back-arrow { flex: none; border: 1px solid var(--line, rgba(255,255,255,.14)); background: transparent; color: inherit; border-radius: 999px; padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; line-height: 1; }
+.back-arrow:hover { background: rgba(255,255,255,.06); }

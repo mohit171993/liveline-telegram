@@ -18,7 +18,7 @@ import { PlayPage } from "./screens/Play";
 import { PassPage } from "./screens/Pass";
 import { AvatarBuilder } from "./screens/AvatarBuilder";
 import { Splash } from "./brand/Brand";
-import { AppHeader, ErrorBoundary, TabBar, Toaster } from "./ui";
+import { AppHeader, BackArrow, ErrorBoundary, TabBar, Toaster, useTelegramBackButton } from "./ui";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -51,6 +51,7 @@ export function App() {
   // Deep link: t.me/LiveLineProBot?startapp=match_<key> opens that match.
   const nav = useNavigate();
   const location = useLocation();
+  useTelegramBackButton();
   const ready = Boolean(me?.user.registered && !me?.user.needsAge && !me?.user.blocked);
   useEffect(() => {
     if (!me) return;
@@ -81,6 +82,7 @@ export function App() {
     return (
       <div className="app">
         <Toaster />
+        <header className="topbar"><div className="top-left"><BackArrow /></div></header>
         <ErrorBoundary resetKey={location.pathname}>
           <Routes>{adminRoutes()}<Route path="*" element={<Dash />} /></Routes>
         </ErrorBoundary>
