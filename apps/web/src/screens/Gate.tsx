@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type Me } from "../lib";
 
-const privacy = `LiveLine Pro stores only what Telegram gives us (ID, name, username, language, Premium flag) and the phone number you choose to share with Telegram's contact button. We use it to keep one account per person, send reminders, and deliver gift vouchers to that number. We never read your phone book. Points, spins and vouchers have no cash value. There is no betting.`;
+const privacy = `LiveLine Pro stores only what Telegram gives us (ID, name, username, language, Premium flag) and the phone number you choose to share with Telegram's contact button. We use it to keep one account per person, send reminders, and keep the leaderboard fair. We never read your phone book. Points and XP are only for levels and the leaderboard: no money value, nothing to redeem. There is no betting.`;
 
 export function Gate({ mode, me, message, onDone }: { mode: "outside" | "register" | "blocked" | "error"; me?: Me; message?: string; onDone?: (me: Me) => void }) {
   const [busy, setBusy] = useState(false);
@@ -72,12 +72,12 @@ export function Gate({ mode, me, message, onDone }: { mode: "outside" | "registe
       <div className="vg-hero">
         <div className="vg-shield">🔐</div>
         <h1 className="font-display">VERIFY YOUR <span>PHONE</span></h1>
-        <p>1 tap to unlock Live line, Predict, Spin &amp; Lino</p>
+        <p>1 tap to unlock Live line, Alerts, Predict &amp; Lino</p>
       </div>
       <ul className="vg-perks">
         <li>⚡ <b>Live line</b>, ball by ball</li>
-        <li>🎯 <b>Free predictions</b> &amp; leaderboard</li>
-        <li>🎡 <b>Daily free spin</b> &amp; Lino, your AI buddy</li>
+        <li>🎯 <b>Free predictions</b> &amp; points leaderboard</li>
+        <li>🔔 <b>Match alerts</b> &amp; Lino, your AI buddy</li>
       </ul>
       <button className="vg-cta" disabled={busy} onClick={verifyNow}>{busy ? "Waiting for Telegram…" : "✅ Verify now"}</button>
       <p className="vg-legal">By tapping you confirm you're <b>18+</b> and accept the terms and privacy notice. Telegram shares your number, nothing to type.</p>
@@ -121,8 +121,8 @@ export function AdvertisePage() {
       setDone(true);
     }}>
       <h2>Advertise with us</h2>
-      <p className="small">Home native, prediction slot, innings interstitial, powered-by, or a free spin sponsor. No betting brands.</p>
-      <div className="card"><b>Rate card</b><p className="small">Home native from ₹15,000 / week. Match sponsor from ₹40,000. Spin sponsor from ₹25,000. Final quote on request.</p></div>
+      <p className="small">Home native, prediction slot, innings interstitial, powered-by, or a Daily XP Spin sponsor. No betting brands.</p>
+      <div className="card"><b>Rate card</b><p className="small">Home native from ₹15,000 / week. Match sponsor from ₹40,000. XP Spin sponsor from ₹25,000. Final quote on request.</p></div>
       <input className="field" name="name" placeholder="Your name" required />
       <input className="field" name="brand" placeholder="Brand" required />
       <input className="field" name="contact" placeholder="Phone or email" required />

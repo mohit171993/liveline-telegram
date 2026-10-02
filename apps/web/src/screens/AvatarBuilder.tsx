@@ -39,7 +39,7 @@ export function AvatarBuilder({ lang, onSaved }: { lang: string; onSaved?: (look
   return (
     <>
       <h2>{lang === "hi" ? "अवतार" : "Avatar"}</h2>
-      <p className="small">Cartoon kit only. No photos. Pieces unlock with XP and rewards.</p>
+      <p className="small">Cartoon kit only. No photos. Pieces unlock with XP and badges.</p>
       <div className="avatar-stage">
         <Avatar look={preview} size={120} />
       </div>

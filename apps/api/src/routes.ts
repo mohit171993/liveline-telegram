@@ -7,7 +7,7 @@ import { z } from "zod";
 import { prisma } from "@liveline/db";
 import { findPlayer, istDay, SPORT_MODULES } from "@liveline/shared";
 import { buildAnalytics, parseSection, recordMatchView, sectionCsv } from "./services/reports";
-import { env, channelUrl, matchLink } from "./env";
+import { env, channelUrl, matchLink, vouchersEnabled, winProbEnabled } from "./env";
 import { redis } from "./redis";
 import { getMatch, listSummaries, readUniverse } from "./feed";
 import { httpError } from "./httpError";
@@ -56,7 +56,7 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
   app.get("/api/me", async (req, reply) => {
     const user = await authenticate(req, reply, { registered: false });
     if (!user) return;
-    return { user: await publicUser(user), channelUrl: channelUrl(), sports: SPORT_MODULES };
+    return { user: await publicUser(user), channelUrl: channelUrl(), sports: SPORT_MODULES, features: { vouchers: vouchersEnabled, winProb: winProbEnabled } };
   });
 
   app.post("/api/auth/terms", async (req, reply) => {
@@ -649,7 +649,7 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
       prisma.sponsorLead.count(),
     ]);
     let liveBalance = balance;
-    try {
+    if (vouchersEnabled) try {
       const fresh = await refreshBalance();
       liveBalance = { balance: String(fresh.balance), currency: fresh.currency, message: fresh.message, id: "live", checkedAt: new Date() };
     } catch { /* keep last snapshot */ }
@@ -661,7 +661,8 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
       impressions,
       clicks,
       top,
-      giftport: liveBalance,
+      giftport: vouchersEnabled ? liveBalance : null,
+      features: { vouchers: vouchersEnabled },
       leads,
     };
   });
@@ -874,6 +875,7 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
         inventory: z.number().int().optional(),
       })),
     }).parse(req.body);
+    if (!vouchersEnabled && body.prizes.some((p) => p.kind === "voucher")) throw httpError(400, "PRIZES_OFF", "Points-only mode: voucher slices are disabled (REWARDS_VOUCHERS_ENABLED=false).");
     return prisma.prizeTable.create({ data: { ...body, prizes: { create: body.prizes } }, include: { prizes: true } });
   });
 
@@ -895,6 +897,7 @@ async function adminRoutes(app: FastifyInstance, authenticate: typeof AuthFn) {
 
   app.post("/api/admin/giftport/sync", async (req, reply) => {
     if (!(await authenticate(req, reply, { admin: true }))) return;
+    if (!vouchersEnabled) throw httpError(410, "PRIZES_OFF", "Points-only mode: GiftPort is off.");
     return { items: await syncCatalogue() };
   });
 

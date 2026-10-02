@@ -9,12 +9,18 @@ import {
   randomId,
   type PrizeDrawItem,
 } from "@liveline/shared";
-import { env } from "../env";
+import { env, vouchersEnabled } from "../env";
 import { providerName, rewardsProvider } from "../giftport";
 import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
 import { sendTelegramMessage } from "../telegram";
 import { adminChatIds } from "./admins";
+
+/** Prize-free mode: voucher slices/items are skipped unless REWARDS_VOUCHERS_ENABLED=true. */
+const allowedPrize = (kind: string) => vouchersEnabled || kind !== "voucher";
+function vouchersOff() {
+  return httpError(410, "PRIZES_OFF", "LiveLine is points-only: there are no vouchers, gifts or prize draws.");
+}
 
 export async function grantScratch(userId: string, source: string, sourceRef?: string) {
   const open = await prisma.scratchCard.count({ where: { userId, opened: false } });
@@ -51,7 +57,8 @@ export async function rewardsHome(userId: string) {
       result: card.opened ? safeJson(card.result) : null,
     })),
     history: spins.map((spin) => ({ id: spin.id, source: spin.source, result: safeJson(spin.result), at: spin.createdAt })),
-    giveaways: giveaways.map((g) => ({
+    vouchersEnabled,
+    giveaways: (vouchersEnabled ? giveaways : []).map((g) => ({
       id: g.id,
       title: g.title,
       description: g.description,
@@ -62,8 +69,10 @@ export async function rewardsHome(userId: string) {
       entered: g.entries.length > 0,
       winnerUserId: g.winnerUserId,
     })),
-    vouchers: vouchers.map((v) => presentVoucher(v, true)),
-    legal: "Free only. No purchase, no coins for sale, no cash, no withdrawal.",
+    vouchers: vouchersEnabled ? vouchers.map((v) => presentVoucher(v, true)) : [],
+    legal: vouchersEnabled
+      ? "Free only. No purchase, no coins for sale, no cash, no withdrawal."
+      : "Points only: XP, badges, levels and leaderboard rank. Nothing to buy, nothing to redeem, no money value.",
   };
 }
 
@@ -72,7 +81,7 @@ function publicTable(table: { id: string; name: string; sponsorName: string | nu
     id: table.id,
     name: table.name,
     sponsorName: table.sponsorName,
-    segments: table.prizes.map((p) => ({ id: p.id, label: p.label, kind: p.kind })),
+    segments: table.prizes.filter((p) => allowedPrize(p.kind)).map((p) => ({ id: p.id, label: p.label, kind: p.kind })),
   };
 }
 
@@ -102,7 +111,7 @@ export async function ensureRewardTables() {
             { label: "Boost", kind: "boost", weight: 10 },
             { label: "Monsoon", kind: "theme", weight: 8, themeKey: "monsoon" },
             { label: "Nightwatch", kind: "badge", weight: 6, badgeKey: "nightwatch" },
-            { label: "₹100 Amazon Pay", kind: "voucher", weight: 2, operatorCode: "AMZN", amountInr: 100, inventory: 20 },
+            ...(vouchersEnabled ? [{ label: "₹100 Amazon Pay", kind: "voucher", weight: 2, operatorCode: "AMZN", amountInr: 100, inventory: 20 }] : []),
           ],
         },
       },
@@ -153,10 +162,10 @@ export async function spinWheel(userId: string) {
   if (!table) throw httpError(404, "NO_WHEEL", "The wheel is not set up yet.");
   const daily = await prisma.spin.findFirst({ where: { userId, dayKey: day, source: "daily" } });
   const source = daily ? "bonus" : "daily";
-  if (source === "bonus" && user.bonusSpins <= 0) throw httpError(409, "NO_SPIN", "Your free spin is used. Bonus spins come from streaks and referrals.");
+  if (source === "bonus" && user.bonusSpins <= 0) throw httpError(409, "NO_SPIN", "Today's Daily XP Spin is used. Bonus spins come from streaks and referrals.");
   const spunToday = await prisma.spin.count({ where: { dayKey: day } });
   const budgetLeft = table.budgetInr - table.spentInr;
-  const items: PrizeDrawItem[] = table.prizes.map((p) => ({
+  const items: PrizeDrawItem[] = table.prizes.filter((p) => allowedPrize(p.kind)).map((p) => ({
     id: p.id,
     kind: p.kind,
     weight: p.weight,
@@ -187,7 +196,7 @@ export async function spinWheel(userId: string) {
   await prisma.rewardAudit.create({
     data: { userId, action: "spin", detail: JSON.stringify({ source, prize: prize?.id || null, capped: spunToday >= table.dailyCap }) },
   });
-  const segments = table.prizes.filter((p) => p.active);
+  const segments = table.prizes.filter((p) => p.active && allowedPrize(p.kind));
   // Land on the prize slice; a capped or empty draw lands on "Try again".
   const hit = prize ? segments.findIndex((p) => p.id === prize.id) : segments.findIndex((p) => p.kind === "none");
   const index = Math.max(0, hit);
@@ -199,7 +208,7 @@ async function applyPrize(
   prize: PrizeDrawItem | null,
   tableId: string,
 ): Promise<{ label: string; kind: string; points: number }> {
-  if (!prize) return { label: "House cap reached", kind: "none", points: 0 };
+  if (!prize) return { label: "No XP this time", kind: "none", points: 0 };
   await prisma.prize.update({ where: { id: prize.id }, data: { awarded: { increment: 1 } } });
   if (prize.kind === "points") {
     await prisma.user.update({ where: { id: userId }, data: { points: { increment: prize.points } } });
@@ -223,6 +232,7 @@ async function applyPrize(
     return { label: prize.label, kind: "badge", points: 0 };
   }
   if (prize.kind === "voucher") {
+    if (!vouchersEnabled) return { label: "No XP this time", kind: "none", points: 0 };
     const row = await prisma.prize.findUnique({ where: { id: prize.id } });
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     if (row?.operatorCode && row.amountInr && user.phone) {
@@ -252,7 +262,7 @@ export async function openScratch(userId: string, cardId: string) {
   if (!card) throw httpError(404, "NOT_FOUND");
   if (card.opened) return { result: safeJson(card.result) };
   const table = await prisma.prizeTable.findFirst({ where: { kind: "scratch", active: true }, include: { prizes: true } });
-  const items: PrizeDrawItem[] = (table?.prizes || []).map((p) => ({
+  const items: PrizeDrawItem[] = (table?.prizes || []).filter((p) => allowedPrize(p.kind)).map((p) => ({
     id: p.id, kind: p.kind, weight: p.weight, active: p.active, points: p.points,
     amountInr: p.amountInr, inventory: p.inventory, awarded: p.awarded, label: p.label,
   }));
@@ -268,6 +278,7 @@ export async function openScratch(userId: string, cardId: string) {
 }
 
 export async function enterGiveaway(userId: string, giveawayId: string) {
+  if (!vouchersEnabled) throw vouchersOff();
   const giveaway = await prisma.giveaway.findUnique({ where: { id: giveawayId } });
   if (!giveaway || giveaway.status !== "open" || giveaway.endsAt < new Date()) {
     throw httpError(409, "CLOSED", "This draw is closed.");
@@ -281,6 +292,7 @@ export async function enterGiveaway(userId: string, giveawayId: string) {
 }
 
 export async function claimVoucher(userId: string, orderRowId: string, email: string) {
+  if (!vouchersEnabled) throw vouchersOff();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, "BAD_EMAIL");
   const order = await prisma.voucherOrder.findFirst({ where: { id: orderRowId, userId } });
   if (!order) throw httpError(404, "NOT_FOUND");
@@ -293,6 +305,7 @@ export async function claimVoucher(userId: string, orderRowId: string, email: st
 }
 
 export async function fulfil(orderRowId: string) {
+  if (!vouchersEnabled) throw vouchersOff();
   const order = await prisma.voucherOrder.findUniqueOrThrow({ where: { id: orderRowId } });
   const provider = rewardsProvider();
   let balance: number | null = null;
@@ -473,6 +486,7 @@ async function lowBalanceAlert(balance: number) {
 }
 
 export async function drawGiveaway(giveawayId: string) {
+  if (!vouchersEnabled) throw vouchersOff();
   const giveaway = await prisma.giveaway.findUnique({ where: { id: giveawayId }, include: { entries: true } });
   if (!giveaway) throw httpError(404, "NOT_FOUND");
   if (!giveaway.entries.length) throw httpError(409, "NO_ENTRIES");

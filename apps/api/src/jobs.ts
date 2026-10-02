@@ -1,5 +1,5 @@
 import { Queue, Worker } from "bullmq";
-import { env } from "./env";
+import { env, vouchersEnabled } from "./env";
 import { bullConnection } from "./redis";
 import { dailySummary, fireReminder, maybeStreakNudges, requeueReminders } from "./services/alerts";
 import { refreshBalance } from "./services/rewards";
@@ -9,7 +9,7 @@ export async function startWorkers() {
   new Worker("ll-reminders", async (job) => fireReminder(String(job.data.id)), { connection });
   new Worker("ll-summary", async () => dailySummary(), { connection });
   new Worker("ll-balance", async () => {
-    await refreshBalance().catch(() => undefined);
+    if (vouchersEnabled) await refreshBalance().catch(() => undefined);
     await maybeStreakNudges().catch(() => undefined);
   }, { connection });
 

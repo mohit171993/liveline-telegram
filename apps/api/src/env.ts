@@ -55,6 +55,15 @@ export const env = {
 
 export const isProd = env.nodeEnv === "production";
 
+/**
+ * Prize-free mode (Telegram Ads policy): when false (default) there are no vouchers, gift cards,
+ * GiftPort orders or prize draws anywhere. Spins/predictions give points, badges, levels only.
+ * Set REWARDS_VOUCHERS_ENABLED=true to bring the voucher layer back.
+ */
+export const vouchersEnabled = bool("REWARDS_VOUCHERS_ENABLED", false);
+/** Model win-probability % (odds-like). Off by default; WIN_PROBABILITY_ENABLED=true to show it. */
+export const winProbEnabled = bool("WIN_PROBABILITY_ENABLED", false);
+
 export const useMockGiftport =
   bool("USE_MOCK_GIFTPORT", true) || !env.giftClientId || !env.giftSecretId;
 

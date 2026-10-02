@@ -1,3 +1,4 @@
+import { winProbEnabled } from "../env";
 import { prisma } from "@liveline/db";
 import { BETTING_REFUSAL, istDay, moderationDecision, OFF_TOPIC_REFUSAL, type MatchView } from "@liveline/shared";
 import { env } from "../env";
@@ -53,7 +54,7 @@ function stubAnswer(lang: "en" | "hi", message: string, match: MatchView): strin
   const bowler = live.bowler?.name || "the bowler";
   const striker = live.striker?.name || "the striker";
   if (lang === "hi") {
-    return `${match.teams[live.batting].nameHi} ${live.runs}/${live.wickets} (${live.overs})। ${live.needHi || `रन रेट ${live.crr}`}. ${bowler} ${striker} को गेंद कर रहे हैं। मॉडल जीत संभावना ${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%. यह स्कोर का सार है, सट्टे की सलाह नहीं।`;
+    return `${match.teams[live.batting].nameHi} ${live.runs}/${live.wickets} (${live.overs})। ${live.needHi || `रन रेट ${live.crr}`}. ${bowler} ${striker} को गेंद कर रहे हैं। ${winProbEnabled ? `मॉडल जीत संभावना ${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%. ` : ""}यह स्कोर का सार है, सट्टे की सलाह नहीं।`;
   }
-  return `${match.teams[live.batting].name} are ${live.runs}/${live.wickets} (${live.overs}). ${live.need || `Run rate ${live.crr}`}. ${bowler} is bowling to ${striker}. Model win probability: ${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%. This is the match picture, not a betting tip. You asked: “${message.slice(0, 80)}”.`;
+  return `${match.teams[live.batting].name} are ${live.runs}/${live.wickets} (${live.overs}). ${live.need || `Run rate ${live.crr}`}. ${bowler} is bowling to ${striker}. ${winProbEnabled ? `Model win probability: ${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%. ` : ""}This is the match picture, not a betting tip. You asked: “${message.slice(0, 80)}”.`;
 }

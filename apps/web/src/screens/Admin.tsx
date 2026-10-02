@@ -22,9 +22,9 @@ export function Dash() {
       <div className="kpis">
         <div className="kpi"><span className="small">Impr</span><b>{data.impressions}</b></div>
         <div className="kpi"><span className="small">Clicks</span><b>{data.clicks}</b></div>
-        <div className="kpi"><span className="small">GiftPort</span><b>{Number(data.giftport?.balance || 0).toFixed(0)}</b></div>
+        {data.giftport && <div className="kpi"><span className="small">GiftPort</span><b>{Number(data.giftport?.balance || 0).toFixed(0)}</b></div>}
       </div>
-      <p className="small">Balance {data.giftport?.currency} · {data.giftport?.message}</p>
+      {data.giftport ? <p className="small">Balance {data.giftport?.currency} · {data.giftport?.message}</p> : <p className="small">Points-only mode: vouchers and GiftPort are off (REWARDS_VOUCHERS_ENABLED=false).</p>}
       <h2>Top matches</h2>
       {(data.top || []).map((row: any) => <div key={row.matchKey} className="board"><span>{row.matchKey}</span><b>{row.views}</b></div>)}
       <div className="admin-grid">
@@ -43,7 +43,7 @@ export function Dash() {
       <button className="primary" onClick={() => nav("/admin/new")}>New campaign</button>
       <button className="ghost w-full" onClick={() => nav("/admin/users")}>Users</button>
       <button className="ghost w-full" onClick={() => nav("/admin/admins")}>Admins</button>
-      <button className="ghost w-full" onClick={() => nav("/admin/fulfilment")}>Fulfilment</button>
+      {data.features?.vouchers && <button className="ghost w-full" onClick={() => nav("/admin/fulfilment")}>Fulfilment</button>}
     </div>
   );
 }

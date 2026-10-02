@@ -207,7 +207,7 @@ async function maybeActivate(userId: string) {
           userId: referrer.id,
           kind: "referral",
           title: "Referral joined",
-          body: "You earned 50 points, a bonus spin, and a scratch card.",
+          body: "You earned 50 points, a bonus XP spin and a bonus XP card.",
           dedupeKey: `ref:${referrer.id}:${user.id}`,
         },
       }).catch(() => undefined);

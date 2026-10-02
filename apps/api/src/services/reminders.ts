@@ -41,9 +41,9 @@ export const RULE_DEFAULTS: Record<RuleKey, { enabled: boolean; config: object; 
     config: {
       delaysH: [1, 24, 72],
       texts: [
-        "<b>🔐 {name}, VERIFY TO UNLOCK LIVELINE PRO</b>\n\n<blockquote>⚡ <b>Live line</b>, ball by ball\n🎯 <b>Free predictions</b> & leaderboard\n🎡 <b>Daily free spin</b> & Lino, your AI buddy</blockquote>\n\n👇 <b>Tap the green button below</b>, it's one tap.",
+        "<b>🔐 {name}, VERIFY TO UNLOCK LIVELINE PRO</b>\n\n<blockquote>⚡ <b>Live line</b>, ball by ball\n🎯 <b>Free predictions</b> & points leaderboard\n🔔 <b>Match alerts</b> & Lino, your AI buddy</blockquote>\n\n👇 <b>Tap the green button below</b>, it's one tap.",
         "<b>🏏 {matches}</b>\n\n<blockquote>Verify once to follow it ball by ball, predict for free and climb the leaderboard.</blockquote>\n\n👇 <b>Tap the green button below</b> · 18+ · No betting",
-        "<b>🎡 Last reminder, {name}: your free spin is waiting</b>\n\n<blockquote>One tap on the green button and you're in. Telegram shares your number, nothing to type.</blockquote>\n\n👇 <b>Tap the green button below</b>",
+        "<b>🏏 Last reminder, {name}: the live line is waiting</b>\n\n<blockquote>One tap on the green button and you're in. Telegram shares your number, nothing to type.</blockquote>\n\n👇 <b>Tap the green button below</b>",
       ],
     } satisfies VerifyConfig,
   },
@@ -61,9 +61,9 @@ export const RULE_DEFAULTS: Record<RuleKey, { enabled: boolean; config: object; 
   },
   daily_spin: {
     enabled: true,
-    title: "Daily free spin reminder",
-    about: "Once a day to verified users who haven't used today's free spin.",
-    config: { hourIst: 12, text: "🎡 Your free spin for today is ready, {name}. Points and perks, no cost.", button: "spin" } satisfies DailyConfig,
+    title: "Daily XP Spin reminder",
+    about: "Once a day to verified users who haven't taken today's Daily XP Spin.",
+    config: { hourIst: 12, text: "🎡 Your Daily XP Spin is ready, {name}. Bonus points for your level and the leaderboard.", button: "spin" } satisfies DailyConfig,
   },
   winback: {
     enabled: true,
@@ -72,8 +72,8 @@ export const RULE_DEFAULTS: Record<RuleKey, { enabled: boolean; config: object; 
     config: {
       days: [3, 7],
       texts: [
-        "🏏 We miss you, {name}! {matches} Your streak and free spin are waiting.",
-        "👀 It's been a week, {name}. You have <b>{points} pts</b> on the board. Come back for today's live line and a free spin.",
+        "🏏 We miss you, {name}! {matches} Your streak and Daily XP Spin are waiting.",
+        "👀 It's been a week, {name}. You have <b>{points} pts</b> on the board. Come back for today's live line and your Daily XP Spin.",
       ],
       button: "live",
     } satisfies WinbackConfig,
@@ -128,7 +128,7 @@ export function fill(template: string, v: Vars): string {
 }
 
 const BUTTON_LABEL: Record<string, string> = {
-  predict: "🎯 Predict free", spin: "🎡 Spin free", live: "🏏 Open live line", board: "🏆 Leaderboard", home: "🏏 Open LiveLine",
+  predict: "🎯 Predict free", spin: "🎡 Daily XP Spin", live: "🏏 Open live line", board: "🏆 Leaderboard", home: "🏏 Open LiveLine",
   alerts: "🔔 Reminders", lino: "🤖 Ask Lino", play: "🎮 Play", pass: "🎟 Season pass",
 };
 

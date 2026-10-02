@@ -6,11 +6,13 @@ import { Empty } from "../ui";
 type Segment = { id: string; label: string; kind: string };
 const FILL = ["#e7ff4d", "#1b2436", "#3dffe8", "#26324a", "#ff7a18", "#1b2436", "#3dffe8", "#26324a", "#e7ff4d", "#1b2436"];
 const INK = (fill: string) => (fill === "#1b2436" || fill === "#26324a" ? "#f4f7fb" : "#0c1220");
-const ICON: Record<string, string> = { points: "⭐", none: "🔁", boost: "🚀", theme: "🎨", badge: "🏅", voucher: "🎁", spin: "🎡" };
+const ICON: Record<string, string> = { points: "⭐", none: "➕", boost: "🚀", theme: "🎨", badge: "🏅", voucher: "🎁", spin: "🎡" };
+/** Points-only wording: a "nothing" slice reads as +0 XP, never "try again". */
+const segLabel = (seg: { label: string; kind: string }) => (seg.kind === "none" ? "+0 XP" : seg.label);
 const FALLBACK: Segment[] = [
   { id: "a", label: "10 pts", kind: "points" }, { id: "b", label: "25 pts", kind: "points" },
-  { id: "c", label: "50 pts", kind: "points" }, { id: "d", label: "Try again", kind: "none" },
-  { id: "e", label: "Boost", kind: "boost" }, { id: "f", label: "Voucher", kind: "voucher" },
+  { id: "c", label: "50 pts", kind: "points" }, { id: "d", label: "+0 XP", kind: "none" },
+  { id: "e", label: "Boost", kind: "boost" }, { id: "f", label: "Badge", kind: "badge" },
 ];
 
 function Wheel({ segments, rotation }: { segments: Segment[]; rotation: number }) {
@@ -24,14 +26,15 @@ function Wheel({ segments, rotation }: { segments: Segment[]; rotation: number }
   return (
     <div className="wheel-wrap">
       <div className="wheel-pin" />
-      <svg className="wheel-svg" viewBox="0 0 200 200" style={{ transform: `rotate(${rotation}deg)` }} role="img" aria-label="Free spin wheel">
+      <svg className="wheel-svg" viewBox="0 0 200 200" style={{ transform: `rotate(${rotation}deg)` }} role="img" aria-label="Daily XP Spin wheel">
         {segments.map((seg, i) => {
           const [x1, y1] = point(i * slice);
           const [x2, y2] = point((i + 1) * slice);
           const fill = FILL[i % FILL.length];
           const mid = (i + 0.5) * slice;
           const [tx, ty] = point(mid, 64);
-          const label = seg.label.length > 12 ? `${seg.label.slice(0, 11)}…` : seg.label;
+          const raw = segLabel(seg);
+          const label = raw.length > 12 ? `${raw.slice(0, 11)}…` : raw;
           return (
             <g key={seg.id}>
               <path d={`M100 100 L${x1} ${y1} A${r} ${r} 0 ${slice > 180 ? 1 : 0} 1 ${x2} ${y2} Z`} fill={fill} stroke="#0c1220" strokeWidth="1.2" />
@@ -85,7 +88,7 @@ export function RewardsPage({ lang }: { lang: string }) {
     if (lock.current) return;
     if (!data) { toast("Loading the wheel…"); load(); return; }
     if (!canSpin) {
-      nudge(`⏳ Free spin used today. Next free spin in ${wait}.`);
+      nudge(`⏳ Daily XP Spin used today. Next spin in ${wait}.`);
       return;
     }
     lock.current = true;
@@ -100,15 +103,16 @@ export function RewardsPage({ lang }: { lang: string }) {
       turn(Math.ceil(rot.current / 360) * 360 + 360 * 5 - center);
       setTimeout(() => {
         haptic("heavy");
-        const label = res.prize?.label || "Try again";
-        setResult(res.prize?.kind === "none" || !res.prize ? `🔁 ${label}. Come back tomorrow!` : `🎉 You won ${label}!`);
-        toast(res.prize?.kind === "none" ? "No prize this time" : `You won ${label}`, "ok");
+        const empty = res.prize?.kind === "none" || !res.prize;
+        const label = empty ? "+0 XP" : res.prize.label;
+        setResult(empty ? "➕ +0 XP this time. Spin again tomorrow!" : `✨ +${label} added to your level`);
+        toast(empty ? "+0 XP this time" : `+${label}`, "ok");
         lock.current = false;
         setSpinning(false);
         load();
       }, 4300);
     } catch (e: any) {
-      const text = e.code === "NO_SPIN" ? `⏳ Free spin used today. Next free spin in ${wait}.` : e.message;
+      const text = e.code === "NO_SPIN" ? `⏳ Daily XP Spin used today. Next spin in ${wait}.` : e.message;
       turn(Math.ceil(rot.current / 360) * 360);
       setResult(text);
       toast(text, "err");
@@ -129,27 +133,29 @@ export function RewardsPage({ lang }: { lang: string }) {
         <h2>{t(lang, "rewards")}</h2>
         <button className="chip" onClick={() => nav("/pass")}>🎟️ {t(lang, "pass")}</button>
       </div>
-      <p className="small">{data?.legal || "Free only. No purchase, no cash, no withdrawal."}</p>
-      {failed && <Empty icon="📡" title="Rewards didn't load" text={failed} cta="Retry" onCta={load} />}
+      <p className="small">{data?.legal || "Points only: XP, badges, levels and leaderboard rank. Nothing to buy, nothing to redeem, no money value."}</p>
+      {failed && <Empty icon="📡" title="Didn't load" text={failed} cta="Retry" onCta={load} />}
+      <h3 className="spin-title">🎡 Daily XP Spin</h3>
       <Wheel segments={segments} rotation={rotation} />
-      <p className="text-center small">{wheel?.sponsorName ? `Spin by ${wheel.sponsorName}` : "One free spin every day · points and sponsor vouchers"}</p>
+      <p className="text-center small">{wheel?.sponsorName ? `Daily XP Spin by ${wheel.sponsorName}` : "One spin a day · bonus points, badges and boosts for your level"}</p>
       <button type="button" className={`primary spin-btn ${data && !canSpin ? "used" : ""}`} aria-busy={spinning} onClick={spin}>
-        {spinning ? "Spinning…" : !data ? "🎡 Spin free" : data.dailySpinAvailable ? "🎡 Spin free" : data.bonusSpins > 0 ? `🎡 Bonus spin (${data.bonusSpins} left)` : `⏳ Next free spin in ${wait}`}
+        {spinning ? "Spinning…" : !data ? "🎡 Spin for XP" : data.dailySpinAvailable ? "🎡 Spin for XP" : data.bonusSpins > 0 ? `🎡 Bonus XP spin (${data.bonusSpins} left)` : `⏳ Next spin in ${wait}`}
       </button>
-      {!result && data && !data.dailySpinAvailable && data.todaySpin?.label && <p className="text-center small">Today's spin: {data.todaySpin.label}</p>}
+      {!result && data && !data.dailySpinAvailable && data.todaySpin?.label && <p className="text-center small">Today's spin: {data.todaySpin.kind === "none" ? "+0 XP" : data.todaySpin.label}</p>}
       {result && <div className="result-card">{result}</div>}
 
       <h2>{t(lang, "scratch")}</h2>
       {scratches.length === 0 ? (
-        <Empty icon="🎟️" title="No scratch cards yet" text="Win them from prediction streaks and missions." cta="Make a prediction" onCta={() => nav("/predict")} />
+        <Empty icon="🃏" title="No bonus XP cards yet" text="Earn them from prediction streaks and missions." cta="Make a prediction" onCta={() => nav("/predict")} />
       ) : scratches.map((card) => (
         <button key={card.id} className="listbtn" disabled={card.opened} onClick={async () => {
           const res = await api<any>(`/api/rewards/scratch/${card.id}`, { method: "POST" });
-          toast(res.result?.label ? `Scratched: ${res.result.label}` : "Opened");
+          toast(res.result?.label ? (res.result.kind === "none" ? "+0 XP" : `+${res.result.label}`) : "Opened");
           load();
-        }}>{card.opened ? `✅ ${card.result?.label || "Opened"}` : "✨ Scratch"}</button>
+        }}>{card.opened ? `✅ ${card.result?.kind === "none" ? "+0 XP" : card.result?.label || "Opened"}` : "✨ Reveal XP"}</button>
       ))}
 
+      {data?.vouchersEnabled && <>
       <h2>{t(lang, "give")}</h2>
       {giveaways.length === 0 ? (
         <Empty icon="🎁" title="No free draws right now" text="Sponsor draws appear here. Entry is always free." />
@@ -176,6 +182,7 @@ export function RewardsPage({ lang }: { lang: string }) {
           )}
         </div>
       ))}
+      </>}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, initData, t, toast, wsBase, type Match } from "../lib";
+import { api, initData, t, toast, wsBase, type Match, FEATURES } from "../lib";
 import { Empty, kickoff, pillClass, placeOf } from "../ui";
 import { Flag } from "../flags";
 import { AdSlot } from "./Ad";
@@ -72,7 +72,7 @@ export function MatchPage({ lang }: { lang: string }) {
   if (!match) return <><div className="skel hero-skel" /><div className="skel" /></>;
   const live = match.live;
   const bat = live ? match.teams[live.batting] : match.teams.a;
-  const winText = live?.win ? `${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%` : "";
+  const winText = live?.win && FEATURES.winProb ? `${match.teams.a.code} ${live.win.a}% · ${match.teams.b.code} ${live.win.b}%` : "";
   const start = kickoff(match.startAt);
   const place = placeOf(match);
   const detail = [start.clock, place].filter(Boolean).join(" · ");
@@ -113,7 +113,8 @@ export function MatchPage({ lang }: { lang: string }) {
             <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {winText}</div>
           </>
         )}
-        {live?.luck && (
+        {!winText && live?.mood && <div className="small">{live.mood.emoji} {lang === "hi" ? live.mood.labelHi : live.mood.label}</div>}
+        {live?.luck && FEATURES.winProb && (
           <div className="small mt-2">{live.luck.emoji} Luck {live.luck.score} · {lang === "hi" ? live.luck.labelHi : live.luck.label}
             {live.forecast ? ` · next over ${live.forecast.low}–${live.forecast.high} · wicket ${live.forecast.wicketChance}%` : ""}
           </div>
@@ -310,7 +311,7 @@ function MiniPlay({ matchKey, lang }: { matchKey: string; lang: string }) {
   return (
     <section className="card">
       <h2>Break games</h2>
-      <p className="small">Free. Points only. No cash.</p>
+      <p className="small">Free. Points only, just for the leaderboard.</p>
       {data.trivia && (
         <div>
           <p>{lang === "hi" ? data.trivia.promptHi : data.trivia.prompt}</p>

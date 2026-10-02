@@ -65,19 +65,36 @@ function openLiveLine(url: string, kind: "web" | "url") {
 
 // ---------- Welcome card ----------
 const WELCOME_IMAGE = path.resolve(__dirname, "../assets/welcome.jpg");
-const WELCOME_FILE_KEY = "ll:bot:welcome-file:v1";
+const WELCOME_FILE_KEY = "ll:bot:welcome-file:v2";
 
 export const WELCOME_CAPTION = [
   "<b>🏏 Welcome to LiveLine Pro</b>",
   "<i>The live line, without the noise.</i>",
   "",
   "⚡ <b>Live line</b>, ball by ball",
-  "🎯 <b>Free predictions</b> and a live leaderboard",
-  "🎡 <b>Free daily spin</b> and rewards",
+  "🔔 <b>Match alerts</b> for your teams",
+  "🎯 <b>Free predictions</b> and a points leaderboard",
   "🤖 <b>Lino</b>, your AI match buddy",
   "",
   "<b>18+ · Free to play · No betting</b>",
 ].join("\n");
+
+const DESC_EN =
+  "🏏 LiveLine Pro: the live cricket line, without the noise.\n\n" +
+  "⚡ Free live scores, ball by ball\n🔔 Match alerts for your teams\n🤖 Lino, your AI match buddy\n🏆 Match predictions for points and a leaderboard\n\n" +
+  "18+ · Free to play · No betting. Tap Start to jump in.";
+const SHORT_EN = "🏏 Free live cricket scores, match alerts, Lino the AI buddy and a points leaderboard. No betting.";
+export const BOT_PROFILE: Record<string, { description: string; short: string }> = {
+  default: { description: DESC_EN, short: SHORT_EN },
+  en: { description: DESC_EN, short: SHORT_EN },
+  hi: {
+    description:
+      "🏏 LiveLine Pro: लाइव क्रिकेट लाइन, बिना शोर के।\n\n" +
+      "⚡ मुफ़्त लाइव स्कोर, गेंद-दर-गेंद\n🔔 आपकी टीमों के मैच अलर्ट\n🤖 लीनो, आपका AI मैच साथी\n🏆 अंकों के लिए मैच अनुमान और लीडरबोर्ड\n\n" +
+      "18+ · खेलना मुफ़्त · कोई सट्टा नहीं। शुरू करने के लिए Start दबाएँ।",
+    short: "🏏 मुफ़्त लाइव क्रिकेट स्कोर, मैच अलर्ट, AI साथी लीनो और अंकों का लीडरबोर्ड। कोई सट्टा नहीं।",
+  },
+};
 
 const HOW_IT_WORKS = [
   "<b>ℹ️ How LiveLine Pro works</b>",
@@ -85,9 +102,9 @@ const HOW_IT_WORKS = [
   "1️⃣ Tap <b>✅ Share phone to verify</b> below. One tap, Telegram sends it.",
   "2️⃣ Accept the terms in the app (18+).",
   "3️⃣ Follow live matches ball by ball, predict for free, climb the leaderboard.",
-  "4️⃣ Spin the free daily wheel for points and perks. Ask Lino anything about the match.",
+  "4️⃣ Take your 🎡 Daily XP Spin for bonus points. Ask Lino anything about the match.",
   "",
-  "No deposits, no betting, no cash. Points are free and have no money value.",
+  "No deposits, no betting. Points are just for levels and the leaderboard: no money value, nothing to redeem.",
 ].join("\n");
 
 function escHtml(value: string): string {
@@ -100,7 +117,7 @@ function channelLink() {
 
 function inviteLink(telegramId: number) {
   const ref = `https://t.me/${env.botUsername}?start=ref_${telegramId}`;
-  const text = "Join me on LiveLine Pro: live cricket line, free predictions and a free daily spin. 18+, no betting.";
+  const text = "Join me on LiveLine Pro: live cricket line, match alerts, free predictions and a points leaderboard. 18+, no betting.";
   return `https://t.me/share/url?url=${encodeURIComponent(ref)}&text=${encodeURIComponent(text)}`;
 }
 
@@ -141,7 +158,7 @@ function homeGrid(telegramId: number, sponsors: Awaited<ReturnType<typeof liveSp
     .url("🏏 Live Scores", miniAppLink("live")).primary()
     .url("🎯 Predict", miniAppLink("predict")).success()
     .row()
-    .url("🎡 Free Spin", miniAppLink("spin")).success()
+    .url("🎡 Daily XP Spin", miniAppLink("spin")).success()
     .url("🏆 Leaderboard", miniAppLink("board"))
     .row()
     .url("🔔 Reminders", miniAppLink("alerts"))
@@ -281,7 +298,7 @@ export function createBot() {
       await ctx.reply(text, { parse_mode: "HTML", reply_markup: new InlineKeyboard().url(label, miniAppLink(param)).primary() });
     });
   shortcut("predict", "🎯 Predict", "predict", "🎯 <b>Free predictions</b>. Call the next ball, the over and the result.");
-  shortcut("spin", "🎡 Free Spin", "spin", "🎡 <b>Your free daily spin</b> is waiting. Points and perks, no cash.");
+  shortcut("spin", "🎡 Daily XP Spin", "spin", "🎡 <b>Your Daily XP Spin</b> is ready: bonus points for your level and the leaderboard.");
   shortcut("leaderboard", "🏆 Leaderboard", "board", "🏆 <b>Leaderboard</b>. See where you rank today.");
   shortcut("reminders", "🔔 Reminders", "alerts", "🔔 <b>Reminders</b>. Get pinged for toss, wickets and results.");
 
@@ -497,19 +514,19 @@ async function main() {
   const bot = createBot();
   // Default menu is plain commands; verified users get the Mini App per chat (setChatMenu).
   await bot.api.setChatMenuButton({ menu_button: { type: "commands" } });
-  await bot.api.setMyDescription(
-    "🏏 LiveLine Pro: the live cricket line, without the noise.\n\n" +
-      "⚡ Live line, ball by ball\n🎯 Free predictions and a live leaderboard\n🎡 Free daily spin and rewards\n🤖 Lino, your AI match buddy\n\n" +
-      "18+ · Free to play · No betting. Tap Start to verify and jump in.",
-  ).catch((err) => console.error(JSON.stringify({ level: "warn", msg: "setMyDescription", err: String(err) })));
-  await bot.api.setMyShortDescription(
-    "🏏 Live cricket line, free predictions, a free daily spin and Lino the AI buddy. 18+ · No betting.",
-  ).catch((err) => console.error(JSON.stringify({ level: "warn", msg: "setMyShortDescription", err: String(err) })));
+  // Bot profile copy: live score, alerts, Lino, points leaderboard. No spins, prizes or vouchers.
+  for (const [lang, copy] of Object.entries(BOT_PROFILE)) {
+    const opts = (lang === "default" ? {} : { language_code: lang }) as Parameters<typeof bot.api.setMyDescription>[1];
+    await bot.api.setMyDescription(copy.description, opts)
+      .catch((err) => console.error(JSON.stringify({ level: "warn", msg: "setMyDescription", lang, err: String(err) })));
+    await bot.api.setMyShortDescription(copy.short, opts as Parameters<typeof bot.api.setMyShortDescription>[1])
+      .catch((err) => console.error(JSON.stringify({ level: "warn", msg: "setMyShortDescription", lang, err: String(err) })));
+  }
   await bot.api.setMyCommands([
     { command: "start", description: "🏠 Home" },
     { command: "live", description: "🔴 Matches in play" },
     { command: "predict", description: "🎯 Free predictions" },
-    { command: "spin", description: "🎡 Free daily spin" },
+    { command: "spin", description: "🎡 Daily XP Spin" },
     { command: "leaderboard", description: "🏆 Leaderboard" },
     { command: "reminders", description: "🔔 Match reminders" },
     { command: "help", description: "ℹ️ How it works" },
@@ -529,7 +546,7 @@ async function main() {
     { command: "start", description: "🏠 Home" },
     { command: "live", description: "🔴 Matches in play" },
     { command: "predict", description: "🎯 Free predictions" },
-    { command: "spin", description: "🎡 Free daily spin" },
+    { command: "spin", description: "🎡 Daily XP Spin" },
     { command: "leaderboard", description: "🏆 Leaderboard" },
     { command: "reminders", description: "🔔 Match reminders" },
     { command: "help", description: "ℹ️ How it works" },

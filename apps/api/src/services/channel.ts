@@ -134,7 +134,7 @@ export async function buildTodayCard(views: MatchView[], now = Date.now()): Prom
   for (const v of views.slice(0, 8)) {
     lines.push(`${v.status === "live" ? "🔴" : "🏏"} ${esc(title(v))} · ${v.status === "live" ? "LIVE" : `${istTime(v.startAt)} IST`}`);
   }
-  lines.push("", "🎯 Free predictions · 🎡 daily free spin · no betting");
+  lines.push("", "🎯 Free predictions · 🔔 match alerts · no betting");
   return { kind: "today", png: await renderCard(todaySvg(views, now)), caption: lines.join("\n"), markup: button("📅 Open today's matches", miniAppLink("live")) };
 }
 

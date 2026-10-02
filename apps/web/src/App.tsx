@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api, bootTelegram, inTelegram, type Me } from "./lib";
+import { api, bootTelegram, inTelegram, type Me, FEATURES } from "./lib";
 import { Home } from "./screens/Home";
 import { MatchPage } from "./screens/Match";
 import { PredictPage } from "./screens/Predict";
@@ -32,7 +32,7 @@ export function App() {
       setLoading(false);
       return;
     }
-    api<Me>("/api/me").then(setMe).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    api<Me>("/api/me").then((m) => { if (m.features) Object.assign(FEATURES, m.features); setMe(m); }).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   }, []);
 
   // Points pill stays current: refresh the profile after any successful action.

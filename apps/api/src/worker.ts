@@ -1,5 +1,5 @@
 import http from "http";
-import { env } from "./env";
+import { env, vouchersEnabled } from "./env";
 import { onFeedEvents, startPoller } from "./feed";
 import { handleFeed } from "./services/alerts";
 import { startWorkers } from "./jobs";
@@ -29,7 +29,8 @@ async function main() {
     res.end(JSON.stringify({ ok: true }));
   }).listen(process.env.RAILWAY_ENVIRONMENT ? Number(process.env.PORT || env.workerHealthPort) : env.workerHealthPort, "0.0.0.0");
   console.log(JSON.stringify({ level: "info", msg: "worker up", health: env.workerHealthPort }));
-  void giftportSelfCheck();
+  if (vouchersEnabled) void giftportSelfCheck();
+  else console.log(JSON.stringify({ level: "info", msg: "prize-free mode: vouchers/GiftPort off (REWARDS_VOUCHERS_ENABLED=false)" }));
 }
 
 /** One GiftPort /balance call at boot so the logs show whether this egress IP is whitelisted. */

@@ -113,7 +113,7 @@ export function PlayPage({ lang }: { lang: string }) {
       <button className="primary" onClick={async () => {
         const me = await api<{ user: { referralLink: string } }>("/api/me");
         const link = me.user.referralLink;
-        const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Live cricket line, free predictions and a daily free spin on LiveLine Pro 🏏")}`;
+        const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Live cricket line, match alerts and free predictions on LiveLine Pro 🏏")}`;
         if (window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(share); else window.open(share, "_blank", "noopener");
       }}>👥 Invite friends</button>
       {msg && <p className="small">{msg}</p>}

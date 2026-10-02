@@ -12,7 +12,7 @@ import { tgCall, type TgResult } from "./telegram";
 
 const W = 1280;
 const H = 640;
-const FILE_KEY = "ll:verifycard:file:v1";
+const FILE_KEY = "ll:verifycard:file:v2";
 const C = { navy: "#070b14", lime: "#e7ff4d", cyan: "#3dffe8", green: "#22e07a", ink: "#f4f7fb", muted: "#8e99b0" };
 
 function markUri(): string {
@@ -28,7 +28,7 @@ export function verifyCardSvg(): string {
   const perks = [
     ["⚡", "Live line", "ball by ball"],
     ["🎯", "Free predictions", "&amp; leaderboard"],
-    ["🎡", "Daily free spin", "&amp; Lino AI buddy"],
+    ["🔔", "Match alerts", "&amp; Lino AI buddy"],
   ];
   const chip = (x: number, label: string, sub: string, color: string) => `
     <rect x="${x}" y="398" width="232" height="86" rx="20" fill="#ffffff" fill-opacity="0.05" stroke="${color}" stroke-opacity="0.55" stroke-width="2"/>
@@ -62,7 +62,7 @@ ${mark ? `<image x="58" y="50" width="56" height="56" href="${mark}" xlink:href=
 <text x="58" y="218" font-family="Barlow Condensed" font-style="italic" font-weight="900" font-size="112" fill="${C.ink}">VERIFY YOUR</text>
 <text x="58" y="322" font-family="Barlow Condensed" font-style="italic" font-weight="900" font-size="112" fill="${C.green}">PHONE</text>
 <text x="380" y="318" font-family="Barlow" font-weight="700" font-size="34" fill="${C.lime}">1 tap to unlock</text>
-<text x="58" y="370" font-family="Barlow" font-weight="600" font-size="24" fill="${C.muted}">Live line · Predict · Spin · Lino. Telegram sends your number, nothing to type.</text>
+<text x="58" y="370" font-family="Barlow" font-weight="600" font-size="24" fill="${C.muted}">Live line · Alerts · Predict · Lino. Telegram sends your number, nothing to type.</text>
 
 ${chip(58, perks[0][1], perks[0][2], C.cyan)}
 ${chip(306, perks[1][1], perks[1][2], C.lime)}
@@ -102,7 +102,7 @@ export async function verifyCardPng(): Promise<Buffer> {
 export const VERIFY_CAPTION = [
   "<b>🔐 VERIFY TO UNLOCK LIVELINE PRO</b>",
   "",
-  "<blockquote>⚡ <b>Live line</b>, ball by ball\n🎯 <b>Free predictions</b> &amp; leaderboard\n🎡 <b>Daily free spin</b> &amp; Lino, your AI buddy</blockquote>",
+  "<blockquote>⚡ <b>Live line</b>, ball by ball\n🎯 <b>Free predictions</b> &amp; points leaderboard\n🔔 <b>Match alerts</b> &amp; Lino, your AI buddy</blockquote>",
   "",
   "👇 <b>Tap the green button below</b>, it's one tap. Telegram shares your number, nothing to type.",
 ].join("\n");

@@ -53,7 +53,7 @@ export function PredictPage({ lang }: { lang: string }) {
   return (
     <>
       <h2>{t(lang, "predict")}</h2>
-      <p className="small">Points only. No cash, no odds. The server locks the pick before the ball.</p>
+      <p className="small">Points only, just for the leaderboard. The server locks the pick before the ball.</p>
       <div className="chips">
         {matches.map((m) => <button key={m.key} className={`chip ${key === m.key ? "on" : ""}`} onClick={() => setKey(m.key)}>{m.teams.a.code} v {m.teams.b.code}</button>)}
       </div>

@@ -42,7 +42,11 @@ export type Look = {
   face: string; jersey: string; ink: string; number: number; role: string; icon: string; cap: string; frame: string;
 };
 export type Player = { id: string; name: string; role: string; style: string; look?: Look };
+/** Server feature flags (from /api/me). Prize-free by default. */
+export const FEATURES = { vouchers: false, winProb: false };
+
 export type Me = {
+  features?: { vouchers: boolean; winProb: boolean };
   user: {
     id: string; telegramId: string; username: string | null; firstName: string | null; language: string;
     registered: boolean; needsPhone: boolean; needsTerms: boolean; needsAge?: boolean; ageStatus?: string; blocked: boolean; admin: boolean;
@@ -59,26 +63,26 @@ export type Me = {
 const dict = {
   en: {
     live: "LIVE", upcoming: "Upcoming", recent: "Recent", all: "All", fav: "Favourites",
-    predict: "Predict", board: "Board", rewards: "Rewards", alerts: "Alerts", home: "Home",
+    predict: "Predict", board: "Board", rewards: "XP", alerts: "Alerts", home: "Home",
     line: "Line", card: "Card", charts: "Charts", chat: "Watch", ai: "Buddy",
-    need: "Needed", crr: "CRR", rrr: "RRR", proj: "Proj", win: "Model win %",
+    need: "Needed", crr: "CRR", rrr: "RRR", proj: "Proj", win: "Match momentum",
     partner: "Partnership", thisOver: "This over", openTg: "Open in Telegram",
     verify: "Verify to enter", terms: "I agree to the terms and privacy notice",
     phone: "Share phone in Telegram", join: "Join our channel", demo: "Simulated feed",
-    spin: "Free spin", scratch: "Scratch cards", give: "Free draws", ads: "Advertise",
+    spin: "Daily XP Spin", scratch: "Bonus XP cards", give: "Free draws", ads: "Advertise",
     pass: "Season", missions: "Missions", fans: "Fan meter", cheer: "Cheer", mute: "Mute", unmute: "Sound",
     users: "Users", campaigns: "Campaigns", create: "New campaign", dash: "Dashboard",
     lock: "Locked", submit: "Lock pick", points: "pts",
   },
   hi: {
     live: "लाइव", upcoming: "आने वाले", recent: "नतीजे", all: "सभी", fav: "पसंदीदा",
-    predict: "अनुमान", board: "बोर्ड", rewards: "इनाम", alerts: "अलर्ट", home: "होम",
+    predict: "अनुमान", board: "बोर्ड", rewards: "XP", alerts: "अलर्ट", home: "होम",
     line: "लाइन", card: "कार्ड", charts: "चार्ट", chat: "वॉच", ai: "बडी",
     need: "बाकी", crr: "सीआरआर", rrr: "आरआरआर", proj: "अनुमान", win: "मॉडल जीत %",
     partner: "साझेदारी", thisOver: "यह ओवर", openTg: "टेलीग्राम में खोलें",
     verify: "अंदर आने के लिए सत्यापन", terms: "मैं नियम और गोपनीयता सूचना मानता हूँ",
     phone: "टेलीग्राम से फ़ोन साझा करें", join: "चैनल से जुड़ें", demo: "डेमो फ़ीड",
-    spin: "मुफ़्त स्पिन", scratch: "स्क्रैच कार्ड", give: "मुफ़्त ड्रॉ", ads: "विज्ञापन",
+    spin: "डेली XP स्पिन", scratch: "बोनस XP कार्ड", give: "मुफ़्त ड्रॉ", ads: "विज्ञापन",
     pass: "सीज़न", missions: "मिशन", fans: "फैन मीटर", cheer: "जयकार", mute: "म्यूट", unmute: "साउंड",
     users: "यूज़र", campaigns: "अभियान", create: "नया अभियान", dash: "डैशबोर्ड",
     lock: "लॉक", submit: "पिक लॉक करें", points: "अंक",

@@ -310,7 +310,7 @@ export function CrmUser() {
 
 /* ---------------------------------------------------------------- Broadcasts */
 
-const TARGETS = [["home", "🏠 Home"], ["live", "🏏 Live"], ["predict", "🎯 Predict"], ["spin", "🎡 Spin"], ["board", "🏆 Leaderboard"], ["alerts", "🔔 Reminders"], ["lino", "🤖 Lino"], ["play", "🎮 Play"], ["pass", "🎟 Pass"]];
+const TARGETS = [["home", "🏠 Home"], ["live", "🏏 Live"], ["predict", "🎯 Predict"], ["spin", "🎡 Daily XP Spin"], ["board", "🏆 Leaderboard"], ["alerts", "🔔 Reminders"], ["lino", "🤖 Lino"], ["play", "🎮 Play"], ["pass", "🎟 Pass"]];
 
 export function Broadcasts() {
   const loc = useLocation();

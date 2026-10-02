@@ -1,3 +1,4 @@
+import { winProbEnabled } from "./env";
 import type { MatchView } from "@liveline/shared";
 
 export function scoreCardSvg(view: MatchView, kind: "score" | "prediction" = "score"): string {
@@ -8,7 +9,7 @@ export function scoreCardSvg(view: MatchView, kind: "score" | "prediction" = "sc
   const sub = live ? `${live.overs} ov · ${live.need || `CRR ${live.crr}`}` : view.toss;
   const a = view.teams.a;
   const b = view.teams.b;
-  const win = live ? `${a.code} ${live.win.a}%   ${b.code} ${live.win.b}%` : "";
+  const win = live && winProbEnabled ? `${a.code} ${live.win.a}%   ${b.code} ${live.win.b}%` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
   <defs>

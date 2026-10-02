@@ -119,7 +119,7 @@ export function QuickRow({ channelUrl }: { channelUrl: string | null }) {
   const actions = [
     { label: "Play", icon: ICONS.play, go: () => nav("/play") },
     { label: "Predict", icon: ICONS.predict, go: () => nav("/predict") },
-    { label: "Spin", icon: ICONS.spin, go: () => nav("/rewards") },
+    { label: "XP Spin", icon: ICONS.spin, go: () => nav("/rewards") },
     { label: "Ask Lino", icon: ICONS.lino, go: () => nav("/ai") },
     { label: "Channel", icon: ICONS.channel, go: () => {
       if (!channelUrl) return;
