@@ -15,22 +15,20 @@ Lino for that match; Mini App routes these, CRM buckets them as `website`) and `
 | var | value |
 | --- | --- |
 | `REDIS_URL` | `${{liveline-redis.REDIS_URL}}` (private network) |
-| `SITE_URL` | the bought domain, e.g. `https://livelinepro.in` (Railway hosts are ignored on purpose) |
-| `ALLOW_INDEXING` | `true` only once the domain is live (until then robots.txt = Disallow + noindex) |
+| `SITE_URL` | `https://livelinepro.pro` (canonical/og:url; Railway hosts are ignored on purpose) |
+| `ALLOW_INDEXING` | `false` for now — robots.txt = Disallow + noindex until Mohit decides to open it |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | optional, `${{liveline-api.…}}` — Lino AI take, cached per match+over |
 | `BOT_USERNAME`, `CHANNEL_USERNAME` | default `LiveLineProBot`, `LiveLine_Pro` |
 
-## When the domain is bought
-1. Railway → betroxy → liveline-site → Settings → Networking → **Custom Domain** → add `livelinepro.in`
-   (and `www.livelinepro.in`). Railway shows the records to create at the registrar:
-   - subdomain (`www`): `CNAME www → <target>.up.railway.app` (value shown by Railway)
-   - apex: `CNAME`/`ALIAS`/`ANAME` flattening to the same target (Cloudflare does CNAME flattening),
-   - plus the `_railway-verify` TXT record if Railway asks for it.
-   Port: 3000. TLS is issued automatically once DNS resolves.
-2. Set `SITE_URL=https://livelinepro.in` and `ALLOW_INDEXING=true` on liveline-site, redeploy.
-3. Submit `https://livelinepro.in/sitemap.xml` in Google Search Console / Bing.
-4. Optional "Log in with Telegram": BotFather → `/setdomain` for @LiveLineProBot = the domain, then
-   add the login widget (needs a server-side hash check with the bot token).
+## Domain: livelinepro.pro (live)
+- Bought through Railway (Account → Domains), so DNS is managed by Railway; renews 2027-09-02, auto-renew on.
+- Railway project **LiveLinePro** → liveline-site → custom domains `livelinepro.pro` (ANAME) and
+  `www.livelinepro.pro` (CNAME); records + `_railway-verify` TXT were created automatically. TLS auto-issued.
+  Both hosts serve the site; canonical/og:url always use the apex `https://livelinepro.pro`.
+- `SITE_URL=https://livelinepro.pro` on liveline-site, liveline-api and liveline-bot (Telegram
+  "↩️ Return to website" → `https://livelinepro.pro/verify/t/<token>`).
+- Still to decide: `ALLOW_INDEXING=true` on liveline-site + submit `https://livelinepro.pro/sitemap.xml`
+  in Google Search Console / Bing; optional BotFather `/setdomain` for a Telegram login widget.
 
 ## Phone-verification gate (mandatory entry)
 Every page redirects unverified visitors to `/verify?next=<path>` (open without login: `/healthz`,
