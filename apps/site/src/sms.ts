@@ -10,7 +10,7 @@
  *   SMS_API_URL          request URL template with placeholders {apikey} {sender} {mobile} (91XXXXXXXXXX)
  *                        {mobile10} {message} {otp} {templateid} {entityid} — values are URL-encoded
  *   SMS_API_METHOD       GET (default) or POST (sends the URL's query string as a form body)
- *   SMS_MESSAGE_TEXT     exact DLT-approved text; {#var#} is replaced by the code
+ *   SMS_MESSAGE_TEXT     exact DLT-approved text; {otp} (or {#var#}) is replaced by the code
  *   SMS_SUCCESS_MATCH    optional regex the response body must match to count as sent
  * Until SMS_PROVIDER (and that provider's required values) are set, the SMS option shows "Coming soon".
  */
@@ -89,7 +89,7 @@ export class PearlSms implements SmsProvider {
   readonly name = "pearlsms";
   constructor(private c: SmsConfig) {}
   buildRequest(phone: string, code: string): { url: string; init: RequestInit } {
-    const text = (this.c.messageText || PEARL_DEFAULT_TEXT).replace("{#var#}", code);
+    const text = (this.c.messageText || PEARL_DEFAULT_TEXT).replace("{#var#}", code).replace("{otp}", code);
     const vals: Record<string, string> = {
       apikey: this.c.apiKey, sender: this.c.senderId || "SPPLFW", mobile: phone, mobile10: phone.slice(-10),
       message: text, otp: code, templateid: this.c.templateId, entityid: this.c.entityId,
@@ -103,14 +103,27 @@ export class PearlSms implements SmsProvider {
     }
     return { url, init: { method: "GET" } };
   }
+  /** Provider response with any trace of the key removed (safe to log). */
+  private redact(v: string): string { return this.c.apiKey ? v.split(this.c.apiKey).join("<key>") : v; }
+
   async sendOtp(phone: string, code: string) {
     const { url, init } = this.buildRequest(phone, code);
-    const res = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
-    const body = (await res.text()).slice(0, 500);
+    let res: Response;
+    try {
+      res = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      // https first; plain http only when the TLS/connection itself failed (no request reached
+      // the gateway, so no duplicate SMS). Timeouts are not retried.
+      const e = err as { name?: string; cause?: { code?: string } };
+      if (!url.startsWith("https://") || e.name === "TimeoutError" || e.name === "AbortError") throw err;
+      res = await fetch(url.replace(/^https:/, "http:"), { ...init, signal: AbortSignal.timeout(10_000) });
+    }
+    const body = this.redact((await res.text()).slice(0, 500));
+    console.log(JSON.stringify({ level: "info", msg: "sms-provider-response", provider: this.name, status: res.status, to: `…${phone.slice(-4)}`, body: body.split(code).join("<otp>") }));
     // Never log the URL (it carries the API key) or the code.
     if (!res.ok) throw new Error(`pearlsms http ${res.status}: ${body.slice(0, 200)}`);
     if (this.c.successMatch && !new RegExp(this.c.successMatch, "i").test(body)) throw new Error(`pearlsms rejected: ${body.slice(0, 200)}`);
-    if (/\b(error|invalid|fail(ed)?|unauthori[sz]ed)\b/i.test(body) && !this.c.successMatch) throw new Error(`pearlsms rejected: ${body.slice(0, 200)}`);
+    // Without SMS_SUCCESS_MATCH any 2xx counts as sent (the response is logged above to calibrate it).
   }
 }
 
@@ -125,7 +138,7 @@ class MockSms implements SmsProvider {
 }
 
 const REQUIRED: Record<string, (keyof SmsConfig)[]> = {
-  pearlsms: ["apiKey", "templateId", "apiUrl"],
+  pearlsms: ["apiKey", "apiUrl"],
   msg91: ["apiKey", "templateId"],
   fast2sms: ["apiKey", "senderId", "templateId"],
   mock: [],
@@ -140,7 +153,7 @@ export function createSmsProvider(c: SmsConfig, nodeEnv = process.env.NODE_ENV):
   if (missing.length) { console.error(JSON.stringify({ level: "error", msg: "sms-provider-incomplete", provider: c.provider, missing })); return null; }
   if (c.provider === "mock") return nodeEnv === "production" ? null : new MockSms();
   if (c.provider === "pearlsms") {
-    if (!c.apiUrl.includes("{otp}") && !c.apiUrl.includes("{message}")) { console.error(JSON.stringify({ level: "error", msg: "sms-provider-incomplete", provider: c.provider, missing: ["SMS_API_URL {message}|{otp} placeholder"] })); return null; }
+    if (!c.apiUrl.includes("{apikey}") || (!c.apiUrl.includes("{otp}") && !c.apiUrl.includes("{message}"))) { console.error(JSON.stringify({ level: "error", msg: "sms-provider-incomplete", provider: c.provider, missing: ["SMS_API_URL {message}|{otp} placeholder"] })); return null; }
     return new PearlSms(c);
   }
   return c.provider === "msg91" ? new Msg91(c) : new Fast2Sms(c);
