@@ -61,6 +61,7 @@ export function sourceBucket(startParam?: string | null): string {
   if (p.startsWith("sq_")) return "squad";
   if (/^(match|predict|lino)_/.test(p) || /^(live|predict|spin|board|alerts|lino|buddy|home|play|pass|admin|rewards|leaderboard|reminders)$/.test(p)) return "deeplink";
   if (/^[br]_/.test(p)) return "message";
+  if (p.startsWith("web_")) return "website";
   return p.slice(0, 64);
 }
 

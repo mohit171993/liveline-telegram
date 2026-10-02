@@ -93,6 +93,34 @@ importers:
         specifier: 4.0.241
         version: 4.0.241(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
+  apps/site:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^2.1.3
+        version: 2.1.3(hono@4.13.12)
+      '@liveline/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
+      hono:
+        specifier: ^4.13.12
+        version: 4.13.12
+      ioredis:
+        specifier: ^5.6.0
+        version: 5.11.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.4
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+
   apps/web:
     dependencies:
       framer-motion:
@@ -830,6 +858,12 @@ packages:
 
   '@grammyjs/types@5.0.0':
     resolution: {integrity: sha512-iq1Qrq1iPKkB8yAa0qSuIURMZOCuqTY5pWy5gHpCeL1oQ+GPadGhw/cDTVE8waJwuCzacUzuIjRv1sESvk7u7A==}
+
+  '@hono/node-server@2.1.3':
+    resolution: {integrity: sha512-TA//nWMqPhbfdfneACk6t5a9eqbS9lABEPyKn0/xZTah3H3U2XaVg85rJFl0/Fyit0I552YDHgXGVSf3GwqbUw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4
 
   '@ioredis/commands@1.10.0':
     resolution: {integrity: sha512-UmeW7z4LfctwoQ5wkhVzgq8tXkreED2xZGpX+Bg+zA+WJFZCT6c062AfCK/Dfk81xZnnwdhJCUMkitihRaoC2Q==}
@@ -1835,6 +1869,10 @@ packages:
   hasown@2.0.4:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
+
+  hono@4.13.12:
+    resolution: {integrity: sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==}
+    engines: {node: '>=16.9.0'}
 
   human-signals@2.1.0:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==}
@@ -3339,6 +3377,10 @@ snapshots:
 
   '@grammyjs/types@5.0.0': {}
 
+  '@hono/node-server@2.1.3(hono@4.13.12)':
+    dependencies:
+      hono: 4.13.12
+
   '@ioredis/commands@1.10.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -4456,6 +4498,8 @@ snapshots:
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
+
+  hono@4.13.12: {}
 
   human-signals@2.1.0: {}
 

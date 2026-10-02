@@ -1,0 +1,13 @@
+# Public website service (liveline-site) in the `betroxy` Railway project.
+# No Railway-generated domain: attach the custom domain only (Settings → Networking → Custom Domain).
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "apps/site/Dockerfile"
+watchPatterns = ["apps/site/**", "packages/shared/**", "pnpm-lock.yaml"]
+
+[deploy]
+startCommand = "node dist/main.js"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
