@@ -7,6 +7,7 @@ import { AdSlot } from "./Ad";
 import { AdInterstitial, AdSticky, AdUnitView, useAdUnits } from "./AdUnits";
 import { Celebrate, muted, setMuted } from "./Celebrate";
 import { Avatar, STATUS_STICKER } from "../Avatar";
+import { UpcomingPreview } from "./MatchPreview";
 
 export function MatchPage({ lang }: { lang: string }) {
   const { key = "" } = useParams();
@@ -84,45 +85,60 @@ export function MatchPage({ lang }: { lang: string }) {
       )}
       {cheers.map((c) => <span key={c.id} className="float" style={{ left: `${c.x}%` }} aria-hidden="true">{c.emoji}</span>)}
       <AdUnitView ad={ads.top} pos="top" page="match" />
-      <div className="hero">
-        <div className="row">
-          <span className="livepill">{match.status === "live" && <i className="dot" />} {STATUS_STICKER[match.status] || ""} {match.status === "live" ? t(lang, "live") : match.status}</span>
-          <span className="demo">{match.demo ? t(lang, "demo") : match.format}</span>
-        </div>
-        <div className="versus compact">
-          <div className="side"><Flag code={match.teams.a.code} size={36} /><strong>{match.teams.a.code}</strong></div>
-          <div className="side"><Flag code={match.teams.b.code} size={36} /><strong>{match.teams.b.code}</strong></div>
-        </div>
-        {live ? (
-          <div className="score" style={{ color: bat.color }}>{live.runs}/{live.wickets}</div>
-        ) : match.status === "completed" ? (
-          <div className="hero-state"><b>{match.result || "Result"}</b></div>
-        ) : (
-          <div className="hero-state">
-            <b>{start.headline}</b>
-            {detail && <span>{detail}</span>}
+      {match.status === "upcoming" ? (
+        <>
+          <UpcomingPreview match={match} />
+          <AdUnitView ad={ads.infeed} pos="infeed" page="match" />
+          <section className="pv-card pv-comments" aria-label="Comments">
+            <h3 className="pv-title">Fan comments</h3>
+            {laneOn && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
+            <div className="match-tools" role="toolbar" aria-label="Match tools">
+              <button type="button" aria-pressed={mute} className={mute ? "on" : ""} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
+              <button type="button" aria-pressed={!laneOn} className={laneOn ? "" : "on"} onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
+            </div>
+          </section>
+        </>
+      ) : (
+        <div className="hero">
+          <div className="row">
+            <span className="livepill">{match.status === "live" && <i className="dot" />} {STATUS_STICKER[match.status] || ""} {match.status === "live" ? t(lang, "live") : match.status}</span>
+            <span className="demo">{match.demo ? t(lang, "demo") : match.format}</span>
           </div>
-        )}
-        {live && <div className="need">{lang === "hi" ? live.needHi : live.need || match.toss}</div>}
-        {live && <div className="meta">{live.overs} · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"} · {t(lang, "proj")} {live.projected ?? "—"}</div>}
-        {winText && (
-          <>
-            <div className="win"><i style={{ width: `${live!.win.a}%`, background: match.teams.a.color }} /><i style={{ width: `${live!.win.b}%`, background: match.teams.b.color }} /></div>
-            <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {winText}</div>
-          </>
-        )}
-        {!winText && live?.mood && <div className="small">{live.mood.emoji} {lang === "hi" ? live.mood.labelHi : live.mood.label}</div>}
-        {live?.luck && FEATURES.winProb && (
-          <div className="small mt-2">{live.luck.emoji} Luck {live.luck.score} · {lang === "hi" ? live.luck.labelHi : live.luck.label}
-            {live.forecast ? ` · next over ${live.forecast.low}–${live.forecast.high} · wicket ${live.forecast.wicketChance}%` : ""}
+          <div className="versus compact">
+            <div className="side"><Flag code={match.teams.a.code} size={36} /><strong>{match.teams.a.code}</strong></div>
+            <div className="side"><Flag code={match.teams.b.code} size={36} /><strong>{match.teams.b.code}</strong></div>
           </div>
-        )}
-        {laneOn && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
-        <div className="match-tools" role="toolbar" aria-label="Match tools">
-          <button type="button" aria-pressed={mute} className={mute ? "on" : ""} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
-          <button type="button" aria-pressed={!laneOn} className={laneOn ? "" : "on"} onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
+          {live ? (
+            <div className="score" style={{ color: bat.color }}>{live.runs}/{live.wickets}</div>
+          ) : match.status === "completed" ? (
+            <div className="hero-state"><b>{match.result || "Result"}</b></div>
+          ) : (
+            <div className="hero-state">
+              <b>{start.headline}</b>
+              {detail && <span>{detail}</span>}
+            </div>
+          )}
+          {live && <div className="need">{lang === "hi" ? live.needHi : live.need || match.toss}</div>}
+          {live && <div className="meta">{live.overs} · {t(lang, "crr")} {live.crr} · {t(lang, "rrr")} {live.rrr ?? "—"} · {t(lang, "proj")} {live.projected ?? "—"}</div>}
+          {winText && (
+            <>
+              <div className="win"><i style={{ width: `${live!.win.a}%`, background: match.teams.a.color }} /><i style={{ width: `${live!.win.b}%`, background: match.teams.b.color }} /></div>
+              <div className="small">{live?.mood ? `${live.mood.emoji} ${lang === "hi" ? live.mood.labelHi : live.mood.label} · ` : ""}{t(lang, "win")} {winText}</div>
+            </>
+          )}
+          {!winText && live?.mood && <div className="small">{live.mood.emoji} {lang === "hi" ? live.mood.labelHi : live.mood.label}</div>}
+          {live?.luck && FEATURES.winProb && (
+            <div className="small mt-2">{live.luck.emoji} Luck {live.luck.score} · {lang === "hi" ? live.luck.labelHi : live.luck.label}
+              {live.forecast ? ` · next over ${live.forecast.low}–${live.forecast.high} · wicket ${live.forecast.wicketChance}%` : ""}
+            </div>
+          )}
+          {laneOn && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
+          <div className="match-tools" role="toolbar" aria-label="Match tools">
+            <button type="button" aria-pressed={mute} className={mute ? "on" : ""} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
+            <button type="button" aria-pressed={!laneOn} className={laneOn ? "" : "on"} onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
+          </div>
         </div>
-      </div>
+      )}
       <form onSubmit={async (e) => {
         e.preventDefault();
         const body = String(new FormData(e.currentTarget).get("body") || "");
@@ -213,7 +229,7 @@ export function MatchPage({ lang }: { lang: string }) {
       ))}
       {tab === "charts" && <Charts match={match} />}
       {tab === "chat" && <Chat matchKey={match.key} />}
-      <AdUnitView ad={ads.infeed} pos="infeed" page="match" />
+      {match.status !== "upcoming" && <AdUnitView ad={ads.infeed} pos="infeed" page="match" />}
       <AdSlot slot="powered_by" matchKey={match.key} quiet />
       <AdSticky ad={ads.sticky} page="match" />
       <AdInterstitial ad={ads.interstitial} page="match" />
@@ -294,7 +310,7 @@ function FanMeter({ matchKey, lang }: { matchKey: string; lang: string }) {
           <button key={team.key} className={`chip team ${(data.you === "a" && team.key === data.teams.a.key) || (data.you === "b" && team.key === data.teams.b.key) ? "on" : ""}`} style={{ borderColor: team.color }} onClick={() => pick(team.key)}><Flag code={team.code} size={18} /> {team.code}</button>
         ))}
       </div>
-      <div className="pills" aria-label={t(lang, "cheer")}>
+      <div className="pills cheers" aria-label={t(lang, "cheer")}>
         {CHEERS.map((emoji) => <button key={emoji} className="pill" onClick={() => cheer(emoji)} aria-label={`${t(lang, "cheer")} ${emoji}`}>{emoji}</button>)}
       </div>
       {note && <p className="small">{note}</p>}

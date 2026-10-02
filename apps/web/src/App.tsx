@@ -196,6 +196,7 @@ export function deepLinkRoute(param: string): string | null {
   // Public website buttons: web_<page> / web_m_<matchKey> / web_l_<matchKey> (tag kept as the source).
   if (param.startsWith("web_m_")) return `/match/${param.slice("web_m_".length)}`;
   if (param.startsWith("web_l_")) return `/ai/${param.slice("web_l_".length)}`;
+  if (param.startsWith("web_pr_")) return `/predict/${param.slice("web_pr_".length)}`;
   if (param.startsWith("web_")) {
     const page = param.slice("web_".length);
     return ({ alerts: "/alerts", lino: "/ai", live: "/live", schedule: "/live", preview: "/live" } as Record<string, string>)[page] || (page.startsWith("s_") || page.startsWith("p_") ? "/live" : "/");

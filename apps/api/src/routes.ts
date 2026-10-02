@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "@liveline/db";
-import { findPlayer, istDay, SPORT_MODULES } from "@liveline/shared";
+import { buildMatchPreview, findPlayer, istDay, SPORT_MODULES } from "@liveline/shared";
 import { buildAnalytics, parseSection, recordMatchView, sectionCsv } from "./services/reports";
 import { env, channelUrl, matchLink, vouchersEnabled, winProbEnabled } from "./env";
 import { redis } from "./redis";
@@ -141,6 +141,20 @@ export async function registerRoutes(app: FastifyInstance, authenticate: typeof 
     if (!found) throw httpError(404, "NOT_FOUND");
     await recordMatchView(key, user.id);
     return found.view;
+  });
+
+  /** Pre-match blocks from real finished matches only (form, head-to-head, venue, standings) + this user's reminder. */
+  app.get("/api/matches/:key/preview", async (req, reply) => {
+    const user = await authenticate(req, reply);
+    if (!user) return;
+    const key = (req.params as { key: string }).key;
+    const found = await getMatch(key);
+    if (!found) throw httpError(404, "NOT_FOUND");
+    const [universe, reminder] = await Promise.all([
+      readUniverse(),
+      prisma.reminder.findFirst({ where: { userId: user.id, matchKey: key, status: "active" }, select: { id: true, minutesBefore: true } }),
+    ]);
+    return { ...buildMatchPreview(found.state, universe), reminder };
   });
 
   app.get("/api/players/:id", async (req, reply) => {

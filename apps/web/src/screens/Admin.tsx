@@ -147,7 +147,7 @@ export function Users() {
     <>
       <h2>Users</h2>
       <form onSubmit={(e) => { e.preventDefault(); load(); }}><input className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" /></form>
-      <a className="small" href="/api/admin/users.csv">CSV</a>
+      <button type="button" className="chip" onClick={() => { void import("./Crm").then((m) => m.exportCsv("users", { filter: {} })); }}>⬇️ CSV</button>
       {rows.map((u) => (
         <div key={u.id} className="board">
           <span>{u.firstName} @{u.username}<br /><i className="small">{u.telegramId} · {u.phone || "no phone"} · {u.status}</i></span>

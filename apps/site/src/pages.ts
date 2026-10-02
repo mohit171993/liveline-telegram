@@ -1,5 +1,6 @@
 import { abs, appLink, channelLink, env } from "./env";
-import { listMatches, matchPath, slugify, type SiteMatch } from "./data";
+import { getPreview, listMatches, matchPath, slugify, type SiteMatch } from "./data";
+import type { MatchPreview } from "@liveline/shared";
 import { PREVIEWS, SERIES, type CuratedSeries, type Fixture } from "./content";
 import { linoFacts, linoTake } from "./lino";
 import { ball, empty, esc, flag, istDate, istDayKey, istTime, layout, matchCard, realToss, sectionHead, statusPill, tgCta, tgIcon, when } from "./html";
@@ -133,6 +134,7 @@ export async function matchPage(m: SiteMatch): Promise<string> {
   const body = `<nav class="crumbs"><a href="/">Home</a> › <a href="/series/${feedSeriesSlug(m)}">${esc(m.seriesName)}</a></nav>
 <h1 class="ph sm">${esc(A)} vs ${esc(B)} <span>${esc(titleWord)}</span></h1>
 <div id="match-live" data-fragment="/fragment/match/${encodeURIComponent(m.key)}">${matchLive(m, take)}</div>
+${m.status === "upcoming" ? upcomingExtras(m, await getPreview(m.key)) : ""}
 <!--ad:infeed-->
 ${tgCta(m.status === "completed" ? "Next match alerts" : `Get ${m.teams.a.code} vs ${m.teams.b.code} wicket alerts`, "Toss, every wicket, milestones and the result — straight to Telegram. Free.", `m_${m.key}`)}
 `;
@@ -145,6 +147,55 @@ ${tgCta(m.status === "completed" ? "Next match alerts" : `Get ${m.teams.a.code} 
   }, body);
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+function cdCells(ms: number): string {
+  const left = Math.max(0, ms - Date.now()), s = Math.floor(left / 1000);
+  const parts: [string, number][] = [["Days", Math.floor(s / 86400)], ["Hrs", Math.floor(s / 3600) % 24], ["Min", Math.floor(s / 60) % 60], ["Sec", s % 60]];
+  return parts.map(([l, v]) => `<span class="up-cd-c"><b>${pad2(v)}</b><small>${l}</small></span>`).join("");
+}
+
+/** Upcoming-match hero: badges, live countdown (site.js ticks [data-countdown]), IST + visitor-local time, venue, CTAs. */
+function upcomingHero(m: SiteMatch): string {
+  const side = (t: SiteMatch["teams"]["a"]) => `<div class="up-team">${flag(t, 58)}<b>${esc(t.name)}</b><span>${esc(t.code)}</span></div>`;
+  const shareUrl = abs(matchPath(m));
+  return `<section class="card sb upcoming up-hero">
+  <div class="up-chips"><span class="up-chip">${esc(m.format)}</span><span class="up-chip ser">${esc(m.seriesName)}</span>${statusPill(m)}</div>
+  <div class="up-vs">${side(m.teams.a)}<span class="up-vs-x">VS</span>${side(m.teams.b)}</div>
+  <div class="up-cd" data-countdown="${m.startAt}" role="timer" aria-label="Time to start">${cdCells(m.startAt)}</div>
+  <p class="up-when">🗓 ${esc(when(m.startAt))}<span class="up-local" data-local="${m.startAt}"></span></p>
+  ${m.venue ? `<p class="up-when">📍 ${esc(m.venue)}${m.city ? `, ${esc(m.city)}` : ""}</p>` : ""}
+  ${realToss(m.toss) ? `<p class="toss">🪙 ${esc(m.toss)}</p>` : ""}
+  <div class="up-btns"><a class="tg-btn" href="${esc(appLink(`m_${m.key}`))}" rel="noopener">${tgIcon()}Remind me</a><button type="button" class="ghost-btn" data-share="${esc(shareUrl)}" data-title="${esc(`${m.teams.a.name} vs ${m.teams.b.name} — live line on LiveLinePro`)}">↗ Share</button></div>
+</section>`;
+}
+
+/** Static pre-match blocks (real data only; each block is hidden when there's nothing real to show). */
+function upcomingExtras(m: SiteMatch, pv: MatchPreview | null): string {
+  const A = m.teams.a, B = m.teams.b;
+  const tossAt = istTime(m.startAt - 30 * 60_000);
+  const toss = `<section class="card up-card"><h2 class="h2s">🪙 Toss</h2>${realToss(m.toss) ? `<p>${esc(m.toss)}</p>` : `<p class="muted">Toss around <b>${esc(tossAt)} IST</b> (usually 30 min before the start). We'll post it here and in Telegram.</p>`}</section>`;
+  const predict = `<a class="card up-card up-predict" href="${esc(appLink(`pr_${m.key}`))}" rel="noopener"><span class="up-ic" aria-hidden="true">🎯</span><div><h2 class="h2s">Who wins?</h2><p class="muted">Call it before the toss in the Telegram app and earn XP on the fan leaderboard. Free — no money involved.</p></div><span class="arrow" aria-hidden="true">→</span></a>`;
+  const dots = (f: MatchPreview["form"]["a"]) => f.map((x) => `<i class="fd ${x.r}" title="${esc(x.r)} vs ${esc(x.vs)}">${x.r}</i>`).join("");
+  const form = pv && (pv.form.a.length || pv.form.b.length) ? `<section class="card up-card"><h2 class="h2s">Recent form</h2>
+  <div class="up-form"><span>${flag(A, 26)} ${esc(A.code)}</span><span class="fds">${dots(pv.form.a) || '<em class="muted">No recent results</em>'}</span></div>
+  <div class="up-form"><span>${flag(B, 26)} ${esc(B.code)}</span><span class="fds">${dots(pv.form.b) || '<em class="muted">No recent results</em>'}</span></div></section>` : "";
+  const h = pv?.h2h;
+  const h2h = h ? `<section class="card up-card"><h2 class="h2s">Head-to-head</h2>
+  <div class="up-h2h"><b>${h.aWins}</b><span>${esc(A.code)}</span><div class="up-bar"><i style="width:${Math.round((h.aWins / Math.max(1, h.aWins + h.bWins)) * 100)}%"></i></div><span>${esc(B.code)}</span><b>${h.bWins}</b></div>
+  <p class="muted">${h.played} recent meeting${h.played === 1 ? "" : "s"}${h.ties ? ` · ${h.ties} tied/no result` : ""}</p></section>` : "";
+  const v = pv?.venue;
+  const venue = v ? `<section class="card up-card"><h2 class="h2s">📍 At this venue</h2><div class="up-stats">
+  <span><b>${v.avgFirst}</b><small>Avg 1st inns</small></span><span><b>${v.highestFirst}</b><small>Highest 1st</small></span><span><b>${v.defendsWon}</b><small>Won batting 1st</small></span><span><b>${v.chasesWon}</b><small>Won chasing</small></span></div>
+  <p class="muted">From ${v.matches} recent completed matches here.</p></section>` : "";
+  const st = pv?.standings || [];
+  const standings = st.length ? `<section class="card up-card"><h2 class="h2s">Standings</h2><table class="tbl"><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>NRR</th><th>Pts</th></tr></thead><tbody>
+  ${st.map((r) => `<tr${r.side ? ' class="hl"' : ""}><td>${r.pos}</td><td>${esc(r.team)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.nrr)}</td><td><b>${r.pts}</b></td></tr>`).join("")}</tbody></table></section>` : "";
+  const role = (r?: string) => r ? `<small>${esc(r)}</small>` : "";
+  const squads = m.xi?.a?.length || m.xi?.b?.length ? `<details class="card up-card up-sq"><summary><h2 class="h2s">Squads</h2><span class="muted">${m.xi?.a?.length || 0} + ${m.xi?.b?.length || 0} players · tap to open</span></summary>
+  <div class="xi"><div><h3>${esc(A.name)}</h3><ul>${(m.xi?.a || []).map((p: any) => `<li>${esc(p.name)}${role(p.role)}</li>`).join("")}</ul></div><div><h3>${esc(B.name)}</h3><ul>${(m.xi?.b || []).map((p: any) => `<li>${esc(p.name)}${role(p.role)}</li>`).join("")}</ul></div></div></details>` : "";
+  return `<div class="up-grid">${predict}${toss}${form}${h2h}${venue}${standings}${squads}</div>`;
+}
+
 /** The auto-refreshing part of the match page (also served alone as a fragment). */
 export function matchLive(m: SiteMatch, take: string | null): string {
   const live = m.live;
@@ -153,14 +204,13 @@ export function matchLive(m: SiteMatch, take: string | null): string {
     const sc = m.scoreline[side] && m.scoreline[side] !== "—" ? m.scoreline[side] : m.status === "upcoming" ? "" : "Yet to bat";
     return `<div class="sb-team${live?.batting === side ? " bat" : ""}">${flag(t, 40)}<b class="sb-name">${esc(t.name)}</b>${sc ? `<span class="sb-sc${sc === "Yet to bat" ? " ytb" : ""}">${esc(sc)}</span>` : ""}</div>`;
   };
-  const scoreboard = `<section class="card sb ${m.status}">
+  const scoreboard = m.status === "upcoming" ? upcomingHero(m) : `<section class="card sb ${m.status}">
   <div class="mc-head"><span class="series">${esc(m.format)} · ${esc(m.venue)}${m.city ? `, ${esc(m.city)}` : ""}</span>${statusPill(m)}</div>
   ${score("a")}${score("b")}
   ${live ? `<div class="sb-big"><span class="r">${live.runs}/${live.wickets}</span><span class="o">${esc(live.overs)} ov</span></div>
   <div class="sb-rates"><span>CRR <b>${live.crr.toFixed(2)}</b></span>${live.rrr != null ? `<span>RRR <b>${live.rrr.toFixed(2)}</b></span>` : ""}${live.target ? `<span>Target <b>${live.target}</b></span>` : live.projected ? `<span>Projected <b>${live.projected}</b></span>` : ""}<span>P'ship <b>${live.partnership.runs}(${live.partnership.balls})</b></span></div>
   ${live.need ? `<p class="need">${esc(live.need)}</p>` : ""}` : ""}
   ${m.status === "completed" ? `<p class="need done">${esc(m.result || "Match complete")}</p>` : ""}
-  ${m.status === "upcoming" ? `<p class="need soon">Starts ${esc(when(m.startAt))}</p>` : ""}
   ${realToss(m.toss) ? `<p class="toss">🪙 ${esc(m.toss)}</p>` : ""}
 </section>`;
 
@@ -194,12 +244,9 @@ export function matchLive(m: SiteMatch, take: string | null): string {
   ${inn.bowlers.map((b) => `<tr><td>${esc(b.name)}</td><td>${esc(b.overs)}</td><td>${b.maidens}</td><td>${b.runs}</td><td><b>${b.wickets}</b></td><td>${b.economy.toFixed(2)}</td></tr>`).join("")}
   </tbody></table></details>`).join("");
 
-  const preview = m.status === "upcoming" ? `<section class="card info"><h2 class="h2s">Match preview</h2>
-  <dl><dt>When</dt><dd>${esc(when(m.startAt))}</dd><dt>Venue</dt><dd>${esc(m.venue)}${m.city ? `, ${esc(m.city)}` : ""}</dd>${m.pitch ? `<dt>Pitch</dt><dd>${esc(m.pitch)}</dd>` : ""}${m.h2h?.played ? `<dt>Head-to-head</dt><dd>${m.h2h.played} played · ${esc(m.teams.a.code)} ${m.h2h.aWins} · ${esc(m.teams.b.code)} ${m.h2h.bWins}</dd>` : ""}</dl>
-  ${m.xi?.a?.length ? `<div class="xi"><div><h3>${esc(m.teams.a.code)} squad</h3><ul>${m.xi.a.map((p) => `<li>${esc(p.name)}</li>`).join("")}</ul></div><div><h3>${esc(m.teams.b.code)} squad</h3><ul>${m.xi.b.map((p) => `<li>${esc(p.name)}</li>`).join("")}</ul></div></div>` : ""}
-  </section>` : "";
+  const preview = ""; // upcoming matches: see upcomingHero + upcomingExtras
 
-  const points = m.points?.length ? `<section class="card"><h2 class="h2s">Points table</h2><table class="tbl"><thead><tr><th>Team</th><th>P</th><th>W</th><th>L</th><th>NRR</th><th>Pts</th></tr></thead><tbody>
+  const points = m.points?.length && m.status !== "upcoming" ? `<section class="card"><h2 class="h2s">Points table</h2><table class="tbl"><thead><tr><th>Team</th><th>P</th><th>W</th><th>L</th><th>NRR</th><th>Pts</th></tr></thead><tbody>
   ${m.points.map((r) => `<tr><td>${esc(r.team)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td>${esc(r.nrr)}</td><td><b>${r.pts}</b></td></tr>`).join("")}</tbody></table></section>` : "";
 
   const tabs = `<nav class="seg"><a href="#lino">Lino</a>${m.commentary?.length ? `<a href="#commentary">Commentary</a>` : ""}${cards ? `<a href="#scorecard">Scorecard</a>` : ""}</nav>`;

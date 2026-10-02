@@ -1,6 +1,7 @@
 import { useId } from "react";
 
 const ALIAS: Record<string, string> = {
+  unitedarabemirates: "UAE", unitedstates: "USA", unitedstatesofamerica: "USA",
   ind: "IND", india: "IND", aus: "AUS", australia: "AUS", eng: "ENG", england: "ENG",
   sa: "SA", southafrica: "SA", rsa: "SA", nz: "NZ", newzealand: "NZ", pak: "PAK", pakistan: "PAK",
   ban: "BAN", bangladesh: "BAN", sl: "SL", srilanka: "SL", wi: "WI", westindies: "WI",
@@ -8,6 +9,16 @@ const ALIAS: Record<string, string> = {
   ned: "NED", netherlands: "NED", sco: "SCO", scotland: "SCO", uae: "UAE", usa: "USA",
   nep: "NEP", nepal: "NEP", oma: "OMA", oman: "OMA",
 };
+
+const KNOWN_FLAGS = new Set(["IND", "AUS", "ENG", "SA", "NZ", "PAK", "BAN", "SL", "WI", "AFG", "IRE", "ZIM", "NED", "SCO", "UAE", "USA", "NEP", "OMA"]);
+/** True when we have real flag art for this team (national sides); clubs / franchises get a monogram badge instead. */
+export function hasFlag(code: string, name = ""): boolean {
+  const id = flagCode(code);
+  if (!KNOWN_FLAGS.has(id)) return false;
+  // "India Women", "Pakistan A" etc. are still national sides; franchises never alias to a country code by name.
+  const n = name.toLowerCase().replace(/[^a-z]/g, "");
+  return !n || Object.keys(ALIAS).some((k) => k.length > 3 && n.startsWith(k)) || n.length <= 4;
+}
 
 export function flagCode(code: string): string {
   const raw = code.toLowerCase().replace(/[^a-z]/g, "");

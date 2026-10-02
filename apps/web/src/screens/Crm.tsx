@@ -53,7 +53,7 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
   );
 }
 
-async function exportCsv(kind: "users" | "attribution", body: Record<string, unknown>) {
+export async function exportCsv(kind: "users" | "attribution", body: Record<string, unknown>) {
   try {
     toast("Preparing CSV…");
     const { url, fileName } = await api<{ url: string; fileName: string }>("/api/admin/crm/export", { method: "POST", body: JSON.stringify({ kind, ...body }) });

@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { projectMatch, type CricketMatchState, type MatchView } from "@liveline/shared";
+import { buildMatchPreview, projectMatch, type CricketMatchState, type MatchPreview, type MatchView } from "@liveline/shared";
 import { env } from "./env";
 
 /**
@@ -52,6 +52,13 @@ export async function listMatches(): Promise<SiteMatch[]> {
 export async function getMatch(key: string): Promise<SiteMatch | null> {
   const state = (await universe()).find((m) => m.key === key);
   return state ? sanitize(projectMatch(state, true, Date.now(), 800)) : null;
+}
+
+/** Real pre-match context (form, H2H, venue, standings) from completed matches in the universe. */
+export async function getPreview(key: string): Promise<MatchPreview | null> {
+  const all = await universe();
+  const state = all.find((m) => m.key === key);
+  return state ? buildMatchPreview(state, all) : null;
 }
 
 export function slugify(s: string): string {

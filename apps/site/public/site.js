@@ -85,3 +85,34 @@
     }, 1200);
   }
 })();
+
+// Upcoming match: live countdown, visitor-local start time, share.
+(function () {
+  var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+  function tick() {
+    document.querySelectorAll("[data-countdown]").forEach(function (el) {
+      var left = Math.max(0, Number(el.getAttribute("data-countdown")) - Date.now()), s = Math.floor(left / 1000);
+      var v = [Math.floor(s / 86400), Math.floor(s / 3600) % 24, Math.floor(s / 60) % 60, s % 60];
+      el.querySelectorAll(".up-cd-c b").forEach(function (b, i) { var t = pad(v[i]); if (b.textContent !== t) b.textContent = t; });
+      el.classList.toggle("go", left === 0);
+    });
+    document.querySelectorAll("[data-local]:empty").forEach(function (el) {
+      try {
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!tz || tz === "Asia/Kolkata" || tz === "Asia/Calcutta") return;
+        var d = new Date(Number(el.getAttribute("data-local")));
+        el.textContent = d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + " your time";
+      } catch (e) {}
+    });
+  }
+  if (document.querySelector("[data-countdown]")) { tick(); setInterval(tick, 1000); }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-share]");
+    if (!b) return;
+    var url = b.getAttribute("data-share"), title = b.getAttribute("data-title") || document.title;
+    if (navigator.share) { navigator.share({ title: title, url: url }).catch(function () {}); return; }
+    var done = function () { var t = b.textContent; b.textContent = "✓ Link copied"; setTimeout(function () { b.textContent = t; }, 1600); };
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { window.open("https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(title), "_blank"); });
+    else window.open("https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(title), "_blank");
+  });
+})();
