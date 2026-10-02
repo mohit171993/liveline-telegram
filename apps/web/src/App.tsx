@@ -187,6 +187,8 @@ export function deepLinkRoute(param: string): string | null {
     admin: "/admin",
     crm: "/admin/crm",
   };
+  // Ad / campaign links: startapp=live_<tag> opens the live score screen (tag kept as the source).
+  if (param.startsWith("live_")) return "/live";
   if (param.startsWith("match_")) return `/match/${param.slice("match_".length)}`;
   if (param.startsWith("predict_")) return `/predict/${param.slice("predict_".length)}`;
   if (param.startsWith("lino_")) return `/ai/${param.slice("lino_".length)}`;
