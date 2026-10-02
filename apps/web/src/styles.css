@@ -843,3 +843,5 @@ button, .chip { transition: transform .12s ease, background-color .2s ease, box-
 @keyframes al-ring { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 75% { transform: rotate(14deg); } }
 .al-row { align-items: center; } .al-row button { min-height: 36px; }
 .al-h { margin-top: 20px !important; }
+.am-check input { width: 18px; height: 18px; }
+.am-check { min-height: 40px; }

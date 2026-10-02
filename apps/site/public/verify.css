@@ -92,3 +92,5 @@ fieldset[disabled] input,fieldset[disabled] label{cursor:not-allowed}
   .vf-legal{display:block;max-width:720px;min-height:0}
   .vf-legal .vf-head{position:static}
 }
+.vf-check-row{min-height:44px;align-items:center}.vf-check-row input{width:22px;height:22px;flex:none}
+.vf-check-row a{padding:6px 0}

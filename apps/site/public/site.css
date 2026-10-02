@@ -287,3 +287,6 @@ a.card:active{transform:scale(.995)}
 .foot-links a{display:inline-flex;align-items:center;min-height:40px;padding:0 4px}
 .nav a,.top-nav a,header nav a{min-height:40px;display:inline-flex;align-items:center}
 @media (prefers-reduced-motion:reduce){.up-predict{transition:none}}
+.up-vs{align-items:start}.up-vs-x{align-self:center}
+.sh a,.crumbs a{display:inline-flex;align-items:center;min-height:36px;padding:0 2px}
+.crumbs{margin-top:0}
