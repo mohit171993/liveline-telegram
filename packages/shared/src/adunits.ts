@@ -91,3 +91,33 @@ export const ADSTAT_KEY = "ll:adstat";
 export function adStatField(id: string, day: string, surface: string, placement: string, page: string, type: "i" | "c"): string {
   return [id, day, surface, placement, page, type].map((p) => String(p).replace(/\|/g, "")).join("|");
 }
+
+/* ---------------- bulk upload: size → position detection ---------------- */
+
+/** Known IAB / LiveLine creative sizes → position (checked first, ±2 px). 728×90 is ambiguous: top. */
+const KNOWN_SIZES: [number, number, AdPosition][] = [
+  [728, 90, "top"], [320, 100, "top"], [970, 250, "top"], [970, 90, "top"], [468, 60, "top"], [640, 200, "top"],
+  [300, 250, "infeed"], [336, 280, "infeed"], [1200, 628, "infeed"], [1200, 627, "infeed"], [1080, 1080, "infeed"], [600, 600, "infeed"], [1200, 1200, "infeed"],
+  [320, 50, "sticky"], [300, 50, "sticky"], [640, 100, "sticky"], [970, 66, "sticky"],
+  [320, 480, "interstitial"], [1080, 1920, "interstitial"], [720, 1280, "interstitial"], [480, 320, "infeed"], [300, 600, "interstitial"],
+];
+
+/** Detect where a creative of w×h pixels fits best (exact known size first, then aspect ratio). */
+export function detectAdPosition(w: number, h: number): AdPosition {
+  if (!(w > 0 && h > 0)) return "infeed";
+  for (const [kw, kh, pos] of KNOWN_SIZES) if (Math.abs(w - kw) <= 2 && Math.abs(h - kh) <= 2) return pos;
+  const r = w / h;
+  if (r < 0.8) return "interstitial"; // 9:16, 2:3, tall
+  if (r < 2.4) return "infeed"; // square … 1.91:1
+  if (r >= 10 || (r >= 5 && h <= 60)) return "sticky"; // very wide / thin strips
+  return "top"; // 32:10 … 8:1 leaderboards
+}
+
+/** Campaign key from a filename: drops extension, size tokens and position/device words. */
+export function creativeStem(fileName: string): string {
+  const s = fileName.toLowerCase().replace(/\.[a-z0-9]+$/, "").replace(/[_.]+/g, " ")
+    .replace(/\d{2,4}\s*[x×]\s*\d{2,4}/g, " ")
+    .replace(/\b(top|leaderboard|infeed|in-feed|feed|sticky|footer|interstitial|fullscreen|full|mobile|mob|desktop|desk|banner|square|story|portrait|landscape|v\d+|final|copy|\d+)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ").trim();
+  return s || "creative";
+}

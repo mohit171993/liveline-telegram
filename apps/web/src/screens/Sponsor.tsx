@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, haptic, toast } from "../lib";
 import { AdminNav, Toggle, ist } from "./Crm";
+import { mediaSrc } from "./AdUnits";
 
-export type PublicSponsor = { id: string; text: string; emoji: string; style: "success" | "primary" | "danger" | "default"; url: string; frameable: boolean; go?: string };
+export type PublicSponsor = { id: string; text: string; emoji: string; style: "success" | "primary" | "danger" | "default"; url: string; frameable: boolean; go?: string; imageUrl?: string };
 
 const label = (s: { emoji: string; text: string }) => `${s.emoji ? `${s.emoji} ` : ""}${s.text}`;
 
@@ -17,6 +18,11 @@ export function SponsorBanner() {
   return (
     <div className="sponsor-stack">
       {rows.map((s) => (
+        s.imageUrl ? (
+          <button key={s.id} className={`sponsor-banner sp-${s.style} has-img`} aria-label={s.text} onClick={() => openSponsor(s, nav)}>
+            <img src={mediaSrc(s.imageUrl)} alt={s.text} loading="lazy" /><small>Sponsored</small>
+          </button>
+        ) :
         <button key={s.id} className={`sponsor-banner sp-${s.style}`} onClick={() => openSponsor(s, nav)}>
           <span className="sp-emoji">{s.emoji || "⭐"}</span>
           <span className="sp-text"><b>{s.text}</b><small>Sponsored</small></span>
@@ -179,6 +185,7 @@ export function SponsorsAdmin() {
           </div>
           <p className="small sp-url">{s.url}</p>
           <p className="small">{s.live ? "🟢 Live" : s.enabled ? "🕒 Scheduled / ended" : "⚪ Off"} · {s.target === "all" ? "Everyone" : "Verified users"}{s.startsAt ? ` · from ${ist(s.startsAt)}` : ""}{s.endsAt ? ` · until ${ist(s.endsAt)}` : ""}</p>
+          {s.imageUrl && <div className="sp-img-row"><img src={mediaSrc(s.imageUrl)} alt="" /><span className="small">Home tile image</span><button className="ghost am-file" onClick={async () => { await api(`/api/admin/sponsors/${s.id}/image`, { method: "POST", body: JSON.stringify({ imageUrl: "" }) }).catch(() => undefined); toast("Image removed"); load(); }}>Remove</button></div>}
           {!s.frameable && <p className="sp-warn">⚠️ {s.frameNote || "This site blocks embedding."}</p>}
           <div className="sp-stats"><span><b>{s.stats?.d1 ?? 0}</b> taps 24h</span><span><b>{s.stats?.d7 ?? 0}</b> 7d</span><span><b>{s.stats?.total ?? 0}</b> 90d</span><span><b>{s.stats?.uniq ?? 0}</b> users</span><span>🤖 {s.stats?.bot ?? 0} · 🏠 {s.stats?.home ?? 0}</span></div>
           <div className="sp-two">

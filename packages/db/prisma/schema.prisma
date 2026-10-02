@@ -805,6 +805,8 @@ model SponsorButton {
   endsAt    DateTime?
   frameable Boolean      @default(true)
   frameNote String       @default("")
+  /// Optional banner image (an /ads-media/ upload, e.g. from Ads → Creative library) for the Home tile.
+  imageUrl  String       @default("")
   sort      Int          @default(0)
   createdBy String?
   createdAt DateTime     @default(now())

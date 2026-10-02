@@ -182,7 +182,7 @@ export async function liveSponsors(verified: boolean): Promise<Sponsor[]> {
 }
 
 export function publicSponsor(s: Sponsor) {
-  return { id: s.id, text: s.text, emoji: s.emoji, style: s.style, url: s.url, frameable: s.frameable };
+  return { id: s.id, text: s.text, emoji: s.emoji, style: s.style, url: s.url, frameable: s.frameable, imageUrl: s.imageUrl };
 }
 
 export function sponsorLabel(s: { emoji: string; text: string }) {
@@ -224,4 +224,13 @@ export async function sponsorGo(id: string, q: { t?: string; s?: string; g?: str
   }
   void prisma.sponsorTap.create({ data: { sponsorId: id, userId, surface: src } }).catch(() => undefined);
   return s.url;
+}
+
+/** Set / clear the sponsor's Home-tile image (must be an uploaded /ads-media/ file). */
+export async function setSponsorImage(id: string, imageUrl: string) {
+  if (imageUrl && !/^\/ads-media\/[A-Za-z0-9._-]+$/.test(imageUrl)) throw httpError(400, "BAD_IMAGE", "Upload the image in Ads first.");
+  const row = await prisma.sponsorButton.update({ where: { id }, data: { imageUrl } }).catch(() => null);
+  if (!row) throw httpError(404, "NOT_FOUND", "Sponsor not found.");
+  bust();
+  return row;
 }

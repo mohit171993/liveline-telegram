@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, apiBase, haptic, initData, toast } from "../lib";
 import { AdminNav, Toggle, ist } from "./Crm";
 import { mediaSrc, type AdUnit } from "./AdUnits";
+import { BulkUpload, CreativeLibrary, type LibAd } from "./AdsBulk";
 
 type Kind = AdUnit["kind"];
 type Pos = "top" | "infeed" | "sticky" | "interstitial";
@@ -126,9 +127,11 @@ export function AdsManager() {
   return (
     <div className="admin">
       <AdminNav />
-      <div className="page-head"><h2>Ads</h2>{!form && <button className="chip on" onClick={() => { haptic("light"); setForm({ ...EMPTY }); setErr(""); }}>＋ New ad</button>}</div>
+      <div className="page-head"><h2>Ads</h2>{!form && <div className="chips am-head-btns"><button className="chip" onClick={() => document.querySelector<HTMLInputElement>(".bulk-pick input")?.click()}>⬆️ Bulk upload</button><button className="chip on" onClick={() => { haptic("light"); setForm({ ...EMPTY }); setErr(""); }}>＋ New ad</button></div>}</div>
       <p className="small">Banners, native cards, video and ad-network code for the website and the Mini App. Highest priority shows first; equal priority rotates by weight.</p>
       <p className="sp-legal">⚖️ {data?.note || "Use legal brands only."}</p>
+      {!form && <BulkUpload onDone={load} />}
+      {data && !form && <CreativeLibrary ads={data.ads as unknown as LibAd[]} reload={load} />}
       {data && <p className="am-storage">Storage: {data.storage === "bucket" ? "Railway bucket" : "local disk (dev)"} {data.storageOk ? "✓" : "⚠️ unreachable"}</p>}
       {f && (
         <div className="card sp-form am-form">
@@ -189,6 +192,7 @@ export function AdsManager() {
           <div className="sp-two"><button className="ghost" onClick={() => { setForm(null); setErr(""); }}>Cancel</button><button className="primary" disabled={saving || f.name.trim().length < 2 || !f.placements.length} onClick={save}>{saving ? "Saving…" : "Save"}</button></div>
         </div>
       )}
+      {data && data.ads.length > 0 && <h3>All ads</h3>}
       {!data ? <div className="skel" /> : data.ads.length === 0 && !form ? <p className="small">No ads yet. Tap “＋ New ad”.</p> : data.ads.map((a) => {
         const thumb = a.images.default || a.images.infeed || a.images.top || a.images.sticky || a.images.interstitial || a.posterUrl;
         return (

@@ -14,7 +14,7 @@ import { adminAlertStatus, alertAdmins } from "./services/users";
 import crypto from "crypto";
 import { redis } from "./redis";
 import { env } from "./env";
-import { createSponsor, deleteSponsor, getSponsorForUser, listSponsors, liveSponsors, publicSponsor, recordTap, sponsorGo, sponsorGoUrl, sponsorInput, sponsorReport, updateSponsor } from "./services/sponsors";
+import { createSponsor, deleteSponsor, getSponsorForUser, listSponsors, liveSponsors, publicSponsor, recordTap, sponsorGo, sponsorGoUrl, sponsorInput, sponsorReport, setSponsorImage, updateSponsor } from "./services/sponsors";
 import { channelLog, channelSettings, channelStats, sendTestCard, updateChannelSettings } from "./services/channel";
 
 function q(req: { query: unknown }) {
@@ -302,6 +302,11 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
   app.put("/api/admin/sponsors/:id", async (req, reply) => {
     if (!(await admin(req, reply))) return;
     return updateSponsor((req.params as { id: string }).id, sponsorInput.parse(req.body));
+  });
+  app.post("/api/admin/sponsors/:id/image", async (req, reply) => {
+    if (!(await admin(req, reply))) return;
+    const body = z.object({ imageUrl: z.string().trim().max(300) }).parse(req.body);
+    return setSponsorImage((req.params as { id: string }).id, body.imageUrl);
   });
   app.delete("/api/admin/sponsors/:id", async (req, reply) => {
     if (!(await admin(req, reply))) return;

@@ -28,3 +28,25 @@ describe("ad units", () => {
     expect(pickAdUnit([a, b], "site_top", "home", 0.5, Date.now(), new Set(["b"]))?.id).toBe("a");
   });
 });
+
+import { creativeStem, detectAdPosition } from "./adunits";
+describe("bulk upload detection", () => {
+  it("maps known and ratio sizes to positions", () => {
+    expect(detectAdPosition(728, 90)).toBe("top");
+    expect(detectAdPosition(320, 100)).toBe("top");
+    expect(detectAdPosition(970, 250)).toBe("top");
+    expect(detectAdPosition(300, 250)).toBe("infeed");
+    expect(detectAdPosition(1200, 628)).toBe("infeed");
+    expect(detectAdPosition(800, 800)).toBe("infeed");
+    expect(detectAdPosition(320, 50)).toBe("sticky");
+    expect(detectAdPosition(1456, 120)).toBe("sticky");
+    expect(detectAdPosition(1080, 1920)).toBe("interstitial");
+    expect(detectAdPosition(320, 480)).toBe("interstitial");
+    expect(detectAdPosition(640, 200)).toBe("top");
+  });
+  it("groups filenames by campaign stem", () => {
+    expect(creativeStem("Diwali-Sale_728x90.png")).toBe("diwali sale");
+    expect(creativeStem("diwali sale 300x250 infeed.jpg")).toBe("diwali sale");
+    expect(creativeStem("DIWALI_SALE_mobile_320x50.webp")).toBe("diwali sale");
+  });
+});
