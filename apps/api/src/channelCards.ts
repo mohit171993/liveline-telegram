@@ -13,7 +13,7 @@ const W = 1280;
 const H = 720;
 const ASSETS = path.resolve(__dirname, "../assets");
 const FONTS = path.join(ASSETS, "fonts");
-const C = { navy: "#070b14", lime: "#e7ff4d", cyan: "#3dffe8", orange: "#ff7a18", pink: "#ff5d7a", ink: "#f4f7fb", muted: "#8e99b0" };
+export const C = { navy: "#070b14", lime: "#e7ff4d", cyan: "#3dffe8", orange: "#ff7a18", pink: "#ff5d7a", ink: "#f4f7fb", muted: "#8e99b0" };
 
 let markUri = "";
 function mark(): string {
@@ -48,7 +48,7 @@ function flagId(team: Team): string | null {
 
 let clipSeq = 0;
 /** Team badge: real flag art for national sides, a colour crest with the team code otherwise. */
-function badge(team: Team, x: number, y: number, w: number): string {
+export function badge(team: Team, x: number, y: number, w: number): string {
   const h = Math.round(w * 0.7);
   const id = flagId(team);
   const clip = `c${++clipSeq}`;
@@ -65,7 +65,7 @@ function badge(team: Team, x: number, y: number, w: number): string {
     + `<text x="${x + w / 2}" y="${y + h / 2 + w * 0.11}" text-anchor="middle" font-family="Barlow Condensed" font-weight="800" font-size="${Math.round(w * 0.32)}" fill="#ffffff">${esc(cut(team.code, 4))}</text>`;
 }
 
-function frame(body: string, opts: { accent?: string; tag: string; tagColor?: string; sub?: string }): string {
+export function frame(body: string, opts: { accent?: string; tag: string; tagColor?: string; sub?: string }): string {
   const accent = opts.accent || C.lime;
   const tagColor = opts.tagColor || accent;
   const tagW = 34 + opts.tag.length * 17;
