@@ -75,6 +75,8 @@ export async function sendTelegramPhoto(chatId: string | number, png: Buffer, ca
 export interface TgResult {
   ok: boolean;
   messageId: number | null;
+  /** Largest photo file_id when the message carried a photo (lets callers reuse uploads). */
+  fileId?: string;
   /** Telegram error_code (403 = user blocked the bot / chat gone, 429 = flood). */
   code?: number;
   retryAfter?: number;
@@ -94,9 +96,9 @@ export async function tgCall(method: string, body: Record<string, unknown> | For
       ? { method: "POST", body, signal: AbortSignal.timeout(20_000) }
       : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
     const data = await res.json().catch(() => null) as {
-      ok?: boolean; result?: { message_id?: number }; error_code?: number; description?: string; parameters?: { retry_after?: number };
+      ok?: boolean; result?: { message_id?: number; photo?: { file_id: string }[] }; error_code?: number; description?: string; parameters?: { retry_after?: number };
     } | null;
-    if (data?.ok) return { ok: true, messageId: data.result?.message_id ?? null };
+    if (data?.ok) return { ok: true, messageId: data.result?.message_id ?? null, fileId: data.result?.photo?.at(-1)?.file_id };
     return {
       ok: false,
       messageId: null,

@@ -7,6 +7,7 @@ import { httpError } from "../httpError";
 import { FLAG_ART } from "../flagArt";
 import { getRule, setRule } from "./automation";
 import { BUTTON_TARGETS, safeHtml, trackedLink } from "./crm";
+import { sendVerifyCard, VERIFY_KEYBOARD } from "../verifyCard";
 
 /**
  * Automated reminder sequences (bot DMs), all admin-configurable.
@@ -40,9 +41,9 @@ export const RULE_DEFAULTS: Record<RuleKey, { enabled: boolean; config: object; 
     config: {
       delaysH: [1, 24, 72],
       texts: [
-        "👋 Hi {name}! You're one tap away from the live line.\n\nTap <b>✅ Share phone to verify</b> below to unlock ball-by-ball scores, free predictions and your free daily spin.",
-        "🏏 {matches}\n\nVerify in one tap to follow it live, predict for free and climb the leaderboard. 18+ · No betting.",
-        "🎡 Your free daily spin is waiting, {name}.\n\nLast reminder: tap <b>✅ Share phone to verify</b> and you're in.",
+        "<b>🔐 {name}, VERIFY TO UNLOCK LIVELINE PRO</b>\n\n<blockquote>⚡ <b>Live line</b>, ball by ball\n🎯 <b>Free predictions</b> & leaderboard\n🎡 <b>Daily free spin</b> & Lino, your AI buddy</blockquote>\n\n👇 <b>Tap the green button below</b>, it's one tap.",
+        "<b>🏏 {matches}</b>\n\n<blockquote>Verify once to follow it ball by ball, predict for free and climb the leaderboard.</blockquote>\n\n👇 <b>Tap the green button below</b> · 18+ · No betting",
+        "<b>🎡 Last reminder, {name}: your free spin is waiting</b>\n\n<blockquote>One tap on the green button and you're in. Telegram shares your number, nothing to type.</blockquote>\n\n👇 <b>Tap the green button below</b>",
       ],
     } satisfies VerifyConfig,
   },
@@ -166,12 +167,16 @@ async function deliver(ctx: Ctx, ruleKey: RuleKey, step: number, dedupeKey: stri
   }
   ctx.budget -= 1;
   const reply_markup = opts.verifyKeyboard
-    ? { keyboard: [[{ text: "✅ Share phone to verify", request_contact: true, style: "success" }]], resize_keyboard: true, is_persistent: true }
+    ? VERIFY_KEYBOARD
     : opts.button ? { inline_keyboard: [[{ text: BUTTON_LABEL[opts.button] || "🏏 Open LiveLine", url: trackedLink("r", row.id, opts.button) }]] } : undefined;
-  let res: TgResult = await tgCall("sendMessage", { chat_id: u.telegramId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(reply_markup ? { reply_markup } : {}) });
+  // Verify nudges use the same big "VERIFY YOUR PHONE" image card as /start (caption ≤ 1024).
+  const send = () => opts.verifyKeyboard && text.length <= 1024
+    ? sendVerifyCard(u.telegramId, text, reply_markup)
+    : tgCall("sendMessage", { chat_id: u.telegramId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(reply_markup ? { reply_markup } : {}) });
+  let res: TgResult = await send();
   if (!res.ok && res.code === 429) {
     await new Promise((r) => setTimeout(r, ((res.retryAfter || 2) + 1) * 1000));
-    res = await tgCall("sendMessage", { chat_id: u.telegramId, text, parse_mode: "HTML", disable_web_page_preview: true, ...(reply_markup ? { reply_markup } : {}) });
+    res = await send();
   }
   if (res.ok) {
     await prisma.autoSend.update({ where: { id: row.id }, data: { status: "sent", sentAt: new Date() } });
@@ -426,7 +431,10 @@ export async function testRule(key: string, step: number, admin: { telegramId: s
   const reply_markup = p.buttonKind === "reply_keyboard"
     ? { keyboard: [[{ text: "✅ Share phone to verify", request_contact: true }]], resize_keyboard: true, one_time_keyboard: true }
     : { inline_keyboard: [[{ text: p.button, url: trackedLink("r", "test0000000000", String(((await rule<Record<string, unknown>>(key as RuleKey)).config as Record<string, unknown>).button || "home")) }]] };
-  const res = await tgCall("sendMessage", { chat_id: admin.telegramId, text: `🧪 <b>Test · ${RULE_DEFAULTS[key as RuleKey].title}</b>\n\n${p.html}`, parse_mode: "HTML", disable_web_page_preview: true, reply_markup });
+  const caption = `🧪 <b>Test · ${RULE_DEFAULTS[key as RuleKey].title}</b>\n\n${p.html}`;
+  const res = p.buttonKind === "reply_keyboard" && caption.length <= 1024
+    ? await sendVerifyCard(admin.telegramId, caption, reply_markup)
+    : await tgCall("sendMessage", { chat_id: admin.telegramId, text: caption, parse_mode: "HTML", disable_web_page_preview: true, reply_markup });
   if (!res.ok) throw httpError(400, "TEST_FAILED", res.description || "Telegram rejected the test. Open the bot and press Start first.");
   return { ok: true };
 }

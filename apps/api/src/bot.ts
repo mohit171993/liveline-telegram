@@ -12,6 +12,7 @@ import { rememberChannelPost } from "./services/reports";
 import { adminChatIds } from "./services/admins";
 import { confirmBroadcast, createBroadcast, findUserBrief, cancelBroadcast } from "./services/crm";
 import { maskPhone } from "./services/automation";
+import { sendVerifyCard, VERIFY_CAPTION } from "./verifyCard";
 import { formatIst } from "@liveline/shared";
 import { signInitData } from "@liveline/shared";
 
@@ -200,10 +201,12 @@ export function createBot() {
         // Unverified: verification first, nothing else. No Mini App entry points yet.
         await setChatMenu(ctx.api, ctx.chat.id, false);
         await sendWelcome(ctx.api, ctx.chat.id, guestKeyboard());
-        await ctx.reply("👇 <b>Verify your phone to unlock LiveLine.</b>", {
-          parse_mode: "HTML",
-          reply_markup: verifyKeyboard(),
-        });
+        // Big, highlighted verify prompt: branded image card + bold/blockquote caption,
+        // carrying the persistent green "Share phone to verify" reply keyboard.
+        const sent = await sendVerifyCard(ctx.chat.id, VERIFY_CAPTION, verifyKeyboard());
+        if (!sent.ok) {
+          await ctx.reply(VERIFY_CAPTION, { parse_mode: "HTML", reply_markup: verifyKeyboard() });
+        }
         return;
       }
       await setChatMenu(ctx.api, ctx.chat.id, true);

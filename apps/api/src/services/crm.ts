@@ -392,8 +392,8 @@ export async function crmCsv(f: CrmFilter): Promise<string> {
 
 /* ------------------------------------------------------------------ messaging helpers */
 
-const ALLOWED_TAGS = /&lt;(\/?)(b|i|u|s|code)&gt;/g;
-/** Admin copy → safe Telegram HTML: everything escaped except <b> <i> <u> <s> <code>. */
+const ALLOWED_TAGS = /&lt;(\/?)(b|i|u|s|code|blockquote)&gt;/g;
+/** Admin copy → safe Telegram HTML: everything escaped except <b> <i> <u> <s> <code> <blockquote>. */
 export function safeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(ALLOWED_TAGS, "<$1$2>");
 }
