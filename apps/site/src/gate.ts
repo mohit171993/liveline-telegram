@@ -127,8 +127,9 @@ export const gateMiddleware: MiddlewareHandler = async (c, next) => {
   if (isOpenPath(path)) return next();
   const session = currentSession(c);
   if (session) {
-    if (Date.now() / 1000 - session.iat > SESSION_ROLL_AFTER_S) writeSession(c, session.u, session.m);
     await next();
+    // Rolling: after the handler (pages return their own Response), so the refreshed cookie lands on c.res.
+    if (Date.now() / 1000 - session.iat > SESSION_ROLL_AFTER_S) writeSession(c, session.u, session.m);
     // Gated HTML must never be stored by shared caches.
     const cc = c.res.headers.get("cache-control");
     if (cc && cc.includes("public")) c.res.headers.set("cache-control", cc.replace("public", "private"));
