@@ -554,7 +554,51 @@ async function main() {
   for (const chatId of await adminChatIds().catch(() => [] as string[])) {
     await bot.api.setMyCommands([...userCommands, { command: "admin", description: "🛠 Admin panel & CRM" }], { scope: { type: "chat", chat_id: Number(chatId) } }).catch(() => undefined);
   }
-  await bot.start();
+  await runPolling(bot);
+}
+
+/** Transient polling failures (409 conflict during redeploy overlap, network, 5xx) must not kill the bot. */
+export function pollingRetryDelay(err: unknown, attempt: number): number | null {
+  const e = err as { error_code?: number; parameters?: { retry_after?: number } };
+  if (e?.error_code === 401 || e?.error_code === 404) return null; // bad token: fatal
+  if (e?.error_code === 429 && e.parameters?.retry_after) return e.parameters.retry_after * 1000;
+  return Math.min(60_000, 2_000 * 2 ** Math.min(attempt, 5)); // 2s, 4s, 8s ... 60s
+}
+
+export async function runPolling(bot: Bot): Promise<void> {
+  let stopping = false;
+  const stop = (sig: string) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(JSON.stringify({ level: "info", msg: "bot stopping", sig }));
+    // Releases the getUpdates long poll so the next deployment can take over without a 409.
+    bot.stop().finally(() => process.exit(0));
+    setTimeout(() => process.exit(0), 8_000).unref();
+  };
+  process.once("SIGTERM", () => stop("SIGTERM"));
+  process.once("SIGINT", () => stop("SIGINT"));
+  let attempt = 0;
+  while (!stopping) {
+    try {
+      await bot.start({
+        drop_pending_updates: false,
+        onStart: (me) => {
+          attempt = 0;
+          console.log(JSON.stringify({ level: "info", msg: "bot polling started", username: me.username }));
+        },
+      });
+      if (stopping) return;
+      console.error(JSON.stringify({ level: "warn", msg: "bot polling ended unexpectedly; restarting" }));
+    } catch (err) {
+      if (stopping) return;
+      const delay = pollingRetryDelay(err, attempt);
+      if (delay === null) throw err;
+      attempt += 1;
+      const e = err as { error_code?: number; description?: string };
+      console.error(JSON.stringify({ level: "warn", msg: "bot polling error; retrying", code: e?.error_code ?? null, err: String(e?.description || err).slice(0, 200), retryInMs: delay, attempt }));
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
 }
 
 if (require.main === module) {
