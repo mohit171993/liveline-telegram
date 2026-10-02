@@ -8,7 +8,11 @@ import { mediaSrc, type AdUnit } from "./AdUnits";
  * Detection mirrors packages/shared/src/adunits.ts (detectAdPosition / creativeStem) — keep in sync.
  */
 type Pos = "top" | "infeed" | "sticky" | "interstitial";
-type Slot = "default" | Pos;
+type Wide = "top_wide" | "sticky_wide";
+type Slot = "default" | Pos | Wide;
+/** Bulk-upload / library slot: a position, or the wide (desktop) variant of top / sticky. */
+type ItemPos = Pos | Wide;
+const basePos = (k: ItemPos): Pos => (k === "top_wide" ? "top" : k === "sticky_wide" ? "sticky" : k);
 type Stat = { i: number; c: number };
 export type LibAd = AdUnit & {
   name: string; html: string; placements: string[]; pages: string[]; startsAt: number | null; endsAt: number | null;
@@ -16,7 +20,8 @@ export type LibAd = AdUnit & {
 };
 type Sponsor = { id: string; text: string; emoji: string; imageUrl?: string };
 
-const POS_LABEL: Record<Slot, string> = { default: "Any size", top: "Top", infeed: "In-feed", sticky: "Sticky", interstitial: "Interstitial" };
+const POS_LABEL: Record<Slot, string> = { default: "Any size", top: "Top · mobile", top_wide: "Top · wide (728×90)", infeed: "In-feed", sticky: "Sticky · mobile", sticky_wide: "Sticky · wide", interstitial: "Interstitial" };
+const ITEM_POS: ItemPos[] = ["top", "top_wide", "infeed", "sticky", "sticky_wide", "interstitial"];
 const PAGES = [{ id: "home", label: "Home" }, { id: "match", label: "Live match" }, { id: "schedule", label: "Schedule" }, { id: "lino", label: "Lino" }];
 const IMG_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const VID_TYPES = ["video/mp4", "video/webm"];
@@ -36,6 +41,12 @@ export function detectAdPosition(w: number, h: number): Pos {
   if (r >= 10 || (r >= 5 && h <= 60)) return "sticky";
   return "top";
 }
+/** Mirrors shared detectAdSlot: desktop leaderboards / strips (≥ 700 px wide, ≥ 5:1) fill the wide slot. */
+export function detectAdSlot(w: number, h: number): ItemPos {
+  const pos = detectAdPosition(w, h);
+  if ((pos === "top" || pos === "sticky") && w >= 700 && w / h >= 5) return `${pos}_wide`;
+  return pos;
+}
 export function creativeStem(fileName: string): string {
   const s = fileName.toLowerCase().replace(/\.[a-z0-9]+$/, "").replace(/[_.]+/g, " ")
     .replace(/\d{2,4}\s*[x×]\s*\d{2,4}/g, " ")
@@ -44,7 +55,7 @@ export function creativeStem(fileName: string): string {
   return s || "creative";
 }
 
-type Item = { key: string; file: File; preview: string; video: boolean; w: number; h: number; pos: Pos; group: string; err?: string };
+type Item = { key: string; file: File; preview: string; video: boolean; w: number; h: number; pos: ItemPos; group: string; err?: string };
 
 function dims(file: File, url: string, video: boolean): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
@@ -100,7 +111,7 @@ export function BulkUpload({ onDone }: { onDone: () => void }) {
       else if (image && file.size > 3 * 1024 * 1024) err = "Images max 3 MB";
       else if (video && file.size > 20 * 1024 * 1024) err = "Videos max 20 MB";
       const { w, h } = err ? { w: 0, h: 0 } : await dims(file, preview, video);
-      const pos = video ? (w && h && w / h < 0.8 ? "interstitial" : "infeed") : detectAdPosition(w, h);
+      const pos = video ? (w && h && w / h < 0.8 ? "interstitial" : "infeed") : detectAdSlot(w, h);
       next.push({ key, file, preview, video, w, h, pos, group: "", err });
     }
     setItems(autoGroup(next));
@@ -134,8 +145,8 @@ export function BulkUpload({ onDone }: { onDone: () => void }) {
         for (const [bi, b] of buckets.entries()) {
           const imgs: Partial<Record<Slot, string>> = {};
           for (const it of b) imgs[it.pos] = urls.get(it.key)!;
-          imgs.default = imgs.infeed || imgs.top || imgs.sticky || imgs.interstitial;
-          const positions = b.map((x) => x.pos);
+          imgs.default = imgs.infeed || imgs.top || imgs.top_wide || imgs.sticky || imgs.sticky_wide || imgs.interstitial;
+          const positions = [...new Set(b.map((x) => basePos(x.pos)))];
           await api("/api/admin/adunits", { method: "POST", body: JSON.stringify({
             name: (bi ? `${g} (${bi + 1})` : g).slice(0, 80).padEnd(2, "_"), kind: "banner", images: imgs, targetUrl: "", openMode: "inapp",
             placements: positions.flatMap((p) => [`site_${p}`, `app_${p}`]), pages: [], enabled: false,
@@ -145,7 +156,7 @@ export function BulkUpload({ onDone }: { onDone: () => void }) {
         for (const v of videos) {
           await api("/api/admin/adunits", { method: "POST", body: JSON.stringify({
             name: `${g}`.slice(0, 80).padEnd(2, "_"), kind: "video", videoUrl: urls.get(v.key), targetUrl: "", openMode: "inapp",
-            placements: [`site_${v.pos}`, `app_${v.pos}`], pages: [], enabled: false,
+            placements: [`site_${basePos(v.pos)}`, `app_${basePos(v.pos)}`], pages: [], enabled: false,
           }) });
           made++;
         }
@@ -177,10 +188,10 @@ export function BulkUpload({ onDone }: { onDone: () => void }) {
               <p className="lib-name" title={it.file.name}>{it.file.name}</p>
               {it.err ? <p className="err tiny">{it.err}</p> : <>
                 <p className="tiny muted">{it.w}×{it.h}{it.video ? " · video" : ""}</p>
-                <select className="field lib-sel" value={it.pos} onChange={(e) => set(it.key, { pos: e.target.value as Pos })}>
-                  {(["top", "infeed", "sticky", "interstitial"] as Pos[]).map((p) => <option key={p} value={p}>{POS_LABEL[p]}</option>)}
+                <select className="field lib-sel" value={it.pos} aria-label="Position" onChange={(e) => set(it.key, { pos: e.target.value as ItemPos })}>
+                  {(it.video ? (["top", "infeed", "sticky", "interstitial"] as ItemPos[]) : ITEM_POS).map((p) => <option key={p} value={p}>{POS_LABEL[p]}</option>)}
                 </select>
-                <input className="field lib-sel" value={it.group} maxLength={70} aria-label="Ad (campaign) name" onChange={(e) => set(it.key, { group: e.target.value })} />
+                <input className="field lib-sel" type="text" value={it.group} maxLength={70} aria-label="Ad (campaign) name" autoComplete="off" spellCheck={false} onChange={(e) => set(it.key, { group: e.target.value })} />
               </>}
               <button className="lib-x" aria-label="Remove" onClick={() => setItems((cur) => cur.filter((x) => x.key !== it.key))}>✕</button>
             </div>
@@ -216,12 +227,26 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
   const [app, setApp] = useState(ad.placements.some((p) => p.startsWith("app_")));
   const [pages, setPages] = useState<string[]>(ad.pages);
   const [saving, setSaving] = useState(false);
+  // Cards are keyed by id only (never remounted while typing). When the saved row changes on the
+  // server, adopt it, but never overwrite a field the admin is editing right now.
+  const linkRef = useRef<HTMLInputElement>(null);
+  const rowSig = `${ad.targetUrl}|${ad.placements.join()}|${ad.pages.join()}|${JSON.stringify(ad.images)}`;
+  const firstSig = useRef(rowSig);
+  useEffect(() => {
+    if (firstSig.current === rowSig) return;
+    firstSig.current = rowSig;
+    setImages(ad.images);
+    if (document.activeElement !== linkRef.current) setLink(ad.targetUrl);
+    setSite(ad.placements.some((p) => p.startsWith("site_")) || !ad.placements.length);
+    setApp(ad.placements.some((p) => p.startsWith("app_")));
+    setPages(ad.pages);
+  }, [rowSig]);
   const dirty = JSON.stringify(images) !== JSON.stringify(ad.images) || link !== ad.targetUrl || pages.join() !== ad.pages.join()
     || site !== ad.placements.some((p) => p.startsWith("site_")) || app !== ad.placements.some((p) => p.startsWith("app_"));
 
   function positions(): Pos[] {
     if (ad.kind === "banner") {
-      const own = (Object.keys(images) as Slot[]).filter((k): k is Pos => k !== "default" && Boolean(images[k]));
+      const own = [...new Set((Object.keys(images) as Slot[]).filter((k): k is ItemPos => k !== "default" && Boolean(images[k])).map(basePos))];
       if (own.length) return own;
     }
     const prev = [...new Set(ad.placements.map((p) => p.split("_")[1] as Pos))];
@@ -233,7 +258,7 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
       const url = next[from];
       delete next[from];
       if (to !== "none" && url) next[to] = url;
-      if (from === "default" || !next.default) next.default = next.infeed || next.top || next.sticky || next.interstitial || (to === "default" ? url : undefined);
+      if (from === "default" || !next.default) next.default = next.infeed || next.top || next.top_wide || next.sticky || next.sticky_wide || next.interstitial || (to === "default" ? url : undefined);
       if (!next.default) delete next.default;
       return next;
     });
@@ -272,7 +297,7 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
           <div key={k} className="lib-tile">
             <Thumb src={images[k]!} />
             <select className="field lib-sel" value={k} aria-label="Position" onChange={(e) => move(k, e.target.value as Slot | "none")}>
-              {(["top", "infeed", "sticky", "interstitial", "default"] as Slot[]).map((p) => <option key={p} value={p} disabled={p !== k && Boolean(images[p])}>{POS_LABEL[p]}</option>)}
+              {([...ITEM_POS, "default"] as Slot[]).map((p) => <option key={p} value={p} disabled={p !== k && Boolean(images[p])}>{POS_LABEL[p]}</option>)}
               <option value="none">— Don't show</option>
             </select>
             {sponsors.length > 0 && (
@@ -284,8 +309,10 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
           </div>
         ))}
       </div>
-      <label className="small">Link (https)</label>
-      <input className="field" inputMode="url" value={link} placeholder="https://brand.example/offer" onChange={(e) => setLink(e.target.value)} />
+      <label className="small" htmlFor={`lib-link-${ad.id}`}>Link (https)</label>
+      <input ref={linkRef} id={`lib-link-${ad.id}`} className="field" type="url" inputMode="url" name="targetUrl" value={link} placeholder="https://brand.example/offer"
+        autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="done"
+        onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") e.currentTarget.blur(); }} />
       <div className="lib-checks">
         <label className={`am-check ${site ? "on" : ""}`}><input type="checkbox" checked={site} onChange={() => setSite(!site)} />🌐 Website</label>
         <label className={`am-check ${app ? "on" : ""}`}><input type="checkbox" checked={app} disabled={ad.kind === "html"} onChange={() => setApp(!app)} />📱 Mini App</label>
@@ -304,7 +331,7 @@ export function CreativeLibrary({ ads, reload }: { ads: LibAd[]; reload: () => v
   return (
     <div className="lib">
       <h3>🗂 Creative library</h3>
-      {media.map((a) => <LibCard key={`${a.id}-${a.enabled}-${a.targetUrl}-${a.placements.join()}-${a.pages.join()}-${JSON.stringify(a.images)}`} ad={a} sponsors={sponsors} reload={reload} />)}
+      {media.map((a) => <LibCard key={a.id} ad={a} sponsors={sponsors} reload={reload} />)}
     </div>
   );
 }

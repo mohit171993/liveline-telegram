@@ -4,7 +4,7 @@ import { api, apiBase, haptic } from "../lib";
 /** Ads manager creatives (admin "🖼 Ads"), served per screen by /api/adunits?page=… */
 export type AdUnit = {
   id: string; kind: "banner" | "native" | "video" | "html"; title: string; body: string; cta: string;
-  images: Partial<Record<"default" | "top" | "infeed" | "sticky" | "interstitial", string>>;
+  images: Partial<Record<"default" | "top" | "infeed" | "sticky" | "interstitial" | "top_wide" | "sticky_wide", string>>;
   videoUrl: string; posterUrl: string; targetUrl: string; openMode: "inapp" | "external"; frameable: boolean; freqCap: number;
 };
 export type AdPage = "home" | "match" | "schedule" | "lino";
@@ -12,7 +12,11 @@ export type AdPos = "top" | "infeed" | "sticky" | "interstitial";
 type Picks = Partial<Record<AdPos, AdUnit>>;
 
 export const mediaSrc = (u?: string) => (!u ? "" : u.startsWith("/") ? `${apiBase()}${u}` : u);
-const imageFor = (ad: AdUnit, pos: AdPos) => ad.images[pos] || ad.images.default || "";
+/** Same rules as @liveline/shared adImage / adImageWide (mobile creative, plus a 728×90-style one for wide screens). */
+const WIDE_MIN_PX = 600;
+const wideKey = (pos: AdPos) => (pos === "top" ? "top_wide" : pos === "sticky" ? "sticky_wide" : null);
+const imageFor = (ad: AdUnit, pos: AdPos) => ad.images[pos] || (wideKey(pos) ? ad.images[wideKey(pos)!] : "") || ad.images.default || "";
+const wideImageFor = (ad: AdUnit, pos: AdPos) => { const k = wideKey(pos); const w = k ? ad.images[k] || "" : ""; return w && w !== imageFor(ad, pos) ? w : ""; };
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function useAdUnits(page: AdPage): Picks {
@@ -55,7 +59,9 @@ function Creative({ ad, pos }: { ad: AdUnit; pos: AdPos }) {
       </div>
     );
   }
-  return <img className="au-img" src={mediaSrc(imageFor(ad, pos))} alt={ad.title || "Sponsored"} loading="lazy" />;
+  const img = <img className="au-img" src={mediaSrc(imageFor(ad, pos))} alt={ad.title || "Sponsored"} loading={pos === "infeed" ? "lazy" : "eager"} />;
+  const wide = wideImageFor(ad, pos);
+  return wide ? <picture className="au-pic"><source media={`(min-width: ${WIDE_MIN_PX}px)`} srcSet={mediaSrc(wide)} />{img}</picture> : img;
 }
 
 /** Opens the target: in-app (inside the Mini App when the site allows framing) or the browser. */

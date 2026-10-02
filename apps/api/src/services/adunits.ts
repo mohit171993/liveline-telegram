@@ -23,7 +23,7 @@ export const adUnitInput = z.object({
   title: z.string().trim().max(90).default(""),
   body: z.string().trim().max(240).default(""),
   cta: z.string().trim().max(30).default(""),
-  images: z.object({ default: media, top: media, infeed: media, sticky: media, interstitial: media }).partial().default({}),
+  images: z.object({ default: media, top: media, infeed: media, sticky: media, interstitial: media, top_wide: media, sticky_wide: media }).partial().default({}),
   videoUrl: media,
   posterUrl: media,
   html: z.string().max(AD_LIMITS.htmlChars).default(""),

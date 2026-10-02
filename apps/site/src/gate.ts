@@ -52,15 +52,48 @@ export function safeNext(raw: string | undefined | null): string {
   return v;
 }
 
+/** All values of one cookie name (a host-only and a domain-wide copy can both be present). */
+function cookieValues(c: Context, name: string): string[] {
+  const raw = c.req.header("cookie") || "";
+  return raw.split(/;\s*/).filter((p) => p.startsWith(`${name}=`)).map((p) => { try { return decodeURIComponent(p.slice(name.length + 1)); } catch { return ""; } }).filter(Boolean);
+}
+
+/**
+ * Remembered-device cookie scope: on the real domain the session is shared by the apex and www
+ * (Domain=livelinepro.pro), so switching between them never asks for a new OTP. Other hosts stay host-only.
+ */
+export function sessionCookieDomain(host: string, siteUrl = env.siteUrl): string | undefined {
+  let root = "";
+  try { root = siteUrl ? new URL(siteUrl).hostname.replace(/^www\./, "") : ""; } catch { root = ""; }
+  const h = host.split(":")[0].toLowerCase();
+  if (!root || !root.includes(".")) return undefined;
+  return h === root || h.endsWith(`.${root}`) ? root : undefined;
+}
+const reqHost = (c: Context) => c.req.header("x-forwarded-host") || c.req.header("host") || "";
+
 export function currentSession(c: Context): WebSessionPayload | null {
   if (!gateReady()) return null;
-  return verifySession(getCookie(c, SESSION_COOKIE), gate.secret);
+  for (const v of cookieValues(c, SESSION_COOKIE)) {
+    const p = verifySession(v, gate.secret);
+    if (p) return p;
+  }
+  return null;
+}
+
+/** Re-sign the remembered-device session once a day of use, so an active browser stays signed in (90 days rolling). */
+export const SESSION_ROLL_AFTER_S = 24 * 3600;
+
+function writeSession(c: Context, userId: string, method: WebVerifyMethod) {
+  const domain = sessionCookieDomain(reqHost(c));
+  // Drop an older host-only copy so only the domain-wide cookie remains.
+  if (domain) deleteCookie(c, SESSION_COOKIE, { path: "/", secure: isHttps(c) });
+  setCookie(c, SESSION_COOKIE, signSession(userId, method, gate.secret), {
+    httpOnly: true, secure: isHttps(c), sameSite: "Lax", path: "/", maxAge: WEB_SESSION_TTL_S, ...(domain ? { domain } : {}),
+  });
 }
 
 function startSession(c: Context, userId: string, method: WebVerifyMethod) {
-  setCookie(c, SESSION_COOKIE, signSession(userId, method, gate.secret), {
-    httpOnly: true, secure: isHttps(c), sameSite: "Lax", path: "/", maxAge: WEB_SESSION_TTL_S,
-  });
+  writeSession(c, userId, method);
   deleteCookie(c, NONCE_COOKIE, { path: "/" });
 }
 
@@ -92,7 +125,9 @@ export const gateMiddleware: MiddlewareHandler = async (c, next) => {
   if (!gate.enabled) return next();
   const path = c.req.path;
   if (isOpenPath(path)) return next();
-  if (currentSession(c)) {
+  const session = currentSession(c);
+  if (session) {
+    if (Date.now() / 1000 - session.iat > SESSION_ROLL_AFTER_S) writeSession(c, session.u, session.m);
     await next();
     // Gated HTML must never be stored by shared caches.
     const cc = c.res.headers.get("cache-control");
@@ -247,6 +282,8 @@ export function registerGateRoutes(app: Hono) {
   app.post("/verify/signout", (c) => {
     if (!sameOrigin(c)) return c.json({ ok: false }, 403);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    const domain = sessionCookieDomain(reqHost(c));
+    if (domain) deleteCookie(c, SESSION_COOKIE, { path: "/", domain });
     return c.json({ ok: true });
   });
 

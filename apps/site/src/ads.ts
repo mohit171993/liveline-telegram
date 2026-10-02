@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { GetObjectCommand, HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
-import { ADSTAT_KEY, ADUNITS_KEY, AD_PAGES, AD_PLACEMENTS, adImage, adStatField, pickAdUnit, positionOf, type AdPosition, type PublicAdUnit } from "@liveline/shared";
+import { ADSTAT_KEY, ADUNITS_KEY, AD_PAGES, AD_PLACEMENTS, AD_WIDE_MIN_PX, adImage, adImageWide, adStatField, pickAdUnit, positionOf, type AdPosition, type PublicAdUnit } from "@liveline/shared";
 import { redis } from "./data";
 import { esc } from "./html";
 
@@ -31,7 +31,10 @@ function creative(ad: PublicAdUnit, pos: AdPosition): string {
     const img = adImage(ad, pos);
     return `<span class="ad-native">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : ""}<span><b>${esc(ad.title)}</b>${ad.body ? `<span>${esc(ad.body)}</span>` : ""}${ad.cta ? `<i class="ad-cta">${esc(ad.cta)}</i>` : ""}</span></span>`;
   }
-  return `<img class="ad-img" src="${esc(adImage(ad, pos))}" alt="${esc(ad.title || "Advertisement")}" loading="${pos === "top" ? "eager" : "lazy"}">`;
+  const img = `<img class="ad-img" src="${esc(adImage(ad, pos))}" alt="${esc(ad.title || "Advertisement")}" loading="${pos === "top" ? "eager" : "lazy"}">`;
+  // 728×90-style creative on wide screens, the 320×100 / 320×50 one on phones.
+  const wide = adImageWide(ad, pos);
+  return wide ? `<picture class="ad-pic"><source media="(min-width: ${AD_WIDE_MIN_PX}px)" srcset="${esc(wide)}">${img}</picture>` : img;
 }
 
 function render(ad: PublicAdUnit, placement: string, page: string): string {

@@ -24,7 +24,13 @@ export const AD_SIZES: Record<AdPosition, { label: string; size: string; ratio: 
 
 export const AD_LIMITS = { imageBytes: 3 * 1024 * 1024, videoBytes: 20 * 1024 * 1024, htmlChars: 20_000 };
 
-export type AdImages = Partial<Record<"default" | AdPosition, string>>;
+/** Optional wide (desktop) variants: shown instead of the mobile image on screens ≥ AD_WIDE_MIN_PX. */
+export const AD_WIDE_SLOTS = ["top_wide", "sticky_wide"] as const;
+export type AdWideSlot = (typeof AD_WIDE_SLOTS)[number];
+export type AdImageSlot = "default" | AdPosition | AdWideSlot;
+export type AdImages = Partial<Record<AdImageSlot, string>>;
+/** Viewport width from which the wide creative (728×90 etc.) replaces the mobile one (320×100 / 320×50). */
+export const AD_WIDE_MIN_PX = 600;
 
 export interface PublicAdUnit {
   id: string;
@@ -81,8 +87,24 @@ export function pickAdUnit(ads: PublicAdUnit[], placement: string, page: string,
   return tier[tier.length - 1];
 }
 
+/** Mobile / default image for a position (falls back to the wide variant, then the generic image). */
 export function adImage(ad: Pick<PublicAdUnit, "images">, position: AdPosition): string {
-  return ad.images[position] || ad.images.default || "";
+  const wide = position === "top" || position === "sticky" ? ad.images[`${position}_wide`] : undefined;
+  return ad.images[position] || wide || ad.images.default || "";
+}
+
+/** Wide-screen image for a position ("" when there is no separate wide creative). */
+export function adImageWide(ad: Pick<PublicAdUnit, "images">, position: AdPosition): string {
+  if (position !== "top" && position !== "sticky") return "";
+  const wide = ad.images[`${position}_wide`] || "";
+  return wide && wide !== adImage(ad, position) ? wide : "";
+}
+
+/** Bulk upload: which image slot a creative of w×h fills (wide leaderboards / sticky strips get their desktop slot). */
+export function detectAdSlot(w: number, h: number): AdPosition | AdWideSlot {
+  const pos = detectAdPosition(w, h);
+  if ((pos === "top" || pos === "sticky") && w >= 700 && w / h >= 5) return `${pos}_wide`;
+  return pos;
 }
 
 /** Redis keys shared by api + site. */

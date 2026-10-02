@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adUnitEligible, pickAdUnit, type PublicAdUnit } from "./adunits";
+import { adImage, adImageWide, adUnitEligible, detectAdSlot, pickAdUnit, type PublicAdUnit } from "./adunits";
 
 const base: PublicAdUnit = {
   id: "a", kind: "banner", title: "", body: "", cta: "", images: { default: "/ads-media/a.jpg" }, videoUrl: "", posterUrl: "", html: "",
@@ -48,5 +48,25 @@ describe("bulk upload detection", () => {
     expect(creativeStem("Diwali-Sale_728x90.png")).toBe("diwali sale");
     expect(creativeStem("diwali sale 300x250 infeed.jpg")).toBe("diwali sale");
     expect(creativeStem("DIWALI_SALE_mobile_320x50.webp")).toBe("diwali sale");
+  });
+  it("serves a separate wide creative on big screens", () => {
+    const both = { ...base, images: { top: "/m.jpg", top_wide: "/w.jpg", default: "/m.jpg" } };
+    expect(adImage(both, "top")).toBe("/m.jpg");
+    expect(adImageWide(both, "top")).toBe("/w.jpg");
+    const wideOnly = { ...base, images: { top_wide: "/w.jpg" } };
+    expect(adImage(wideOnly, "top")).toBe("/w.jpg");
+    expect(adImageWide(wideOnly, "top")).toBe("");
+    expect(adUnitEligible(wideOnly, "site_top", "home")).toBe(true);
+    expect(adImageWide(both, "infeed")).toBe("");
+  });
+  it("routes desktop leaderboards to the wide slot", () => {
+    expect(detectAdSlot(728, 90)).toBe("top_wide");
+    expect(detectAdSlot(1456, 180)).toBe("top_wide");
+    expect(detectAdSlot(970, 250)).toBe("top");
+    expect(detectAdSlot(320, 100)).toBe("top");
+    expect(detectAdSlot(640, 200)).toBe("top");
+    expect(detectAdSlot(320, 50)).toBe("sticky");
+    expect(detectAdSlot(970, 66)).toBe("sticky_wide");
+    expect(detectAdSlot(1200, 628)).toBe("infeed");
   });
 });
