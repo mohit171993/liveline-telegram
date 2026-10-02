@@ -8,6 +8,7 @@ import { PREVIEWS } from "./content";
 import { linoTake } from "./lino";
 import { defaultOgSvg, matchOgSvg, previewOgSvg, renderPng } from "./og";
 import { adMedia, adStorageOk, injectAds, trackSiteAd, viewerId } from "./ads";
+import { gate, gateMiddleware, gateReady, registerGateRoutes, smsEnabled } from "./gate";
 import { aboutPage, alertsPage, allSeries, homeLive, homePage, linoBlocks, linoPage, liveList, livePage, matchLive, matchPage, notFoundPage, previewPage, schedulePage, seriesPage } from "./pages";
 
 const PUBLIC = path.resolve(__dirname, "../public");
@@ -26,6 +27,10 @@ app.use("*", async (c, next) => {
   c.header("permissions-policy", "camera=(), microphone=(), geolocation=()");
   if (!env.allowIndexing) c.header("x-robots-tag", "noindex, nofollow");
 });
+
+/* Mandatory phone verification (SITE_GATE_ENABLED, default on). Must run before every page route. */
+app.use("*", gateMiddleware);
+registerGateRoutes(app);
 
 const html = async (page: string | Promise<string>, maxAge = 10) => new Response(await injectAds(await page), {
   headers: { "content-type": "text/html; charset=utf-8", "cache-control": `public, max-age=${maxAge}, stale-while-revalidate=30` },
@@ -159,5 +164,5 @@ app.onError((err, c) => {
 });
 
 serve({ fetch: app.fetch, port: env.port, hostname: "::" }, (info) => {
-  console.log(JSON.stringify({ level: "info", msg: "site up", port: info.port, siteUrl: env.siteUrl || "(unset)", indexing: env.allowIndexing }));
+  console.log(JSON.stringify({ level: "info", msg: "site up", port: info.port, siteUrl: env.siteUrl || "(unset)", indexing: env.allowIndexing, gate: gate.enabled, gateReady: gateReady(), sms: smsEnabled() }));
 });
