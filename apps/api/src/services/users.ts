@@ -28,6 +28,7 @@ import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
 import nodeCrypto from "node:crypto";
 import { tgCall, type TgResult } from "../telegram";
+import { completePendingWebverify, isWebOnlyTelegramId } from "./webverify";
 
 export { userIsAdmin };
 
@@ -158,16 +159,32 @@ export async function verifyPhone(telegramId: string, contactUserId: number, pho
   if (normalized.length < 8) throw httpError(400, "BAD_PHONE", "That phone number does not look valid.");
   const hash = phoneHash(normalized, loadKey().toString("base64"));
   const taken = await prisma.user.findUnique({ where: { phoneHash: hash } });
+  let fromWebsite = false;
   if (taken && taken.telegramId !== telegramId) {
-    throw httpError(409, "PHONE_IN_USE", "This phone number is already verified on another LiveLine account.");
+    // A website-only (SMS) account with this phone now joins on Telegram: fold it into this one.
+    if (isWebOnlyTelegramId(taken.telegramId)) {
+      await prisma.user.delete({ where: { id: taken.id } });
+      fromWebsite = true;
+    } else {
+      throw httpError(409, "PHONE_IN_USE", "This phone number is already verified on another LiveLine account.");
+    }
   }
-  const before = await prisma.user.findUnique({ where: { telegramId }, select: { phoneVerifiedAt: true } });
+  const before = await prisma.user.findUnique({ where: { telegramId }, select: { phoneVerifiedAt: true, verifyMethod: true } });
   const user = await prisma.user.update({
     where: { telegramId },
-    data: { phone: normalized, phoneHash: hash, phoneVerifiedAt: before?.phoneVerifiedAt || new Date() },
+    data: {
+      phone: normalized,
+      phoneHash: hash,
+      phoneVerifiedAt: before?.phoneVerifiedAt || new Date(),
+      ...(before?.verifyMethod ? {} : { verifyMethod: fromWebsite ? "sms" : "telegram" }),
+      ...(fromWebsite ? { source: "website" } : {}),
+    },
   });
-  if (!before?.phoneVerifiedAt) void alertAdmins(user.id, "verified").catch(() => undefined);
+  if (!before?.phoneVerifiedAt && !fromWebsite) void alertAdmins(user.id, "verified").catch(() => undefined);
   await maybeActivate(user.id);
+  // Website verify gate: a visitor who came from the site gets their "Return to website" link
+  // after the normal verification replies.
+  setTimeout(() => void completePendingWebverify(telegramId).catch(() => undefined), 1500);
   return prisma.user.findUniqueOrThrow({ where: { id: user.id } });
 }
 
@@ -329,9 +346,11 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
   let text: string;
   if (kind === "verified") {
     const total = await prisma.user.count({ where: { phoneVerifiedAt: { not: null }, isDemo: false } });
+    const web = user.source === "website";
     text = [
       "✅ <b>New verified user</b>",
-      `ID: <code>${user.telegramId}</code>`,
+      ...(web ? [`🌐 Website · verified by ${user.verifyMethod === "sms" ? "SMS OTP" : "Telegram"}`] : []),
+      isWebOnlyTelegramId(user.telegramId) ? "ID: website account (no Telegram yet)" : `ID: <code>${user.telegramId}</code>`,
       user.username ? `@${esc(user.username)}` : "No username",
       `Name: ${esc(name)}`,
       `Language: ${esc(user.languageCode)}`,

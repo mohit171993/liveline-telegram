@@ -189,7 +189,8 @@ async function deliver(ctx: Ctx, ruleKey: RuleKey, step: number, dedupeKey: stri
   return blocked ? "blocked" : "failed";
 }
 
-const reachable = { optOut: false, botBlockedAt: null, blockedAt: null, isDemo: false, status: { not: "BLOCKED" } } as const;
+// Website-only (SMS) accounts have a synthetic "web:" id and no Telegram chat: never message them.
+const reachable = { optOut: false, botBlockedAt: null, blockedAt: null, isDemo: false, status: { not: "BLOCKED" }, NOT: { telegramId: { startsWith: "web:" } } } as const;
 const pick = { id: true, telegramId: true, firstName: true, points: true } as const;
 
 async function runVerify(ctx: Ctx, now: number) {

@@ -2,11 +2,12 @@ import http from "http";
 import path from "path";
 import { Bot, InlineKeyboard, InputFile, Keyboard } from "grammy";
 import { prisma } from "@liveline/db";
-import { liveScoreCard, projectMatch, squadCode } from "@liveline/shared";
+import { liveScoreCard, parseWebverifyParam, projectMatch, squadCode } from "@liveline/shared";
 import { env, telegramDryRun, channelUrl, miniAppLink } from "./env";
 import { readUniverse } from "./feed";
 import { redis } from "./redis";
 import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
+import { startWebverify } from "./services/webverify";
 import { pinLive, upsertSquad } from "./services/play";
 import { rememberChannelPost } from "./services/reports";
 import { adminChatIds } from "./services/admins";
@@ -230,9 +231,30 @@ export function createBot() {
 
   bot.command("start", async (ctx) => {
     const param = ctx.match?.trim();
-    if (ctx.from) await ensureUser(ctx.from, param || undefined);
+    // Website verify gate: /start webverify_<nonce> (attributed as "web_verify", never stores the nonce).
+    const webNonce = parseWebverifyParam(param);
+    if (ctx.from) await ensureUser(ctx.from, webNonce ? "web_verify" : param || undefined);
+    if (webNonce && ctx.from) {
+      await prisma.user.updateMany({ where: { telegramId: String(ctx.from.id), startParam: "web_verify", phoneVerifiedAt: null }, data: { source: "website" } }).catch(() => undefined);
+    }
     const user = ctx.from ? await prisma.user.findUnique({ where: { telegramId: String(ctx.from.id) } }) : null;
     if (ctx.chat.type === "private") {
+      if (webNonce && ctx.from) {
+        const r = await startWebverify(String(ctx.from.id), ctx.chat.id, webNonce).catch((err) => {
+          console.error(JSON.stringify({ level: "error", msg: "webverify-start", err: String(err) }));
+          return "expired" as const;
+        });
+        if (r === "logged_in") return;
+        if (r === "blocked") {
+          await ctx.reply("This account can't sign in to the website.");
+          return;
+        }
+        if (r === "expired") {
+          await ctx.reply("That website sign-in link has expired. Go back to the LiveLinePro website and tap <b>Verify with Telegram</b> again.", { parse_mode: "HTML" });
+        } else if (r === "pending") {
+          await ctx.reply("🌐 <b>Website sign-in</b>\nVerify your phone below (one tap, 18+). As soon as you're verified I'll send you a button back to the website.", { parse_mode: "HTML" });
+        }
+      }
       if (!user || !user.phoneVerifiedAt) {
         // Unverified: verification first, nothing else. No Mini App entry points yet.
         await setChatMenu(ctx.api, ctx.chat.id, false);

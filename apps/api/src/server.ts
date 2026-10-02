@@ -8,6 +8,7 @@ import { validateInitData, type InitDataResult } from "@liveline/shared";
 import { env, isProd } from "./env";
 import { redis } from "./redis";
 import { registerRoutes } from "./routes";
+import { webAuthRoutes } from "./webAuthRoutes";
 import { touchFromInit, touchSession, userIsAdmin, verifyPhone } from "./services/users";
 import { httpError } from "./httpError";
 import type { User } from "@prisma/client";
@@ -184,6 +185,7 @@ export async function buildServer() {
   });
 
   await registerRoutes(app, authenticate);
+  await webAuthRoutes(app);
   return app;
 }
 

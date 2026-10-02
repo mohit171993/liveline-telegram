@@ -97,7 +97,7 @@ export function crmWhere(f: CrmFilter): Prisma.UserWhereInput {
   if (f.minPoints !== undefined) and.push({ points: { gte: f.minPoints } });
   if (f.predicted === "yes") and.push({ predictions: { some: {} } });
   if (f.predicted === "no") and.push({ predictions: { none: {} } });
-  if (f.reachable === "yes") and.push({ optOut: false, botBlockedAt: null, blockedAt: null });
+  if (f.reachable === "yes") and.push({ optOut: false, botBlockedAt: null, blockedAt: null, NOT: { telegramId: { startsWith: "web:" } } });
   return { AND: and };
 }
 
@@ -616,7 +616,7 @@ export async function runBroadcasts(): Promise<void> {
         const tick = Date.now();
         for (const d of batch) {
           const user = await prisma.user.findUnique({ where: { id: d.userId }, select: { optOut: true, botBlockedAt: true, blockedAt: true } });
-          if (!user || user.optOut || user.botBlockedAt || user.blockedAt) {
+          if (!user || user.optOut || user.botBlockedAt || user.blockedAt || d.telegramId.startsWith("web:")) {
             await prisma.broadcastDelivery.update({ where: { id: d.id }, data: { status: "skipped" } });
             continue;
           }
