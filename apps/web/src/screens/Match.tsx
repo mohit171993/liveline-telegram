@@ -91,7 +91,8 @@ export function MatchPage({ lang }: { lang: string }) {
           <AdUnitView ad={ads.infeed} pos="infeed" page="match" />
           <section className="pv-card pv-comments" aria-label="Comments">
             <h3 className="pv-title">Fan comments</h3>
-            {laneOn && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
+            {laneOn && lane.length > 0 && <div className="lane" aria-label="Comments">{lane.map((n) => <span key={n.id} className="fly">{n.body}</span>)}</div>}
+            {laneOn && lane.length === 0 && <p className="small pv-empty">💬 No comments yet. Be the first fan to call it below.</p>}
             <div className="match-tools" role="toolbar" aria-label="Match tools">
               <button type="button" aria-pressed={mute} className={mute ? "on" : ""} onClick={() => { const next = !mute; setMute(next); setMuted(next); }}>{mute ? t(lang, "unmute") : t(lang, "mute")}</button>
               <button type="button" aria-pressed={!laneOn} className={laneOn ? "" : "on"} onClick={() => { const next = !laneOn; setLaneOn(next); localStorage.setItem("ll-lane", next ? "on" : "off"); }}>{laneOn ? "Hide comments" : "Show comments"}</button>
