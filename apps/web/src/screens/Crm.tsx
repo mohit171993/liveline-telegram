@@ -647,8 +647,19 @@ export function AdminSettings() {
   async function set(key: string, enabled: boolean) {
     try { setS(await api("/api/admin/alerts", { method: "POST", body: JSON.stringify({ key, enabled }) })); toast(enabled ? "Alert on" : "Alert off"); } catch (e) { toast(e instanceof Error ? e.message : "Failed", "err"); }
   }
-  async function test(kind: string) {
-    try { await api("/api/admin/alerts/test", { method: "POST", body: JSON.stringify({ kind }) }); toast("Sample alert sent to your DM 📬"); } catch (e) { toast(e instanceof Error ? e.message : "Failed", "err"); }
+  async function test(kind: string, to?: string) {
+    try {
+      const r = await api<{ sent: number; failed?: { chatId: string; description?: string }[] }>("/api/admin/alerts/test", { method: "POST", body: JSON.stringify({ kind, ...(to ? { to } : {}) }) });
+      if (r.failed?.length) toast(`Sent ${r.sent}, failed ${r.failed.length}: ${r.failed[0].description || "error"}`, "err");
+      else toast(to && to !== "all" ? "Sample sent to that admin 📬" : to === "all" ? `Sample sent to ${r.sent} admins 📬` : "Sample alert sent to your DM 📬");
+      api("/api/admin/alerts").then(setS).catch(() => undefined);
+    } catch (e) { toast(e instanceof Error ? e.message : "Failed", "err"); }
+  }
+  async function pref(telegramId: string, kind: "start" | "verified", enabled: boolean) {
+    try { setS(await api("/api/admin/alerts/admin", { method: "POST", body: JSON.stringify({ telegramId, kind, enabled }) })); toast(enabled ? "On for this admin" : "Off for this admin"); } catch (e) { toast(e instanceof Error ? e.message : "Failed", "err"); }
+  }
+  async function check() {
+    try { setS(await api("/api/admin/alerts?probe=1")); toast("Checked every admin"); } catch (e) { toast(e instanceof Error ? e.message : "Failed", "err"); }
   }
   if (!s) return <div className="admin"><AdminNav /><div className="skel" /></div>;
   return (
@@ -664,6 +675,27 @@ export function AdminSettings() {
         <div className="row"><div><b>✅ New verified user</b><p className="small">Phone verification completed: ID, handle, name, language, masked phone, Premium, source, time, total verified.</p></div><Toggle on={!!s.alert_verified} onChange={(v) => set("alert_verified", v)} /></div>
         <button className="ghost w-full" onClick={() => test("verified")}>🧪 Send me a sample</button>
       </div>
+      <div className="page-head"><h3>Who gets alerts</h3><button className="chip" onClick={check}>🔄 Check reachability</button></div>
+      <p className="small">Every admin on the roster gets both alert types unless switched off here. The bot can only DM admins who pressed Start in @LiveLineProBot.</p>
+      {(s.admins || []).map((a: any) => (
+        <div key={a.telegramId || a.username} className={`card rule alert-admin st-${a.state}`}>
+          <div className="row">
+            <div>
+              <b>{a.username ? `@${a.username}` : a.name || a.telegramId}</b> <span className="small">{a.telegramId || "not linked"}</span>
+              <p className={`alert-state st-${a.state}`}>{({ ok: "✅ Reachable", not_started: "⚠️ Hasn't started the bot", blocked: "⛔ Blocked the bot", unbound: "⚠️ Hasn't opened the bot yet", error: "❗ Last send failed", unknown: "• Not checked yet" } as Record<string, string>)[a.state] || a.state}</p>
+              <p className="small">{a.detail}</p>
+            </div>
+          </div>
+          {a.telegramId && (
+            <>
+              <div className="row"><span>🆕 New start</span><Toggle on={a.prefs.start} onChange={(v) => pref(a.telegramId, "start", v)} /></div>
+              <div className="row"><span>✅ New verified user</span><Toggle on={a.prefs.verified} onChange={(v) => pref(a.telegramId, "verified", v)} /></div>
+              <button className="ghost w-full" onClick={() => test("verified", a.telegramId)}>🧪 Send this admin a sample</button>
+            </>
+          )}
+        </div>
+      ))}
+      {(s.admins || []).length > 1 && <button className="ghost w-full" onClick={() => test("verified", "all")}>📬 Send a sample to every admin</button>}
     </div>
   );
 }

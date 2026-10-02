@@ -36,6 +36,22 @@ export async function setAlertSetting(key: AlertKey, enabled: boolean, actor?: s
   return alertSettings();
 }
 
+/** Per-admin alert preferences (default: every admin gets every alert type). */
+export type AlertKind = "start" | "verified";
+export type AdminAlertPrefs = Record<string, Partial<Record<AlertKind, boolean>>>;
+export async function adminAlertPrefs(): Promise<AdminAlertPrefs> {
+  return (await getRule<{ prefs: AdminAlertPrefs }>("alert_admin_prefs", { enabled: true, config: { prefs: {} } })).config.prefs || {};
+}
+export function wantsAlert(prefs: AdminAlertPrefs, chatId: string, kind: AlertKind) {
+  return prefs[chatId]?.[kind] !== false;
+}
+export async function setAdminAlertPref(chatId: string, kind: AlertKind, enabled: boolean, actor?: string) {
+  const prefs = await adminAlertPrefs();
+  prefs[chatId] = { ...(prefs[chatId] || {}), [kind]: enabled };
+  await setRule("alert_admin_prefs", { enabled: true, config: { prefs } }, actor);
+  return prefs;
+}
+
 /** +9198•••••210: keeps the first 4 and last 3 digits only (country code stays readable). */
 export function maskPhone(phone?: string | null): string {
   const digits = String(phone || "").replace(/\D/g, "");

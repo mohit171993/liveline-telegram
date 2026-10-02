@@ -590,3 +590,10 @@ table.attr td i { color: var(--muted); font-style: normal; font-size: 11px; }
 .sp-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: var(--muted); margin: 6px 0 8px; }
 .sp-stats b { color: var(--ink); }
 .ghost.danger { color: var(--wicket); }
+
+/* Admin alert recipients */
+.alert-state { margin: 4px 0 0; font-weight: 700; font-size: 14px; }
+.alert-state.st-ok { color: #1fbf63; }
+.alert-state.st-not_started, .alert-state.st-unbound, .alert-state.st-error { color: #f0a020; }
+.alert-state.st-blocked { color: var(--wicket); }
+.alert-admin .row + .row { margin-top: 6px; }

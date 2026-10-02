@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { httpError } from "./httpError";
 import type { authenticate as AuthFn } from "./server";
 import {
   addNote, addTag, attribution, audienceCount, bulkTag, cancelBroadcast, confirmBroadcast, createBroadcast, crmCsv, crmProfile,
@@ -7,8 +8,9 @@ import {
   saveSegment, testBroadcast, toCsv, trackOpen, updateBroadcast,
 } from "./services/crm";
 import { automationState, previewRule, testRule, updateAutomation } from "./services/reminders";
-import { alertSettings, setAlertSetting, ALERT_KEYS } from "./services/automation";
-import { alertAdmins } from "./services/users";
+import { alertSettings, setAlertSetting, setAdminAlertPref, ALERT_KEYS } from "./services/automation";
+import { adminChatIds } from "./services/admins";
+import { adminAlertStatus, alertAdmins } from "./services/users";
 import crypto from "crypto";
 import { redis } from "./redis";
 import { env } from "./env";
@@ -214,7 +216,16 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
   // Admin DM alerts (new start / new verified user).
   app.get("/api/admin/alerts", async (req, reply) => {
     if (!(await admin(req, reply))) return;
-    return alertSettings();
+    const probe = (req.query as { probe?: string }).probe === "1";
+    return { ...(await alertSettings()), admins: await adminAlertStatus(probe) };
+  });
+  app.post("/api/admin/alerts/admin", async (req, reply) => {
+    const me = await admin(req, reply);
+    if (!me) return;
+    const body = z.object({ telegramId: z.string().regex(/^\d+$/), kind: z.enum(["start", "verified"]), enabled: z.boolean() }).parse(req.body);
+    if (!(await adminChatIds()).includes(body.telegramId)) throw httpError(400, "NOT_ADMIN", "Not on the admin roster.");
+    await setAdminAlertPref(body.telegramId, body.kind, body.enabled, me.telegramId);
+    return { ...(await alertSettings()), admins: await adminAlertStatus(false) };
   });
   app.post("/api/admin/alerts", async (req, reply) => {
     const me = await admin(req, reply);
@@ -225,9 +236,16 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
   app.post("/api/admin/alerts/test", async (req, reply) => {
     const me = await admin(req, reply);
     if (!me) return;
-    const body = z.object({ kind: z.enum(["start", "verified"]) }).parse(req.body);
-    // Sample uses the admin's own record and goes ONLY to the admin who asked.
-    return alertAdmins(me.id, body.kind, { force: true, chatIds: [me.telegramId] });
+    const body = z.object({ kind: z.enum(["start", "verified"]), to: z.string().regex(/^(\d+|all)$/).optional() }).parse(req.body);
+    // Sample uses the asking admin's own record. Default: only to the asker; "to" = one roster admin or "all".
+    const roster = await adminChatIds();
+    let chatIds = [me.telegramId];
+    if (body.to === "all") chatIds = roster;
+    else if (body.to) {
+      if (!roster.includes(body.to)) throw httpError(400, "NOT_ADMIN", "Not on the admin roster.");
+      chatIds = [body.to];
+    }
+    return alertAdmins(me.id, body.kind, { force: true, chatIds });
   });
 
   // Channel auto-post.

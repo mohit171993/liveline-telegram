@@ -18,7 +18,7 @@ import {
   type RoleId,
 } from "@liveline/shared";
 import { adminChatIds, userIsAdmin } from "./admins";
-import { alertSettings, maskPhone } from "./automation";
+import { adminAlertPrefs, alertSettings, maskPhone, wantsAlert } from "./automation";
 import { redis } from "../redis";
 import { rollDailyStreak } from "./engage";
 import { ageFromBirthYear } from "@liveline/shared";
@@ -27,7 +27,7 @@ import { env } from "../env";
 import { httpError } from "../httpError";
 import { loadKey } from "./cryptoKey";
 import nodeCrypto from "node:crypto";
-import { sendTelegramMessage } from "../telegram";
+import { tgCall, type TgResult } from "../telegram";
 
 export { userIsAdmin };
 
@@ -291,6 +291,25 @@ export async function setAge(userId: string, birthYear: number, parentConsent: b
   return prisma.user.update({ where: { id: userId }, data: { birthYear, ageStatus: status } });
 }
 
+/** Last delivery result per admin chat (shown in Admin → Alerts). */
+export const ALERT_STATUS_KEY = (chatId: string) => `ll:alert:rcpt:${chatId}`;
+
+async function deliverAlert(chatId: string, text: string, kind: string): Promise<TgResult> {
+  const body = { chat_id: chatId, text, parse_mode: "HTML", link_preview_options: { is_disabled: true } };
+  let res = await tgCall("sendMessage", body);
+  if (!res.ok && res.code === 429) {
+    await new Promise((r) => setTimeout(r, ((res.retryAfter || 2) + 1) * 1000));
+    res = await tgCall("sendMessage", body);
+  }
+  const status = { ok: res.ok, code: res.code ?? null, description: res.description ?? null, kind, at: new Date().toISOString() };
+  await redis.set(ALERT_STATUS_KEY(chatId), JSON.stringify(status), "EX", 90 * 24 * 3600).catch(() => undefined);
+  if (!res.ok) {
+    console.error(JSON.stringify({ level: "error", msg: "admin-alert-failed", kind, chatId, code: res.code, description: res.description }));
+    await prisma.outboundMessage.create({ data: { chatId, kind: "admin_alert_error", payload: JSON.stringify(status).slice(0, 500) } }).catch(() => undefined);
+  }
+  return res;
+}
+
 /**
  * Admin DM alerts. "start": someone pressed /start (or opened the app) for the first time.
  * "verified": phone verification completed. Each fires once per user (Redis NX) and can be
@@ -336,17 +355,20 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
       `Total users: ${total}`,
     ].join("\n");
   }
-  const chats = new Set<string>(opts.chatIds || await adminChatIds());
+  // Recipients: every bound admin on the roster (env + Admins table) who hasn't switched this
+  // alert type off for themselves, plus the optional ADMIN_ALERT_CHAT. Each send is independent.
+  const prefs = await adminAlertPrefs();
+  const roster = opts.chatIds || (await adminChatIds()).filter((id) => wantsAlert(prefs, id, kind));
+  const chats = new Set<string>(roster);
   if (!opts.chatIds && env.adminAlertChat) chats.add(env.adminAlertChat);
   let sent = 0;
+  const failed: { chatId: string; code?: number; description?: string }[] = [];
   for (const chatId of chats) {
-    const id = await sendTelegramMessage(chatId, text).catch((err) => {
-      console.error(JSON.stringify({ level: "error", msg: "admin-alert", kind, err: String(err) }));
-      return null;
-    });
-    if (id) sent += 1;
+    const res = await deliverAlert(chatId, text, kind);
+    if (res.ok) sent += 1;
+    else failed.push({ chatId, code: res.code, description: res.description });
   }
-  return { sent, text };
+  return { sent, failed, recipients: [...chats], text };
 }
 
 export async function listUsers(query: { q?: string; status?: string }) {
@@ -482,4 +504,53 @@ export async function publicUser(user: {
     referralLink: `https://t.me/LiveLineProBot?start=ref_${user.telegramId}`,
     admin: await userIsAdmin(user.telegramId, user.username),
   };
+}
+
+type AlertState = "ok" | "not_started" | "blocked" | "unbound" | "error" | "unknown";
+function classify(code?: number | null, description?: string | null): AlertState {
+  const d = String(description || "").toLowerCase();
+  if (d.includes("blocked by the user") || d.includes("user is deactivated")) return "blocked";
+  if (d.includes("can't initiate conversation") || d.includes("chat not found") || d.includes("have no rights to send")) return "not_started";
+  return code ? "error" : "unknown";
+}
+
+/**
+ * Admin → Alerts: every roster admin with their per-type prefs and whether the bot can reach them.
+ * probe=true does a harmless sendChatAction to each bound admin to check right now.
+ */
+export async function adminAlertStatus(probe = false) {
+  const { ensureEnvAdmins } = await import("./admins");
+  await ensureEnvAdmins();
+  const rows = await prisma.adminAccount.findMany({ where: { revokedAt: null }, orderBy: { createdAt: "asc" } });
+  const prefs = await adminAlertPrefs();
+  const out = [];
+  for (const row of rows) {
+    if (!row.telegramId) {
+      out.push({ telegramId: null, username: row.username, name: null, source: row.source, prefs: { start: true, verified: true }, state: "unbound" as AlertState,
+        detail: `@${row.username || "?"} hasn't opened @${env.botUsername} yet, so the bot doesn't know their chat. Ask them to press Start.`, last: null, lastError: null });
+      continue;
+    }
+    const id = row.telegramId;
+    const [user, lastRaw, lastErr] = await Promise.all([
+      prisma.user.findUnique({ where: { telegramId: id }, select: { username: true, firstName: true, botBlockedAt: true } }),
+      redis.get(ALERT_STATUS_KEY(id)).catch(() => null),
+      prisma.outboundMessage.findFirst({ where: { chatId: id, kind: { in: ["message_error", "admin_alert_error"] } }, orderBy: { createdAt: "desc" } }),
+    ]);
+    const last = lastRaw ? JSON.parse(lastRaw) as { ok: boolean; code: number | null; description: string | null; at: string; kind: string } : null;
+    let state: AlertState = last ? (last.ok ? "ok" : classify(last.code, last.description)) : "unknown";
+    let detail = last ? (last.ok ? `Last alert delivered ${last.at}` : `Last alert failed: ${last.description || last.code}`) : "No alert sent since this check was added.";
+    if (probe) {
+      const r = await tgCall("sendChatAction", { chat_id: id, action: "typing" });
+      state = r.ok ? "ok" : classify(r.code, r.description);
+      detail = r.ok ? "Reachable now: the bot can DM this admin." : `Not reachable: ${r.description || r.code}`;
+    }
+    if (state === "not_started") detail = `Hasn't started @${env.botUsername} (Telegram: "${(last && !last.ok && last.description) || "can't initiate conversation"}"). Ask them to open the bot and press Start.`;
+    if (state === "blocked") detail = `Has blocked @${env.botUsername}. Ask them to unblock it and press Start.`;
+    out.push({
+      telegramId: id, username: row.username || user?.username || null, name: user?.firstName || null, source: row.source,
+      prefs: { start: wantsAlert(prefs, id, "start"), verified: wantsAlert(prefs, id, "verified") },
+      state, detail, last, lastError: lastErr ? { at: lastErr.createdAt.toISOString(), payload: lastErr.payload.slice(0, 300) } : null,
+    });
+  }
+  return out;
 }
