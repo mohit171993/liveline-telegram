@@ -180,7 +180,10 @@ export async function verifyPhone(telegramId: string, contactUserId: number, pho
       ...(fromWebsite ? { source: "website" } : {}),
     },
   });
-  if (!before?.phoneVerifiedAt && !fromWebsite) void alertAdmins(user.id, "verified").catch(() => undefined);
+  // A visitor finishing the website gate via Telegram gets the website alert instead (see
+  // completePendingWebverify), so admins aren't pinged twice for one verification.
+  const webPending = await redis.exists(`ll:wv:tg:${telegramId}`).catch(() => 0);
+  if (!before?.phoneVerifiedAt && !fromWebsite && !webPending) void alertAdmins(user.id, "verified").catch(() => undefined);
   await maybeActivate(user.id);
   // Website verify gate: a visitor who came from the site gets their "Return to website" link
   // after the normal verification replies.
@@ -384,6 +387,73 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
   const failed: { chatId: string; code?: number; description?: string }[] = [];
   for (const chatId of chats) {
     const res = await deliverAlert(chatId, text, kind);
+    if (res.ok) sent += 1;
+    else failed.push({ chatId, code: res.code, description: res.description });
+  }
+  return { sent, failed, recipients: [...chats], text };
+}
+
+/** Website mask: +91 98xxxxx659 (country code, first 2 and last 3 digits). */
+export function maskPhoneWeb(phone?: string | null): string {
+  const d = String(phone || "").replace(/\D/g, "");
+  if (!d) return "not shared";
+  if (d.length < 8) return "xxx";
+  if (d.length === 12 && d.startsWith("91")) return `+91 ${d.slice(2, 4)}xxxxx${d.slice(-3)}`;
+  if (d.length === 10) return `${d.slice(0, 2)}xxxxx${d.slice(-3)}`;
+  return `+${d.slice(0, 4)}${"x".repeat(d.length - 7)}${d.slice(-3)}`;
+}
+
+const fmtZone = (date: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone, day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+
+export type WebVerifyAlertMethod = "sms" | "telegram";
+
+/**
+ * Admin alert for a website (livelinepro.pro) verification. Sent once per user (the first time
+ * they get through the website gate), never on later logins. firstTime = brand-new or newly
+ * phone-verified account; otherwise an existing verified user signing in to the website.
+ * Recipients/prefs follow the normal "verified" alert. test=true bypasses dedupe and labels TEST.
+ */
+export async function alertWebsiteVerify(
+  userId: string,
+  method: WebVerifyAlertMethod,
+  firstTime: boolean,
+  opts: { test?: boolean; chatIds?: string[] } = {},
+) {
+  if (!opts.test) {
+    const settings = await alertSettings();
+    if (!settings.alert_verified) return { sent: 0, skipped: "off" };
+    const first = await redis.set(`ll:alert:web:${userId}`, "1", "EX", 365 * 24 * 3600, "NX");
+    if (!first) return { sent: 0, skipped: "dup" };
+    // The generic "New verified user" alert must not fire again for this verification.
+    if (firstTime) await redis.set(`ll:alert:verified:${userId}`, "1", "EX", 90 * 24 * 3600).catch(() => undefined);
+  }
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const esc = (v: string) => v.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] || c));
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  const at = user.webLoginAt || new Date();
+  const total = await prisma.user.count({ where: { phoneVerifiedAt: { not: null }, isDemo: false } });
+  const lines = [
+    `${opts.test ? "🧪 <b>TEST</b> — " : ""}🌐 <b>Website verification</b> · livelinepro.pro`,
+    `Method: ${method === "sms" ? "SMS OTP" : "Telegram via website"}`,
+    `Status: ${firstTime ? "🆕 first-time (new verified user)" : "↩️ returning (already verified)"}`,
+  ];
+  if (method === "sms") {
+    lines.push(`Phone: ${esc(maskPhoneWeb(user.phone))}`);
+    if (!isWebOnlyTelegramId(user.telegramId)) lines.push(`Telegram ID: <code>${user.telegramId}</code>`);
+  } else {
+    lines.push(`Name: ${esc(name || "—")}`, user.username ? `Username: @${esc(user.username)}` : "Username: none", `User ID: <code>${user.telegramId}</code>`);
+  }
+  lines.push(`Time: ${fmtZone(at, "Asia/Dubai")} Dubai · ${fmtZone(at, "Asia/Kolkata")} IST`, `Total verified: ${total}`);
+  const text = lines.join("\n");
+  const prefs = await adminAlertPrefs();
+  const roster = opts.chatIds || (await adminChatIds()).filter((id) => wantsAlert(prefs, id, "verified"));
+  const chats = new Set<string>(roster);
+  if (!opts.chatIds && !opts.test && env.adminAlertChat) chats.add(env.adminAlertChat);
+  let sent = 0;
+  const failed: { chatId: string; code?: number; description?: string }[] = [];
+  for (const chatId of chats) {
+    const res = await deliverAlert(chatId, text, opts.test ? "web_verify_test" : "web_verify");
     if (res.ok) sent += 1;
     else failed.push({ chatId, code: res.code, description: res.description });
   }

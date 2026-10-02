@@ -12,7 +12,7 @@ import {
 import { redis } from "../redis";
 import { tgCall } from "../telegram";
 import { loadKey } from "./cryptoKey";
-import { alertAdmins } from "./users";
+import { alertAdmins, alertWebsiteVerify } from "./users";
 
 /**
  * Website verify gate (apps/site), api/bot side.
@@ -63,6 +63,7 @@ export async function startWebverify(telegramId: string, chatId: number | string
   if (user && (user.status === "BLOCKED" || user.blockedAt)) return "blocked";
   if (user?.phoneVerifiedAt) {
     await markVerified(user.id, chatId, nonce);
+    void alertWebsiteVerify(user.id, "telegram", false).catch(() => undefined);
     return "logged_in";
   }
   await redis.set(pendingKey(telegramId), nonce, "EX", WEB_NONCE_TTL_S);
@@ -74,11 +75,15 @@ export async function completePendingWebverify(telegramId: string): Promise<bool
   if (!webVerifyEnabled()) return false;
   const nonce = await redis.getdel(pendingKey(telegramId)).catch(() => null);
   if (!nonce) return false;
-  const rec = await readNonce(nonce);
-  if (!rec || rec.s !== "pending") return false;
   const user = await prisma.user.findUnique({ where: { telegramId } });
-  if (!user?.phoneVerifiedAt || user.status === "BLOCKED" || user.blockedAt) return false;
+  const rec = await readNonce(nonce);
+  if (!rec || rec.s !== "pending" || !user?.phoneVerifiedAt || user.status === "BLOCKED" || user.blockedAt) {
+    // Website login didn't complete (expired nonce etc.): fall back to the normal verified alert.
+    if (user?.phoneVerifiedAt) void alertAdmins(user.id, "verified").catch(() => undefined);
+    return false;
+  }
   await markVerified(user.id, telegramId, nonce);
+  void alertWebsiteVerify(user.id, "telegram", true).catch(() => undefined);
   return true;
 }
 
@@ -127,7 +132,7 @@ export async function smsVerified(signed: string): Promise<{ userId: string; cre
         ...(existing.phoneVerifiedAt ? {} : { phoneVerifiedAt: new Date(), verifyMethod: "sms" }),
       },
     });
-    if (!existing.phoneVerifiedAt) void alertAdmins(existing.id, "verified").catch(() => undefined);
+    void alertWebsiteVerify(existing.id, "sms", !existing.phoneVerifiedAt).catch(() => undefined);
     return { userId: existing.id, created: false };
   }
   const now = new Date();
@@ -149,7 +154,7 @@ export async function smsVerified(signed: string): Promise<{ userId: string; cre
       lastSeenAt: now,
     },
   });
-  void alertAdmins(user.id, "verified").catch(() => undefined);
+  void alertWebsiteVerify(user.id, "sms", true).catch(() => undefined);
   return { userId: user.id, created: true };
 }
 
