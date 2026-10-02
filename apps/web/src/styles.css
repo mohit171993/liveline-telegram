@@ -721,3 +721,4 @@ input[type="datetime-local"], input[type="date"], input[type="time"] { width: 10
 .sp-img-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sp-img-row img { width: 96px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
 .sp-img-row .small { flex: 1; min-width: 0; }
+.lib-thumb img, .lib-thumb video { width: 100%; height: 100%; object-fit: contain; }
