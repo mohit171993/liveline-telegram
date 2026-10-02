@@ -226,11 +226,12 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
   const [site, setSite] = useState(ad.placements.some((p) => p.startsWith("site_")) || !ad.placements.length);
   const [app, setApp] = useState(ad.placements.some((p) => p.startsWith("app_")));
   const [pages, setPages] = useState<string[]>(ad.pages);
+  const [autoClose, setAutoClose] = useState(String(ad.autoCloseS ?? 10));
   const [saving, setSaving] = useState(false);
   // Cards are keyed by id only (never remounted while typing). When the saved row changes on the
   // server, adopt it, but never overwrite a field the admin is editing right now.
   const linkRef = useRef<HTMLInputElement>(null);
-  const rowSig = `${ad.targetUrl}|${ad.placements.join()}|${ad.pages.join()}|${JSON.stringify(ad.images)}`;
+  const rowSig = `${ad.autoCloseS}|${ad.targetUrl}|${ad.placements.join()}|${ad.pages.join()}|${JSON.stringify(ad.images)}`;
   const firstSig = useRef(rowSig);
   useEffect(() => {
     if (firstSig.current === rowSig) return;
@@ -240,9 +241,12 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
     setSite(ad.placements.some((p) => p.startsWith("site_")) || !ad.placements.length);
     setApp(ad.placements.some((p) => p.startsWith("app_")));
     setPages(ad.pages);
+    setAutoClose(String(ad.autoCloseS ?? 10));
   }, [rowSig]);
   const dirty = JSON.stringify(images) !== JSON.stringify(ad.images) || link !== ad.targetUrl || pages.join() !== ad.pages.join()
-    || site !== ad.placements.some((p) => p.startsWith("site_")) || app !== ad.placements.some((p) => p.startsWith("app_"));
+    || site !== ad.placements.some((p) => p.startsWith("site_")) || app !== ad.placements.some((p) => p.startsWith("app_"))
+    || closeSecs() !== (ad.autoCloseS ?? 10);
+  function closeSecs() { const n = Math.round(Number(autoClose)); return Number.isFinite(n) ? Math.min(120, Math.max(0, n)) : 10; }
 
   function positions(): Pos[] {
     if (ad.kind === "banner") {
@@ -273,7 +277,7 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
         name: ad.name, kind: ad.kind, title: ad.title, body: ad.body, cta: ad.cta, images, videoUrl: ad.videoUrl, posterUrl: ad.posterUrl, html: ad.html,
         targetUrl: link.trim(), openMode: ad.openMode, placements, pages,
         startsAt: ad.startsAt ? new Date(ad.startsAt).toISOString() : null, endsAt: ad.endsAt ? new Date(ad.endsAt).toISOString() : null,
-        priority: ad.priority, weight: ad.weight, freqCap: ad.freqCap, enabled,
+        priority: ad.priority, weight: ad.weight, freqCap: ad.freqCap, autoCloseS: closeSecs(), enabled,
       }) });
       toast(enabled !== ad.enabled ? (enabled ? "Ad on" : "Ad off") : "Saved ✅");
       reload();
@@ -313,6 +317,10 @@ function LibCard({ ad, sponsors, reload }: { ad: LibAd; sponsors: Sponsor[]; rel
       <input ref={linkRef} id={`lib-link-${ad.id}`} className="field" type="url" inputMode="url" name="targetUrl" value={link} placeholder="https://brand.example/offer"
         autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="done"
         onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") e.currentTarget.blur(); }} />
+      {positions().includes("interstitial") && <>
+        <label className="small" htmlFor={`lib-close-${ad.id}`}>Auto-close (seconds, 0 = off)</label>
+        <input id={`lib-close-${ad.id}`} className="field" type="number" inputMode="numeric" min={0} max={120} value={autoClose} onChange={(e) => setAutoClose(e.target.value)} />
+      </>}
       <div className="lib-checks">
         <label className={`am-check ${site ? "on" : ""}`}><input type="checkbox" checked={site} onChange={() => setSite(!site)} />🌐 Website</label>
         <label className={`am-check ${app ? "on" : ""}`}><input type="checkbox" checked={app} disabled={ad.kind === "html"} onChange={() => setApp(!app)} />📱 Mini App</label>

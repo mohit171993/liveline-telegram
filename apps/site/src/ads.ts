@@ -43,7 +43,11 @@ function render(ad: PublicAdUnit, placement: string, page: string): string {
   const inner = ad.kind === "html" ? `<div class="ad-embed">${ad.html}</div>` : link(ad, placement, page, creative(ad, pos), "ad-link");
   if (pos === "sticky") return `<div class="ad ad-sticky ad-k-${ad.kind}" ${data}>${inner}<small class="ad-tag">Ad</small><button class="ad-x" type="button" aria-label="Close ad">✕</button></div>`;
   if (pos === "interstitial") {
-    return `<div class="ad-inter" ${data} data-cap="${ad.freqCap}" hidden role="dialog" aria-label="Advertisement"><div class="ad-inter-card ad-k-${ad.kind}">${inner}</div><button class="ad-inter-x" type="button" disabled>Close in 3</button><small class="ad-tag">Ad</small></div>`;
+    // ✕ is tappable at once; a ring + "Closes in Ns" counts down autoCloseS (0 = off), paused while the tab is hidden.
+    const secs = Math.max(0, Math.min(120, Math.round(ad.autoCloseS ?? 10)));
+    const ring = secs ? `<span class="ad-inter-left">Closes in ${secs}s</span>` : "";
+    const svg = secs ? `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" class="ad-ring-bg"/><circle cx="20" cy="20" r="17" class="ad-ring-fg" stroke-dasharray="106.81" stroke-dashoffset="0"/></svg>` : "";
+    return `<div class="ad-inter" ${data} data-cap="${ad.freqCap}" data-close="${secs}" hidden role="dialog" aria-label="Advertisement"><div class="ad-inter-card ad-k-${ad.kind}">${inner}</div><button class="ad-inter-x" type="button" aria-label="Close ad">${ring}<span class="ad-ring">${svg}<b aria-hidden="true">✕</b></span></button><small class="ad-tag">Ad</small></div>`;
   }
   return `<div class="ad ad-${pos} ad-k-${ad.kind}" ${data}>${inner}<small class="ad-tag">Ad</small></div>`;
 }

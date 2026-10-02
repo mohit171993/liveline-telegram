@@ -14,7 +14,7 @@ type AdminAd = AdUnit & {
 type Form = {
   id?: string; name: string; kind: Kind; title: string; body: string; cta: string; images: Partial<Record<"default" | Pos, string>>;
   videoUrl: string; posterUrl: string; html: string; targetUrl: string; openMode: "inapp" | "external"; placements: string[]; pages: string[];
-  startsAt: string; endsAt: string; priority: number; weight: number; freqCap: number; enabled: boolean;
+  startsAt: string; endsAt: string; priority: number; weight: number; freqCap: number; autoCloseS: number; enabled: boolean;
 };
 
 const KINDS: { id: Kind; label: string; icon: string }[] = [
@@ -30,7 +30,7 @@ const POS: { id: Pos; label: string; size: string }[] = [
 const PAGES = [{ id: "home", label: "Home" }, { id: "match", label: "Live match" }, { id: "schedule", label: "Schedule" }, { id: "lino", label: "Lino" }];
 const EMPTY: Form = {
   name: "", kind: "banner", title: "", body: "", cta: "", images: {}, videoUrl: "", posterUrl: "", html: "", targetUrl: "", openMode: "inapp",
-  placements: ["site_infeed", "app_infeed"], pages: [], startsAt: "", endsAt: "", priority: 0, weight: 1, freqCap: 1, enabled: false,
+  placements: ["site_infeed", "app_infeed"], pages: [], startsAt: "", endsAt: "", priority: 0, weight: 1, freqCap: 1, autoCloseS: 10, enabled: false,
 };
 const toLocal = (ms: number | null) => (ms ? new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "");
 const pct = (s: Stat) => (s.i ? `${((s.c / s.i) * 100).toFixed(1)}%` : "–");
@@ -94,7 +94,7 @@ export function AdsManager() {
       name: f.name, kind: f.kind, title: f.title, body: f.body, cta: f.cta, images: f.images, videoUrl: f.videoUrl, posterUrl: f.posterUrl, html: f.html,
       targetUrl: f.targetUrl.trim(), openMode: f.openMode, placements: f.placements, pages: f.pages,
       startsAt: f.startsAt ? new Date(f.startsAt).toISOString() : null, endsAt: f.endsAt ? new Date(f.endsAt).toISOString() : null,
-      priority: Number(f.priority) || 0, weight: Math.max(1, Number(f.weight) || 1), freqCap: Math.max(0, Number(f.freqCap) || 0), enabled: f.enabled,
+      priority: Number(f.priority) || 0, weight: Math.max(1, Number(f.weight) || 1), freqCap: Math.max(0, Number(f.freqCap) || 0), autoCloseS: Math.min(120, Math.max(0, Math.round(Number(f.autoCloseS) || 0))), enabled: f.enabled,
     };
   }
   async function save() {
@@ -119,7 +119,7 @@ export function AdsManager() {
     setErr("");
     setForm({ id: a.id, name: a.name, kind: a.kind, title: a.title, body: a.body, cta: a.cta, images: a.images, videoUrl: a.videoUrl, posterUrl: a.posterUrl, html: a.html,
       targetUrl: a.targetUrl, openMode: a.openMode, placements: a.placements, pages: a.pages, startsAt: toLocal(a.startsAt), endsAt: toLocal(a.endsAt),
-      priority: a.priority, weight: a.weight, freqCap: a.freqCap, enabled: a.enabled });
+      priority: a.priority, weight: a.weight, freqCap: a.freqCap, autoCloseS: a.autoCloseS ?? 10, enabled: a.enabled });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -185,6 +185,8 @@ export function AdsManager() {
           </div>
           <label className="small">Interstitial frequency cap (per user per day, 0 = no cap)</label>
           <input className="field" type="number" min={0} max={50} value={f.freqCap} onChange={(e) => set("freqCap", Number(e.target.value))} />
+          <label className="small" htmlFor="am-autoclose">Auto-close (seconds) · interstitial / fullscreen, 0 = off</label>
+          <input id="am-autoclose" className="field" type="number" inputMode="numeric" min={0} max={120} value={f.autoCloseS} onChange={(e) => set("autoCloseS", Number(e.target.value))} />
           <div className="row sp-on"><b>Active</b><Toggle on={f.enabled} onChange={(v) => set("enabled", v)} label="Active" /></div>
           <label className="small">Preview</label>
           <Preview f={f} />

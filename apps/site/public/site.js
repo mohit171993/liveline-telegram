@@ -64,12 +64,24 @@
     setTimeout(function () {
       it.hidden = false; send(it);
       try { localStorage.setItem(k, String(n + 1)); } catch (e) {}
-      var btn = it.querySelector(".ad-inter-x"), left = 3;
-      var t = setInterval(function () {
-        left--; if (left > 0) { btn.textContent = "Close in " + left; return; }
-        clearInterval(t); btn.disabled = false; btn.textContent = "Close ✕";
-      }, 1000);
-      btn.addEventListener("click", function () { if (!btn.disabled) it.remove(); });
+      var btn = it.querySelector(".ad-inter-x"), total = Number(it.getAttribute("data-close")) || 0;
+      var label = it.querySelector(".ad-inter-left"), fg = it.querySelector(".ad-ring-fg"), C = 106.81;
+      var remaining = total * 1000, last = Date.now(), timer = null;
+      function close() { if (timer) clearInterval(timer); it.remove(); }
+      // The ✕ is never a click on the ad: it only closes (the ad link is the card, not the button).
+      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); close(); });
+      if (total > 0) {
+        timer = setInterval(function () {
+          var now = Date.now();
+          if (!document.hidden) remaining -= now - last; // paused while the tab is hidden
+          last = now;
+          var s = Math.max(0, remaining / 1000);
+          if (label) label.textContent = "Closes in " + Math.ceil(s) + "s";
+          if (fg) fg.setAttribute("stroke-dashoffset", String(C * (1 - s / total)));
+          btn.setAttribute("aria-label", "Close ad (closes in " + Math.ceil(s) + " s)");
+          if (remaining <= 0) close();
+        }, 200);
+      }
     }, 1200);
   }
 })();

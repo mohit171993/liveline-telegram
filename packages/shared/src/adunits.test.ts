@@ -4,7 +4,7 @@ import { adImage, adImageWide, adUnitEligible, detectAdSlot, pickAdUnit, type Pu
 const base: PublicAdUnit = {
   id: "a", kind: "banner", title: "", body: "", cta: "", images: { default: "/ads-media/a.jpg" }, videoUrl: "", posterUrl: "", html: "",
   targetUrl: "https://example.com", openMode: "external", frameable: false, placements: ["site_top", "app_top"], pages: [],
-  startsAt: null, endsAt: null, priority: 0, weight: 1, freqCap: 1,
+  startsAt: null, endsAt: null, priority: 0, weight: 1, freqCap: 1, autoCloseS: 10,
 };
 
 describe("ad units", () => {

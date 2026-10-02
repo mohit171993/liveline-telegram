@@ -848,6 +848,8 @@ model AdUnit {
   priority   Int          @default(0)
   weight     Int          @default(1)
   freqCap    Int          @default(1)
+  /// Interstitial auto-close after N seconds (0 = stays until closed).
+  autoCloseS Int          @default(10)
   enabled    Boolean      @default(false)
   createdBy  String?
   createdAt  DateTime     @default(now())

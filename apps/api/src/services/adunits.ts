@@ -36,6 +36,7 @@ export const adUnitInput = z.object({
   priority: z.number().int().min(0).max(100).default(0),
   weight: z.number().int().min(1).max(100).default(1),
   freqCap: z.number().int().min(0).max(50).default(1),
+  autoCloseS: z.number().int().min(0).max(120).default(10),
   enabled: z.boolean().default(false),
 });
 export type AdUnitInput = z.infer<typeof adUnitInput>;
@@ -65,7 +66,7 @@ function toData(input: AdUnitInput) {
     targetUrl: cleanUrl(input.targetUrl), openMode: input.openMode,
     placements: [...new Set(input.placements)].join(","), pages: [...new Set(input.pages)].join(","),
     startsAt: input.startsAt ? new Date(input.startsAt) : null, endsAt: input.endsAt ? new Date(input.endsAt) : null,
-    priority: input.priority, weight: input.weight, freqCap: input.freqCap, enabled: input.enabled,
+    priority: input.priority, weight: input.weight, freqCap: input.freqCap, autoCloseS: input.autoCloseS, enabled: input.enabled,
   };
 }
 
@@ -74,7 +75,7 @@ export function publicAd(r: Row): PublicAdUnit {
     id: r.id, kind: r.kind as PublicAdUnit["kind"], title: r.title, body: r.body, cta: r.cta, images: (r.images || {}) as AdImages,
     videoUrl: r.videoUrl, posterUrl: r.posterUrl, html: r.html, targetUrl: r.targetUrl, openMode: r.openMode === "external" ? "external" : "inapp",
     frameable: r.frameable, placements: r.placements ? r.placements.split(",") : [], pages: r.pages ? r.pages.split(",") : [],
-    startsAt: r.startsAt?.getTime() ?? null, endsAt: r.endsAt?.getTime() ?? null, priority: r.priority, weight: r.weight, freqCap: r.freqCap,
+    startsAt: r.startsAt?.getTime() ?? null, endsAt: r.endsAt?.getTime() ?? null, priority: r.priority, weight: r.weight, freqCap: r.freqCap, autoCloseS: r.autoCloseS,
   };
 }
 

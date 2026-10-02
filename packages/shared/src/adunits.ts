@@ -52,6 +52,8 @@ export interface PublicAdUnit {
   priority: number;
   weight: number;
   freqCap: number;
+  /** Interstitial auto-close in seconds (0 = off). */
+  autoCloseS: number;
 }
 
 export function positionOf(placement: string): AdPosition {

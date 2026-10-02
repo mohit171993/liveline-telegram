@@ -5,7 +5,7 @@ import { api, apiBase, haptic } from "../lib";
 export type AdUnit = {
   id: string; kind: "banner" | "native" | "video" | "html"; title: string; body: string; cta: string;
   images: Partial<Record<"default" | "top" | "infeed" | "sticky" | "interstitial" | "top_wide" | "sticky_wide", string>>;
-  videoUrl: string; posterUrl: string; targetUrl: string; openMode: "inapp" | "external"; frameable: boolean; freqCap: number;
+  videoUrl: string; posterUrl: string; targetUrl: string; openMode: "inapp" | "external"; frameable: boolean; freqCap: number; autoCloseS?: number;
 };
 export type AdPage = "home" | "match" | "schedule" | "lino";
 export type AdPos = "top" | "infeed" | "sticky" | "interstitial";
@@ -117,11 +117,53 @@ export function AdSticky({ ad, page }: { ad?: AdUnit; page: AdPage }) {
   );
 }
 
-/** Fullscreen interstitial with a per-day frequency cap (freqCap 0 = no cap) and a 3 s close timer. */
+/** Countdown ring around the ✕ (always tappable). */
+function CloseRing({ left, total, onClose }: { left: number; total: number; onClose: () => void }) {
+  const R = 17, C = 2 * Math.PI * R;
+  const frac = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0;
+  return (
+    <button type="button" className="au-inter-x" aria-label={total > 0 ? `Close ad (closes in ${Math.ceil(left)} s)` : "Close ad"}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      {total > 0 && <span className="au-inter-left">Closes in {Math.ceil(left)}s</span>}
+      <span className="au-ring">
+        {total > 0 && <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r={R} className="au-ring-bg" /><circle cx="20" cy="20" r={R} className="au-ring-fg" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} /></svg>}
+        <b aria-hidden="true">✕</b>
+      </span>
+    </button>
+  );
+}
+
+/** Seconds left on a countdown that only runs while the page is visible. */
+function useVisibleCountdown(active: boolean, total: number, onDone: () => void): number {
+  const [left, setLeft] = useState(total);
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    if (!active || total <= 0) return;
+    setLeft(total);
+    let remaining = total * 1000;
+    let last = performance.now();
+    const t = setInterval(() => {
+      const now = performance.now();
+      if (!document.hidden) remaining -= now - last; // paused while the tab / Mini App is hidden
+      last = now;
+      setLeft(Math.max(0, remaining / 1000));
+      if (remaining <= 0) { clearInterval(t); done.current(); }
+    }, 200);
+    return () => clearInterval(t);
+  }, [active, total]);
+  return left;
+}
+
+/**
+ * Fullscreen interstitial with a per-day frequency cap (freqCap 0 = no cap). It closes by itself after
+ * autoCloseS seconds (0 = off; paused while hidden); the ✕ works at any time and never counts as a click.
+ */
 export function AdInterstitial({ ad, page }: { ad?: AdUnit; page: AdPage }) {
   const [show, setShow] = useState(false);
-  const [wait, setWait] = useState(3);
   const { open, view } = useOpener();
+  const total = Math.max(0, Math.min(120, ad?.autoCloseS ?? 10));
+  const left = useVisibleCountdown(show, total, () => setShow(false));
   useEffect(() => {
     if (!ad) return;
     const key = `ll-adcap:${ad.id}:${today()}`;
@@ -131,11 +173,6 @@ export function AdInterstitial({ ad, page }: { ad?: AdUnit; page: AdPage }) {
     setShow(true);
     track(ad, "impression", "interstitial", page);
   }, [ad?.id]);
-  useEffect(() => {
-    if (!show || wait <= 0) return;
-    const t = setTimeout(() => setWait((w) => w - 1), 1000);
-    return () => clearTimeout(t);
-  }, [show, wait]);
   if (!ad || !show) return view;
   return (
     <div className="au-inter" role="dialog" aria-label="Advertisement">
@@ -143,7 +180,7 @@ export function AdInterstitial({ ad, page }: { ad?: AdUnit; page: AdPage }) {
         <Creative ad={ad} pos="interstitial" />
         {ad.cta && ad.kind !== "native" && <span className="au-cta big">{ad.cta}</span>}
       </div>
-      <button className="au-inter-x" disabled={wait > 0} onClick={() => setShow(false)}>{wait > 0 ? `Close in ${wait}` : "✕ Close"}</button>
+      <CloseRing left={left} total={total} onClose={() => setShow(false)} />
       <small className="au-tag">Ad</small>
       {view}
     </div>
