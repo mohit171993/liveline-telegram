@@ -1,0 +1,1 @@
+ALTER TABLE "SponsorButton" ADD COLUMN "imageUrl" TEXT NOT NULL DEFAULT '';

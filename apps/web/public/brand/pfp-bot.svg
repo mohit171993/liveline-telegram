@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-label="LiveLine Pro bot">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="620" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A2C4E"/>
+      <stop offset="1" stop-color="#070B14"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.45">
+      <stop stop-color="#E7FF4D" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#E7FF4D" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pulse" x1="120" y1="360" x2="520" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3DFFE8"/>
+      <stop offset="0.55" stop-color="#E7FF4D"/>
+      <stop offset="1" stop-color="#FF7A18"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="640" fill="url(#bg)"/>
+  <circle cx="320" cy="320" r="250" fill="url(#glow)"/>
+  <circle cx="320" cy="320" r="168" fill="#0C1424" stroke="#F4F7FB" stroke-width="18"/>
+  <path d="M250 246c22-34 58-50 90-50M390 404c-22 34-58 50-90 50" fill="none" stroke="#3DFFE8" stroke-width="16" stroke-linecap="round"/>
+  <path d="M150 348h78l48-92 78 176 52-108h84" fill="none" stroke="url(#pulse)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
