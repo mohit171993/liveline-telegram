@@ -6,7 +6,7 @@ import { liveScoreCard, parseWebverifyParam, projectMatch, squadCode } from "@li
 import { env, telegramDryRun, channelUrl, miniAppLink } from "./env";
 import { readUniverse } from "./feed";
 import { redis } from "./redis";
-import { verifyPhone, touchFromInit, userIsAdmin } from "./services/users";
+import { verifyPhone, touchFromInit, userIsAdmin, leadsPage } from "./services/users";
 import { startWebverify } from "./services/webverify";
 import { pinLive, upsertSquad } from "./services/play";
 import { rememberChannelPost } from "./services/reports";
@@ -433,6 +433,30 @@ export function createBot() {
     await ctx.reply("🔔 Reminders are back on. Max 2 a day, never at night. Send /stop any time.");
   });
 
+  // /leads [verified|pending]: admins get every user with a tap-to-open chat link, paged.
+  const leadsKeyboard = (filter: string, offset: number, size: number, total: number) => {
+    const kb = new InlineKeyboard();
+    if (offset > 0) kb.text("‹ Newer", `leads:${filter}:${Math.max(0, offset - size)}`);
+    if (offset + size < total) kb.text("Older ›", `leads:${filter}:${offset + size}`);
+    kb.row().text(filter === "all" ? "• All" : "All", "leads:all:0").text(filter === "verified" ? "• ✅ Verified" : "✅ Verified", "leads:verified:0").text(filter === "pending" ? "• ⏳ Pending" : "⏳ Pending", "leads:pending:0");
+    return kb;
+  };
+  bot.command("leads", async (ctx) => {
+    if (ctx.chat.type !== "private" || !ctx.from) return;
+    if (!(await userIsAdmin(ctx.from.id, ctx.from.username))) return;
+    const arg = (ctx.match || "").trim().toLowerCase();
+    const filter = arg.startsWith("ver") ? "verified" : arg.startsWith("pen") || arg.startsWith("un") ? "pending" : "all";
+    const page = await leadsPage(0, filter);
+    await ctx.reply(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: leadsKeyboard(filter, 0, page.size, page.total) });
+  });
+  bot.callbackQuery(/^leads:(all|verified|pending):(\d+)$/, async (ctx) => {
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.answerCallbackQuery();
+    const filter = ctx.match[1] as "all" | "verified" | "pending";
+    const page = await leadsPage(Number(ctx.match[2]), filter);
+    await ctx.editMessageText(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: leadsKeyboard(filter, page.offset, page.size, page.total) }).catch(() => undefined);
+    await ctx.answerCallbackQuery();
+  });
+
   // /admin: listed admins only (silent for everyone else). Shortcuts:
   //   /admin find @handle | <telegram id>
   //   /admin broadcast <text>   → draft to all verified users, sends only after ✅ Confirm
@@ -575,7 +599,7 @@ async function main() {
     { command: "help", description: "ℹ️ How it works" },
   ];
   for (const chatId of await adminChatIds().catch(() => [] as string[])) {
-    await bot.api.setMyCommands([...userCommands, { command: "admin", description: "🛠 Admin panel & CRM" }], { scope: { type: "chat", chat_id: Number(chatId) } }).catch(() => undefined);
+    await bot.api.setMyCommands([...userCommands, { command: "admin", description: "🛠 Admin panel & CRM" }, { command: "leads", description: "👥 Leads with chat links" }], { scope: { type: "chat", chat_id: Number(chatId) } }).catch(() => undefined);
   }
   await runPolling(bot);
 }

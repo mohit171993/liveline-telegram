@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { httpError } from "./httpError";
+import { prisma } from "@liveline/db";
 import type { authenticate as AuthFn } from "./server";
 import {
   addNote, addTag, attribution, audienceCount, bulkTag, cancelBroadcast, confirmBroadcast, createBroadcast, crmCsv, crmProfile,
@@ -254,7 +255,7 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
   app.post("/api/admin/alerts/test", async (req, reply) => {
     const me = await admin(req, reply);
     if (!me) return;
-    const body = z.object({ kind: z.enum(["start", "verified"]), to: z.string().regex(/^(\d+|all)$/).optional() }).parse(req.body);
+    const body = z.object({ kind: z.enum(["start", "verified"]), to: z.string().regex(/^(\d+|all)$/).optional(), subject: z.string().regex(/^\d+$/).optional() }).parse(req.body);
     // Sample uses the asking admin's own record. Default: only to the asker; "to" = one roster admin or "all".
     const roster = await adminChatIds();
     let chatIds = [me.telegramId];
@@ -263,7 +264,14 @@ export async function crmRoutes(app: FastifyInstance, authenticate: typeof AuthF
       if (!roster.includes(body.to)) throw httpError(400, "NOT_ADMIN", "Not on the admin roster.");
       chatIds = [body.to];
     }
-    return alertAdmins(me.id, body.kind, { force: true, chatIds });
+    // Optional "subject": render the sample for another user's record (by Telegram id), labelled TEST.
+    let subjectId = me.id;
+    if (body.subject) {
+      const u = await prisma.user.findUnique({ where: { telegramId: body.subject }, select: { id: true } });
+      if (!u) throw httpError(404, "NO_USER", "No user with that Telegram id.");
+      subjectId = u.id;
+    }
+    return alertAdmins(subjectId, body.kind, { force: true, chatIds, test: Boolean(body.subject) });
   });
 
   // Channel auto-post.

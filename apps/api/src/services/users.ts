@@ -314,15 +314,56 @@ export async function setAge(userId: string, birthYear: number, parentConsent: b
 /** Last delivery result per admin chat (shown in Admin → Alerts). */
 export const ALERT_STATUS_KEY = (chatId: string) => `ll:alert:rcpt:${chatId}`;
 
-async function deliverAlert(chatId: string, text: string, kind: string): Promise<TgResult> {
-  const body = { chat_id: chatId, text, parse_mode: "HTML", link_preview_options: { is_disabled: true } };
-  let res = await tgCall("sendMessage", body);
-  if (!res.ok && res.code === 429) {
-    await new Promise((r) => setTimeout(r, ((res.retryAfter || 2) + 1) * 1000));
-    res = await tgCall("sendMessage", body);
+type InlineMarkup = { inline_keyboard: { text: string; url: string }[][] };
+
+const escHtml = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] || c));
+
+/**
+ * Clickable contact for a user in admin alerts: name as a tg://user mention, @username as a
+ * t.me link, and a "💬 Message user" button (t.me/username, else tg://user?id=…).
+ * Website-only accounts (no real Telegram id) get no tg:// link.
+ */
+export function alertContact(user: { telegramId: string; username?: string | null; firstName?: string | null; lastName?: string | null }) {
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "—";
+  const realTg = !isWebOnlyTelegramId(user.telegramId) && /^\d+$/.test(user.telegramId);
+  const uname = (user.username || "").replace(/^@/, "");
+  const validUname = /^[A-Za-z0-9_]{4,32}$/.test(uname);
+  const nameHtml = realTg ? `<a href="tg://user?id=${user.telegramId}">${escHtml(name)}</a>` : escHtml(name);
+  const usernameHtml = uname ? (validUname ? `<a href="https://t.me/${uname}">@${escHtml(uname)}</a>` : `@${escHtml(uname)}`) : "";
+  const url = validUname ? `https://t.me/${uname}` : realTg ? `tg://user?id=${user.telegramId}` : "";
+  const markup: InlineMarkup | undefined = url ? { inline_keyboard: [[{ text: "💬 Message user", url }]] } : undefined;
+  return { name, nameHtml, usernameHtml, markup };
+}
+
+async function deliverAlert(chatId: string, text: string, kind: string, markup?: InlineMarkup, userId?: string): Promise<TgResult> {
+  const base = { chat_id: chatId, text, parse_mode: "HTML", link_preview_options: { is_disabled: true } };
+  const send = async (withButton: boolean) => {
+    const body = withButton && markup ? { ...base, reply_markup: markup } : base;
+    let r = await tgCall("sendMessage", body);
+    if (!r.ok && r.code === 429) {
+      await new Promise((res) => setTimeout(res, ((r.retryAfter || 2) + 1) * 1000));
+      r = await tgCall("sendMessage", body);
+    }
+    return r;
+  };
+  let res = await send(true);
+  // tg://user?id buttons are refused for users with privacy restrictions
+  // (BUTTON_USER_PRIVACY_RESTRICTED / BUTTON_USER_INVALID / BUTTON_URL_INVALID). The text mention
+  // stays, so resend without the button: the alert itself must never fail because of it.
+  if (!res.ok && markup && res.code === 400 && /BUTTON|USER_PRIVACY|URL/i.test(res.description || "")) {
+    console.warn(JSON.stringify({ level: "warn", msg: "admin-alert-button-dropped", kind, chatId, description: res.description }));
+    res = await send(false);
+  }
+  // Last resort: a rejected tg:// mention in the text (rare) — send plain names.
+  if (!res.ok && res.code === 400 && /tg:\/\/user/.test(text) && /entit|parse|USER/i.test(res.description || "")) {
+    res = await tgCall("sendMessage", { ...base, text: text.replace(/<a href="tg:\/\/user\?id=\d+">([^<]*)<\/a>/g, "$1") });
   }
   const status = { ok: res.ok, code: res.code ?? null, description: res.description ?? null, kind, at: new Date().toISOString() };
   await redis.set(ALERT_STATUS_KEY(chatId), JSON.stringify(status), "EX", 90 * 24 * 3600).catch(() => undefined);
+  if (res.ok && res.messageId) {
+    // Keep chat + message id so a sent alert can be edited later (e.g. format changes).
+    await prisma.outboundMessage.create({ data: { chatId, kind: "admin_alert_sent", payload: JSON.stringify({ m: res.messageId, u: userId || null, k: kind, b: Boolean(markup) }) } }).catch(() => undefined);
+  }
   if (!res.ok) {
     console.error(JSON.stringify({ level: "error", msg: "admin-alert-failed", kind, chatId, code: res.code, description: res.description }));
     await prisma.outboundMessage.create({ data: { chatId, kind: "admin_alert_error", payload: JSON.stringify(status).slice(0, 500) } }).catch(() => undefined);
@@ -335,7 +376,7 @@ async function deliverAlert(chatId: string, text: string, kind: string): Promise
  * "verified": phone verification completed. Each fires once per user (Redis NX) and can be
  * switched off in Admin → Settings. Phones are always masked.
  */
-export async function alertAdmins(userId: string, kind: "start" | "verified", opts: { force?: boolean; chatIds?: string[] } = {}) {
+export async function alertAdmins(userId: string, kind: "start" | "verified", opts: { force?: boolean; chatIds?: string[]; test?: boolean } = {}) {
   const settings = await alertSettings();
   if (!opts.force && kind === "start" && !settings.alert_new_start) return { sent: 0, skipped: "off" };
   if (!opts.force && kind === "verified" && !settings.alert_verified) return { sent: 0, skipped: "off" };
@@ -344,18 +385,18 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
     if (!first) return { sent: 0, skipped: "dup" };
   }
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || "—";
-  const esc = (v: string) => v.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] || c));
+  const esc = escHtml;
+  const contact = alertContact(user);
   let text: string;
   if (kind === "verified") {
     const total = await prisma.user.count({ where: { phoneVerifiedAt: { not: null }, isDemo: false } });
     const web = user.source === "website";
     text = [
-      "✅ <b>New verified user</b>",
+      `${opts.test ? "🧪 <b>TEST</b> — " : ""}✅ <b>New verified user</b>`,
       ...(web ? [`🌐 Website · verified by ${user.verifyMethod === "sms" ? "SMS OTP" : "Telegram"}`] : []),
       isWebOnlyTelegramId(user.telegramId) ? "ID: website account (no Telegram yet)" : `ID: <code>${user.telegramId}</code>`,
-      user.username ? `@${esc(user.username)}` : "No username",
-      `Name: ${esc(name)}`,
+      `Name: ${contact.nameHtml}`,
+      contact.usernameHtml ? `Username: ${contact.usernameHtml}` : "Username: none",
       `Language: ${esc(user.languageCode)}`,
       `Phone: ${esc(fullPhone(user.phone))}`,
       `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
@@ -366,10 +407,10 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
   } else {
     const total = await prisma.user.count({ where: { isDemo: false } });
     text = [
-      "🆕 <b>New start</b> (not verified yet)",
+      `${opts.test ? "🧪 <b>TEST</b> — " : ""}🆕 <b>New start</b> (not verified yet)`,
       `ID: <code>${user.telegramId}</code>`,
-      user.username ? `@${esc(user.username)}` : "No username",
-      `Name: ${esc(name)}`,
+      `Name: ${contact.nameHtml}`,
+      contact.usernameHtml ? `Username: ${contact.usernameHtml}` : "Username: none",
       `Language: ${esc(user.languageCode)}`,
       `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
       `Source: ${esc(user.startParam || "direct")}`,
@@ -386,7 +427,7 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
   let sent = 0;
   const failed: { chatId: string; code?: number; description?: string }[] = [];
   for (const chatId of chats) {
-    const res = await deliverAlert(chatId, text, kind);
+    const res = await deliverAlert(chatId, text, kind, contact.markup, user.id);
     if (res.ok) sent += 1;
     else failed.push({ chatId, code: res.code, description: res.description });
   }
@@ -429,8 +470,8 @@ export async function alertWebsiteVerify(
     if (firstTime) await redis.set(`ll:alert:verified:${userId}`, "1", "EX", 90 * 24 * 3600).catch(() => undefined);
   }
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const esc = (v: string) => v.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] || c));
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  const esc = escHtml;
+  const contact = alertContact(user);
   const at = user.webLoginAt || new Date();
   const total = await prisma.user.count({ where: { phoneVerifiedAt: { not: null }, isDemo: false } });
   const lines = [
@@ -440,9 +481,9 @@ export async function alertWebsiteVerify(
   ];
   if (method === "sms") {
     lines.push(`Phone: ${esc(fullPhone(user.phone))}`);
-    if (!isWebOnlyTelegramId(user.telegramId)) lines.push(`Telegram ID: <code>${user.telegramId}</code>`);
+    if (!isWebOnlyTelegramId(user.telegramId)) lines.push(`Name: ${contact.nameHtml}`, contact.usernameHtml ? `Username: ${contact.usernameHtml}` : "Username: none", `Telegram ID: <code>${user.telegramId}</code>`);
   } else {
-    lines.push(`Name: ${esc(name || "—")}`, user.username ? `Username: @${esc(user.username)}` : "Username: none", `User ID: <code>${user.telegramId}</code>`);
+    lines.push(`Name: ${contact.nameHtml}`, contact.usernameHtml ? `Username: ${contact.usernameHtml}` : "Username: none", `User ID: <code>${user.telegramId}</code>`);
   }
   lines.push(`Time: ${fmtZone(at, "Asia/Dubai")} Dubai · ${fmtZone(at, "Asia/Kolkata")} IST`, `Total verified: ${total}`);
   const text = lines.join("\n");
@@ -453,7 +494,7 @@ export async function alertWebsiteVerify(
   let sent = 0;
   const failed: { chatId: string; code?: number; description?: string }[] = [];
   for (const chatId of chats) {
-    const res = await deliverAlert(chatId, text, opts.test ? "web_verify_test" : "web_verify");
+    const res = await deliverAlert(chatId, text, opts.test ? "web_verify_test" : "web_verify", contact.markup, user.id);
     if (res.ok) sent += 1;
     else failed.push({ chatId, code: res.code, description: res.description });
   }
@@ -642,4 +683,22 @@ export async function adminAlertStatus(probe = false) {
     });
   }
   return out;
+}
+
+
+/** /leads in the bot: newest users first, each with a tap-to-open chat link. Admin-only (full phones). */
+export async function leadsPage(offset: number, filter: "all" | "verified" | "pending", size = 15) {
+  const where = { isDemo: false, ...(filter === "verified" ? { phoneVerifiedAt: { not: null } } : filter === "pending" ? { phoneVerifiedAt: null } : {}) };
+  const [total, rows] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.user.findMany({ where, orderBy: { createdAt: "desc" }, skip: offset, take: size }),
+  ]);
+  const lines = rows.map((u, i) => {
+    const c = alertContact(u);
+    const link = c.usernameHtml || (isWebOnlyTelegramId(u.telegramId) ? "website only" : `<a href="tg://user?id=${u.telegramId}">💬 open chat</a>`);
+    return `${offset + i + 1}. ${u.phoneVerifiedAt ? "✅" : "⏳"} <b>${c.nameHtml}</b> · ${link}\n    ${u.phone ? escHtml(fullPhone(u.phone)) + " · " : ""}<code>${escHtml(u.telegramId)}</code> · ${formatIst(u.createdAt)} IST`;
+  });
+  const label = filter === "verified" ? "verified" : filter === "pending" ? "not verified" : "all";
+  const text = [`👥 <b>Leads</b> (${label}) · ${total} total · newest first`, "Tap a name or link to open the chat.", "", ...lines].join("\n");
+  return { text, total, offset, size };
 }
