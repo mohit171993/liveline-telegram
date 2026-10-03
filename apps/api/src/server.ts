@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
@@ -53,6 +54,51 @@ export async function buildServer() {
   app.get("/health", async (_req, reply) => {
     const body = await health();
     reply.code(body.ok ? 200 : 503).send(body);
+  });
+  // Read-only lead metrics for the Telegram Ads Control Center (same shape as the other bots).
+  // Auth: X-Report-Key must equal REPORT_METRICS_SECRET. Days are Asia/Dubai calendar days.
+  app.get("/api/report/metrics", async (req, reply) => {
+    const secret = process.env.REPORT_METRICS_SECRET || "";
+    const given = String(req.headers["x-report-key"] || "");
+    const ok = secret.length > 0 && given.length === secret.length && timingSafeEqual(Buffer.from(given), Buffer.from(secret));
+    if (!ok) return reply.code(401).send({ error: "unauthorized" });
+    reply.header("cache-control", "no-store");
+    const real = { isDemo: false };
+    const dubaiDay = (d: Date) => new Date(d.getTime() + 4 * 3_600_000).toISOString().slice(0, 10);
+    const [botUsers, verifiedRows, sources] = await Promise.all([
+      prisma.user.count({ where: real }),
+      prisma.user.findMany({ where: { ...real, phoneVerifiedAt: { not: null } }, select: { phoneVerifiedAt: true } }),
+      prisma.user.groupBy({ by: ["startParam"], where: real, _count: { _all: true } }),
+    ]);
+    const verifiedBySource = await prisma.user.groupBy({ by: ["startParam"], where: { ...real, phoneVerifiedAt: { not: null } }, _count: { _all: true } });
+    const now = Date.now();
+    const byDate: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) byDate[dubaiDay(new Date(now - i * 86_400_000))] = 0;
+    let last24 = 0;
+    for (const row of verifiedRows) {
+      const at = row.phoneVerifiedAt!;
+      const day = dubaiDay(at);
+      if (day in byDate) byDate[day] += 1;
+      if (now - at.getTime() <= 86_400_000) last24 += 1;
+    }
+    const byCampaign: Record<string, { verified: number; leads: number }> = {};
+    for (const row of sources) byCampaign[(row.startParam || "direct").toLowerCase()] = { verified: 0, leads: row._count._all };
+    for (const row of verifiedBySource) {
+      const key = (row.startParam || "direct").toLowerCase();
+      byCampaign[key] = { verified: row._count._all, leads: byCampaign[key]?.leads ?? row._count._all };
+    }
+    return {
+      project: "LiveLinePro",
+      bot: "@LiveLineProBot",
+      verified: verifiedRows.length,
+      verified_24h: last24,
+      verified_by_date: byDate,
+      verified_timezone: "Asia/Dubai",
+      bot_users: botUsers,
+      leads: botUsers,
+      by_campaign: byCampaign,
+      generated_at: new Date(now).toISOString(),
+    };
   });
   app.get("/ready", async (_req, reply) => {
     const body = await health();
