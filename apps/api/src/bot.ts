@@ -473,7 +473,16 @@ export function createBot() {
     if (/^sources?$/i.test(arg)) {
       return ctx.reply(await sourcesText(), { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: new InlineKeyboard().text("👥 Back to leads", "leads:all:0:") });
     }
-    const { filter, src } = parseLeadsArgs(arg);
+    const parsed = parseLeadsArgs(arg);
+    const filter = parsed.filter;
+    let src = parsed.src;
+    if (src) {
+      // Accept a key ("liveline-channel"), part of a label ("channel") or a raw payload ("live_channel").
+      const rows = await sourcesReport();
+      const raw = arg.toLowerCase().split(/\s+/).find((w) => !/^(ver|pen|unverified)/.test(w)) || "";
+      const hit = rows.find((r) => r.key === src) || rows.find((r) => r.raw.some((x) => x.toLowerCase() === raw)) || rows.find((r) => r.key.includes(src));
+      if (hit) src = hit.key;
+    }
     const page = await leadsPage(0, filter, 15, src || undefined);
     await ctx.reply(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: await leadsKeyboard(filter, 0, page.size, page.total, src) });
   });
