@@ -21,7 +21,7 @@ describe("source keys", () => {
     expect(sourceKey("chatgpt_liveline_01")).toBe("chatgpt");
     expect(sourceKey("live_channel")).toBe("liveline-channel");
     expect(sourceKey(undefined)).toBe("direct");
-    expect(sourceKey("match_ABC")).toBe("promo-xyz");
+    expect(sourceKey("promo_XYZ")).toBe("promo-xyz");
   });
 });
 
