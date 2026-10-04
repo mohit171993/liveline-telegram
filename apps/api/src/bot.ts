@@ -6,7 +6,7 @@ import { liveScoreCard, parseWebverifyParam, projectMatch, squadCode } from "@li
 import { env, telegramDryRun, channelUrl, miniAppLink } from "./env";
 import { readUniverse } from "./feed";
 import { redis } from "./redis";
-import { verifyPhone, touchFromInit, userIsAdmin, leadsPage } from "./services/users";
+import { verifyPhone, touchFromInit, userIsAdmin, leadsPage, sourcesReport } from "./services/users";
 import { startWebverify } from "./services/webverify";
 import { pinLive, upsertSquad } from "./services/play";
 import { rememberChannelPost } from "./services/reports";
@@ -15,7 +15,7 @@ import { confirmBroadcast, createBroadcast, findUserBrief, cancelBroadcast } fro
 import { maskPhone } from "./services/automation";
 import { sendVerifyCard, VERIFY_CAPTION } from "./verifyCard";
 import { liveSponsors, sponsorGoUrl, sponsorLabel } from "./services/sponsors";
-import { formatIst } from "@liveline/shared";
+import { formatIst, sourceDisplay } from "@liveline/shared";
 import { signInitData } from "@liveline/shared";
 
 /** Per-chat menu button: the Mini App only after the phone is verified, plain commands before. */
@@ -433,27 +433,61 @@ export function createBot() {
     await ctx.reply("🔔 Reminders are back on. Max 2 a day, never at night. Send /stop any time.");
   });
 
-  // /leads [verified|pending]: admins get every user with a tap-to-open chat link, paged.
-  const leadsKeyboard = (filter: string, offset: number, size: number, total: number) => {
+  // /leads [verified|pending] [source] · /leads sources: every user with a tap-to-open chat link,
+  // filterable by source label (ChatGPT, LiveLine channel, Direct …; same mapping as the alerts).
+  type LeadFilter = "all" | "verified" | "pending";
+  const leadsKeyboard = async (filter: LeadFilter, offset: number, size: number, total: number, src: string) => {
     const kb = new InlineKeyboard();
-    if (offset > 0) kb.text("‹ Newer", `leads:${filter}:${Math.max(0, offset - size)}`);
-    if (offset + size < total) kb.text("Older ›", `leads:${filter}:${offset + size}`);
-    kb.row().text(filter === "all" ? "• All" : "All", "leads:all:0").text(filter === "verified" ? "• ✅ Verified" : "✅ Verified", "leads:verified:0").text(filter === "pending" ? "• ⏳ Pending" : "⏳ Pending", "leads:pending:0");
+    const cb = (f: string, o: number, s: string) => `leads:${f}:${o}:${s}`.slice(0, 64);
+    if (offset > 0) kb.text("‹ Newer", cb(filter, Math.max(0, offset - size), src));
+    if (offset + size < total) kb.text("Older ›", cb(filter, offset + size, src));
+    kb.row().text(filter === "all" ? "• All" : "All", cb("all", 0, src)).text(filter === "verified" ? "• ✅ Verified" : "✅ Verified", cb("verified", 0, src)).text(filter === "pending" ? "• ⏳ Pending" : "⏳ Pending", cb("pending", 0, src));
+    const sources = (await sourcesReport()).slice(0, 6);
+    kb.row().text(src ? "All sources" : "• All sources", cb(filter, 0, ""));
+    sources.forEach((s, i) => {
+      if (i % 3 === 0) kb.row();
+      kb.text(`${src === s.key ? "• " : ""}${s.label.slice(0, 18)} (${s.users})`, cb(filter, 0, s.key));
+    });
+    kb.row().text("📊 Sources summary", "leads:sources");
     return kb;
+  };
+  const sourcesText = async () => {
+    const rows = await sourcesReport();
+    const lines = rows.map((r) => `• <b>${escHtml(r.label)}</b>${r.raw.length && r.raw[0] !== r.label ? ` <i>(${escHtml(r.raw.slice(0, 3).join(", "))})</i>` : ""}\n    ${r.users} users · ✅ ${r.verified} verified · today ${r.users_today}/${r.verified_today} · 7d ${r.users_7d}/${r.verified_7d}`);
+    return ["📊 <b>Leads by source</b> (users / verified · Dubai days)", "", ...lines, "", "Filter: <code>/leads chatgpt</code>, <code>/leads verified direct</code>"].join("\n");
+  };
+  const parseLeadsArgs = (arg: string) => {
+    let filter: LeadFilter = "all";
+    let src = "";
+    for (const w of arg.toLowerCase().split(/\s+/).filter(Boolean)) {
+      if (w.startsWith("ver")) filter = "verified";
+      else if (w.startsWith("pen") || w === "unverified") filter = "pending";
+      else src = w.replace(/[^a-z0-9-]+/g, "-").slice(0, 30);
+    }
+    return { filter, src };
   };
   bot.command("leads", async (ctx) => {
     if (ctx.chat.type !== "private" || !ctx.from) return;
     if (!(await userIsAdmin(ctx.from.id, ctx.from.username))) return;
-    const arg = (ctx.match || "").trim().toLowerCase();
-    const filter = arg.startsWith("ver") ? "verified" : arg.startsWith("pen") || arg.startsWith("un") ? "pending" : "all";
-    const page = await leadsPage(0, filter);
-    await ctx.reply(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: leadsKeyboard(filter, 0, page.size, page.total) });
+    const arg = (ctx.match || "").trim();
+    if (/^sources?$/i.test(arg)) {
+      return ctx.reply(await sourcesText(), { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: new InlineKeyboard().text("👥 Back to leads", "leads:all:0:") });
+    }
+    const { filter, src } = parseLeadsArgs(arg);
+    const page = await leadsPage(0, filter, 15, src || undefined);
+    await ctx.reply(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: await leadsKeyboard(filter, 0, page.size, page.total, src) });
   });
-  bot.callbackQuery(/^leads:(all|verified|pending):(\d+)$/, async (ctx) => {
+  bot.callbackQuery("leads:sources", async (ctx) => {
     if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.answerCallbackQuery();
-    const filter = ctx.match[1] as "all" | "verified" | "pending";
-    const page = await leadsPage(Number(ctx.match[2]), filter);
-    await ctx.editMessageText(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: leadsKeyboard(filter, page.offset, page.size, page.total) }).catch(() => undefined);
+    await ctx.editMessageText(await sourcesText(), { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: new InlineKeyboard().text("👥 Back to leads", "leads:all:0:") }).catch(() => undefined);
+    await ctx.answerCallbackQuery();
+  });
+  bot.callbackQuery(/^leads:(all|verified|pending):(\d+)(?::([a-z0-9-]*))?$/, async (ctx) => {
+    if (!ctx.from || !(await userIsAdmin(ctx.from.id, ctx.from.username))) return ctx.answerCallbackQuery();
+    const filter = ctx.match[1] as LeadFilter;
+    const src = ctx.match[3] || "";
+    const page = await leadsPage(Number(ctx.match[2]), filter, 15, src || undefined);
+    await ctx.editMessageText(page.text, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, reply_markup: await leadsKeyboard(filter, page.offset, page.size, page.total, src) }).catch(() => undefined);
     await ctx.answerCallbackQuery();
   });
 
@@ -474,7 +508,7 @@ export function createBot() {
         `👤 <b>${escHtml([u.firstName, u.lastName].filter(Boolean).join(" ") || "—")}</b>${u.username ? ` @${escHtml(u.username)}` : ""}`,
         `ID: <code>${u.telegramId}</code> · ${u.phoneVerifiedAt ? "✅ verified" : "⏳ not verified"} · ${u.status}`,
         `Phone: ${escHtml(maskPhone(u.phone))} · Lang: ${u.languageCode}${u.isPremium ? " · ⭐ Premium" : ""}`,
-        `Source: ${escHtml(u.startParam || "direct")}`,
+        `Source: ${escHtml(sourceDisplay(u.startParam))}`,
         `Points: ${u.points} · Predictions: ${u._count.predictions} · Spins: ${u._count.spins}`,
         `Joined: ${formatIst(u.createdAt)} IST`,
         `Last seen: ${u.lastSeenAt ? `${formatIst(u.lastSeenAt)} IST` : "—"}`,

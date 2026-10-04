@@ -2,6 +2,9 @@ import { prisma } from "@liveline/db";
 import {
   assertContactBelongsToUser,
   formatIst,
+  sourceDisplay,
+  sourceKey,
+  sourceName,
   normalizePhone,
   phoneHash,
   assertAvatar,
@@ -114,9 +117,17 @@ export async function touchFromInit(data: InitDataResult) {
     void alertAdmins(created.id, "start").catch(() => undefined);
     return created;
   }
+  // First-touch attribution: the stored start payload is never overwritten. A user created a few
+  // minutes ago without one (opened the app first) adopts the first payload; later re-entries are logged.
+  const incoming = (data.startParam || "").trim();
+  const adopt = Boolean(incoming && !existing.startParam && Date.now() - existing.createdAt.getTime() < 10 * 60_000);
+  if (incoming && !adopt && incoming !== existing.startParam) {
+    console.log(JSON.stringify({ level: "info", msg: "start-retouch", telegramId, first: existing.startParam || null, now: incoming, label: sourceDisplay(incoming) }));
+  }
   const updated = await prisma.user.update({
     where: { id: existing.id },
     data: {
+      ...(adopt ? { startParam: incoming } : {}),
       username: data.user.username || null,
       firstName: data.user.first_name || null,
       lastName: data.user.last_name || null,
@@ -376,7 +387,7 @@ async function deliverAlert(chatId: string, text: string, kind: string, markup?:
  * "verified": phone verification completed. Each fires once per user (Redis NX) and can be
  * switched off in Admin → Settings. Phones are always masked.
  */
-export async function alertAdmins(userId: string, kind: "start" | "verified", opts: { force?: boolean; chatIds?: string[]; test?: boolean } = {}) {
+export async function alertAdmins(userId: string, kind: "start" | "verified", opts: { force?: boolean; chatIds?: string[]; test?: boolean; sourceOverride?: string } = {}) {
   const settings = await alertSettings();
   if (!opts.force && kind === "start" && !settings.alert_new_start) return { sent: 0, skipped: "off" };
   if (!opts.force && kind === "verified" && !settings.alert_verified) return { sent: 0, skipped: "off" };
@@ -400,7 +411,7 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
       `Language: ${esc(user.languageCode)}`,
       `Phone: ${esc(fullPhone(user.phone))}`,
       `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
-      `Source: ${esc(user.startParam || "direct")}`,
+      `Source: ${esc(sourceDisplay(opts.test && opts.sourceOverride ? opts.sourceOverride : user.startParam))}`,
       `Verified: ${formatIst(user.phoneVerifiedAt || new Date())} IST`,
       `Total verified: ${total}`,
     ].join("\n");
@@ -413,7 +424,7 @@ export async function alertAdmins(userId: string, kind: "start" | "verified", op
       contact.usernameHtml ? `Username: ${contact.usernameHtml}` : "Username: none",
       `Language: ${esc(user.languageCode)}`,
       `Telegram Premium: ${user.isPremium ? "yes" : "no"}`,
-      `Source: ${esc(user.startParam || "direct")}`,
+      `Source: ${esc(sourceDisplay(opts.test && opts.sourceOverride ? opts.sourceOverride : user.startParam))}`,
       `Started: ${formatIst(user.createdAt)} IST`,
       `Total users: ${total}`,
     ].join("\n");
@@ -686,19 +697,58 @@ export async function adminAlertStatus(probe = false) {
 }
 
 
-/** /leads in the bot: newest users first, each with a tap-to-open chat link. Admin-only (full phones). */
-export async function leadsPage(offset: number, filter: "all" | "verified" | "pending", size = 15) {
+/** /leads in the bot: newest users first, each with a tap-to-open chat link. Admin-only (full phones).
+ *  src = a source key from sourceKey() (e.g. "chatgpt", "direct"), filtering by label rules. */
+export async function leadsPage(offset: number, filter: "all" | "verified" | "pending", size = 15, src?: string) {
   const where = { isDemo: false, ...(filter === "verified" ? { phoneVerifiedAt: { not: null } } : filter === "pending" ? { phoneVerifiedAt: null } : {}) };
-  const [total, rows] = await Promise.all([
-    prisma.user.count({ where }),
-    prisma.user.findMany({ where, orderBy: { createdAt: "desc" }, skip: offset, take: size }),
-  ]);
+  let total: number;
+  let rows;
+  if (src) {
+    const all = await prisma.user.findMany({ where, orderBy: { createdAt: "desc" }, select: { id: true, startParam: true } });
+    const ids = all.filter((u) => sourceKey(u.startParam) === src).map((u) => u.id);
+    total = ids.length;
+    const pageIds = ids.slice(offset, offset + size);
+    const found = await prisma.user.findMany({ where: { id: { in: pageIds } } });
+    rows = pageIds.map((id) => found.find((u) => u.id === id)!).filter(Boolean);
+  } else {
+    [total, rows] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({ where, orderBy: { createdAt: "desc" }, skip: offset, take: size }),
+    ]);
+  }
   const lines = rows.map((u, i) => {
     const c = alertContact(u);
     const link = c.usernameHtml || (isWebOnlyTelegramId(u.telegramId) ? "website only" : `<a href="tg://user?id=${u.telegramId}">💬 open chat</a>`);
-    return `${offset + i + 1}. ${u.phoneVerifiedAt ? "✅" : "⏳"} <b>${c.nameHtml}</b> · ${link}\n    ${u.phone ? escHtml(fullPhone(u.phone)) + " · " : ""}<code>${escHtml(u.telegramId)}</code> · ${formatIst(u.createdAt)} IST`;
+    return `${offset + i + 1}. ${u.phoneVerifiedAt ? "✅" : "⏳"} <b>${c.nameHtml}</b> · ${link}\n    ${u.phone ? escHtml(fullPhone(u.phone)) + " · " : ""}<code>${escHtml(u.telegramId)}</code> · ${escHtml(sourceDisplay(u.startParam))} · ${formatIst(u.createdAt)} IST`;
   });
   const label = filter === "verified" ? "verified" : filter === "pending" ? "not verified" : "all";
-  const text = [`👥 <b>Leads</b> (${label}) · ${total} total · newest first`, "Tap a name or link to open the chat.", "", ...lines].join("\n");
+  const srcLabel = src ? ` · source: ${escHtml(src)}` : "";
+  const text = [`👥 <b>Leads</b> (${label}${srcLabel}) · ${total} total · newest first`, "Tap a name or link to open the chat.", "", ...(lines.length ? lines : ["No users match."])].join("\n");
   return { text, total, offset, size };
+}
+
+/** Per-source breakdown (labels from @liveline/shared sourceName). Days are Asia/Dubai calendar days. */
+export async function sourcesReport() {
+  const users = await prisma.user.findMany({ where: { isDemo: false }, select: { startParam: true, createdAt: true, phoneVerifiedAt: true } });
+  const dubaiDay = (d: Date) => new Date(d.getTime() + 4 * 3_600_000).toISOString().slice(0, 10);
+  const today = dubaiDay(new Date());
+  const weekStart = dubaiDay(new Date(Date.now() - 6 * 86_400_000));
+  const map = new Map<string, { key: string; label: string; raw: Set<string>; users: number; verified: number; users_today: number; verified_today: number; users_7d: number; verified_7d: number }>();
+  for (const u of users) {
+    const key = sourceKey(u.startParam);
+    const row = map.get(key) || { key, label: sourceName(u.startParam), raw: new Set<string>(), users: 0, verified: 0, users_today: 0, verified_today: 0, users_7d: 0, verified_7d: 0 };
+    if (u.startParam) row.raw.add(u.startParam);
+    row.users += 1;
+    const j = dubaiDay(u.createdAt);
+    if (j === today) row.users_today += 1;
+    if (j >= weekStart) row.users_7d += 1;
+    if (u.phoneVerifiedAt) {
+      row.verified += 1;
+      const v = dubaiDay(u.phoneVerifiedAt);
+      if (v === today) row.verified_today += 1;
+      if (v >= weekStart) row.verified_7d += 1;
+    }
+    map.set(key, row);
+  }
+  return [...map.values()].sort((a, b) => b.users - a.users).map((r) => ({ ...r, raw: [...r.raw].slice(0, 10) }));
 }

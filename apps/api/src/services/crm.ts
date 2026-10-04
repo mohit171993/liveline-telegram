@@ -1,6 +1,6 @@
 import { prisma } from "@liveline/db";
 import type { Prisma } from "@prisma/client";
-import { formatIst } from "@liveline/shared";
+import { formatIst, sourceDisplay, sourceKey, sourceName } from "@liveline/shared";
 import { miniAppLink } from "../env";
 import { redis } from "../redis";
 import { isBlocked, tgCall } from "../telegram";
@@ -56,6 +56,7 @@ export function parseFilter(input: unknown): CrmFilter {
 export function sourceBucket(startParam?: string | null): string {
   const p = (startParam || "").trim();
   if (!p) return "direct";
+  if (/^chatgpt/i.test(p)) return "chatgpt";
   if (/^ref_?\d+$/.test(p)) return "referral";
   if (p.startsWith("grp_")) return "group";
   if (p.startsWith("sq_")) return "squad";
@@ -82,7 +83,9 @@ export function crmWhere(f: CrmFilter): Prisma.UserWhereInput {
   if (f.verified === "no") and.push({ phoneVerifiedAt: null });
   if (f.source) {
     const s = f.source;
-    if (s === "direct") and.push({ OR: [{ startParam: null }, { startParam: "" }] });
+    if (s.startsWith("src:")) { /* label-based: resolved in fullWhere */ }
+    else if (s === "direct") and.push({ OR: [{ startParam: null }, { startParam: "" }] });
+    else if (s === "chatgpt") and.push({ startParam: { startsWith: "chatgpt", mode: "insensitive" } });
     else if (s === "referral") and.push({ startParam: { startsWith: "ref" } });
     else if (s === "group") and.push({ startParam: { startsWith: "grp_" } });
     else if (s === "squad") and.push({ startParam: { startsWith: "sq_" } });
@@ -116,6 +119,15 @@ async function tagFilterIds(f: CrmFilter): Promise<string[] | null> {
 
 async function fullWhere(f: CrmFilter): Promise<Prisma.UserWhereInput> {
   const where = crmWhere(f);
+  if (f.source?.startsWith("src:")) {
+    // Source label filter (same mapping as alerts / leads): every raw payload whose label key matches.
+    const key = f.source.slice(4);
+    const groups = await prisma.user.groupBy({ by: ["startParam"], where: { isDemo: false } });
+    const raws = groups.map((g) => g.startParam).filter((p) => sourceKey(p) === key);
+    const or: Prisma.UserWhereInput[] = [{ startParam: { in: raws.filter((r): r is string => Boolean(r)) } }];
+    if (raws.some((r) => !r)) or.push({ startParam: null }, { startParam: "" });
+    (where.AND as Prisma.UserWhereInput[]).push({ OR: or });
+  }
   const ids = await tagFilterIds(f);
   if (ids) (where.AND as Prisma.UserWhereInput[]).push({ id: { in: ids } });
   return where;
@@ -179,9 +191,19 @@ export async function filterOptions() {
     const b = sourceBucket(s.startParam);
     buckets.set(b, (buckets.get(b) || 0) + s._count._all);
   }
+  const labels = new Map<string, { label: string; count: number }>();
+  for (const s of sources) {
+    const k = sourceKey(s.startParam);
+    const row = labels.get(k) || { label: sourceName(s.startParam), count: 0 };
+    row.count += s._count._all;
+    labels.set(k, row);
+  }
   return {
     languages: langs.map((l) => ({ value: l.languageCode, count: l._count._all })),
-    sources: [...buckets.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count })),
+    sources: [
+      ...[...labels.entries()].sort((a, b) => b[1].count - a[1].count).map(([k, v]) => ({ value: `src:${k}`, label: v.label, count: v.count })),
+      ...[...buckets.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, label: `bucket: ${value}`, count })),
+    ],
     tags: tags.map((t) => ({ value: t.tag, count: t._count._all })),
   };
 }
@@ -383,13 +405,13 @@ const fmtDubai = (d?: Date | null) =>
 /** Where a user came from, in plain words: bot / website SMS / website Telegram / ad or startapp tag. */
 export function sourceLabel(u: { source: string; verifyMethod: string | null; startParam: string | null }): string {
   if (u.source === "website") return u.verifyMethod === "sms" ? "website SMS" : "website Telegram";
-  if (u.startParam) return u.startParam.startsWith("webverify_") ? "website Telegram" : `startapp: ${u.startParam}`;
-  return "bot";
+  if (u.startParam) return u.startParam.startsWith("webverify_") ? "Website (Telegram)" : sourceDisplay(u.startParam);
+  return "Direct";
 }
 
 /** Admin-only CRM export: every user matching the filter (all if none). Times in Asia/Dubai, full phone. */
 export async function crmCsv(f: CrmFilter): Promise<{ csv: string; count: number }> {
-  const head = ["telegram_id", "name", "username", "phone", "verified", "verified_at_dubai", "verify_method", "source", "start_param", "source_bucket",
+  const head = ["telegram_id", "name", "username", "phone", "verified", "verified_at_dubai", "verify_method", "source", "source_label", "start_param", "source_bucket",
     "joined_dubai", "last_seen_dubai", "last_website_login_dubai", "points", "xp", "predictions", "spins", "language", "telegram_premium",
     "alerts_opted_in", "status", "banned", "bot_blocked", "tags"];
   const where = await fullWhere(f);
@@ -411,6 +433,7 @@ export async function crmCsv(f: CrmFilter): Promise<{ csv: string; count: number
         fmtDubai(u.phoneVerifiedAt),
         u.verifyMethod || "",
         sourceLabel(u),
+        u.source === "website" ? sourceLabel(u) : sourceName(u.startParam),
         u.startParam || "",
         sourceBucket(u.startParam),
         fmtDubai(u.createdAt),

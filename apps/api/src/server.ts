@@ -10,7 +10,7 @@ import { env, isProd } from "./env";
 import { redis } from "./redis";
 import { registerRoutes } from "./routes";
 import { webAuthRoutes } from "./webAuthRoutes";
-import { touchFromInit, touchSession, userIsAdmin, verifyPhone } from "./services/users";
+import { sourcesReport, touchFromInit, touchSession, userIsAdmin, verifyPhone } from "./services/users";
 import { httpError } from "./httpError";
 import type { User } from "@prisma/client";
 
@@ -97,6 +97,8 @@ export async function buildServer() {
       bot_users: botUsers,
       leads: botUsers,
       by_campaign: byCampaign,
+      // Human-labelled breakdown (ChatGPT, LiveLine channel, Direct …) for the source table.
+      sources_report: await sourcesReport(),
       generated_at: new Date(now).toISOString(),
     };
   });

@@ -165,7 +165,7 @@ export function CrmUsers() {
           <label>Source (startapp / ad tag)
             <select className="field" value={f.source || ""} onChange={(e) => set({ source: e.target.value })}>
               <option value="">Any source</option>
-              {(opts?.sources || []).map((s: any) => <option key={s.value} value={s.value}>{s.value} ({s.count})</option>)}
+              {(opts?.sources || []).map((s: any) => <option key={s.value} value={s.value}>{s.label || s.value} ({s.count})</option>)}
             </select>
           </label>
           <label>Language
