@@ -5,6 +5,8 @@
 export const SOURCE_RULES: { match: RegExp; label: string }[] = [
   { match: /^chatgpt/i, label: "ChatGPT" },
   { match: /^live_channel$/i, label: "LiveLine channel" },
+  { match: /^(tgads|ads?)[_-]/i, label: "Telegram Ads" },
+  { match: /^match_/i, label: "Match link" },
   { match: /^web_verify$|^webverify_/i, label: "Website (Telegram)" },
   { match: /^web_sms$/i, label: "Website (SMS)" },
   { match: /^web_/i, label: "Website" },
