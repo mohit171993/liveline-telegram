@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/.env
+.git
+uploads
+coverage
+**/*.md
+!README.md

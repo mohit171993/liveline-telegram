@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="LiveLine Pro">
+  <defs>
+    <radialGradient id="ll-ball" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="18%" stop-color="#F7FBFF"/>
+      <stop offset="52%" stop-color="#D5DEEA"/>
+      <stop offset="100%" stop-color="#8E9BB0"/>
+    </radialGradient>
+    <radialGradient id="ll-shade" cx="70%" cy="78%" r="60%">
+      <stop offset="0%" stop-color="#070B14" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#070B14" stop-opacity="0.45"/>
+    </radialGradient>
+    <linearGradient id="ll-pulse" x1="40" y1="280" x2="472" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3DFFE8"/>
+      <stop offset="0.52" stop-color="#E7FF4D"/>
+      <stop offset="1" stop-color="#FF7A18"/>
+    </linearGradient>
+    <linearGradient id="ll-tile" x1="48" y1="16" x2="464" y2="496" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A2C4E"/>
+      <stop offset="1" stop-color="#070B14"/>
+    </linearGradient>
+    <filter id="ll-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="ll-soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#ll-tile)"/>
+  <ellipse cx="256" cy="300" rx="150" ry="36" fill="#3DFFE8" opacity="0.22" filter="url(#ll-soft)"/>
+  <circle cx="256" cy="248" r="132" fill="url(#ll-ball)"/>
+  <circle cx="256" cy="248" r="132" fill="url(#ll-shade)"/>
+  <ellipse cx="206" cy="196" rx="62" ry="36" fill="#FFFFFF" opacity="0.72"/>
+  <path d="M176 196c28-42 68-62 80-62" fill="none" stroke="#3DFFE8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M336 308c-28 42-68 62-80 62" fill="none" stroke="#3DFFE8" stroke-width="10" stroke-linecap="round" opacity="0.85"/>
+  <path d="M48 292h92l46-78 62 148 48-96h168" fill="none" stroke="url(#ll-pulse)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#ll-glow)"/>
+</svg>

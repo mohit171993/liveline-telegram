@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Lino, the LiveLine mascot">
+  <defs>
+    <linearGradient id="body" x1="60" y1="40" x2="190" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4FF9A"/>
+      <stop offset="0.45" stop-color="#E7FF4D"/>
+      <stop offset="1" stop-color="#3DFFE8"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.35" cy="0.3" r="0.7">
+      <stop stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="120" cy="214" rx="46" ry="8" fill="#070B14" opacity="0.35"/>
+  <path d="M78 78c8-28 76-36 96-8 8 12 4 22-8 24-22-16-62-12-78 4-6-8-12-12-10-20z" fill="#0C1220"/>
+  <circle cx="168" cy="62" r="10" fill="#E7FF4D" stroke="#0C1220" stroke-width="3"/>
+  <circle cx="120" cy="124" r="72" fill="url(#body)" stroke="#0C1220" stroke-width="4"/>
+  <ellipse cx="92" cy="96" rx="28" ry="16" fill="url(#shine)"/>
+  <path d="M86 108c6-10 16-14 22-14M150 150c-8 12-20 16-28 16" fill="none" stroke="#0C1220" stroke-width="4" stroke-linecap="round" opacity="0.55"/>
+  <circle cx="96" cy="122" r="12" fill="#F7FAFF"/>
+  <circle cx="150" cy="122" r="12" fill="#F7FAFF"/>
+  <circle cx="100" cy="124" r="6" fill="#0C1220"/>
+  <circle cx="154" cy="124" r="6" fill="#0C1220"/>
+  <circle cx="102" cy="122" r="2" fill="#FFFFFF"/>
+  <circle cx="156" cy="122" r="2" fill="#FFFFFF"/>
+  <path d="M100 150c8 12 32 12 42 0" fill="none" stroke="#0C1220" stroke-width="4" stroke-linecap="round"/>
+  <path d="M168 150l10 6-12 8" fill="none" stroke="#FF7A18" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

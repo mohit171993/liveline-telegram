@@ -1,0 +1,874 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  telegramId      String    @unique
+  username        String?
+  firstName       String?
+  lastName        String?
+  languageCode    String    @default("en")
+  languageLocked  Boolean   @default(false)
+  isPremium       Boolean   @default(false)
+  phone           String?
+  phoneHash       String?   @unique
+  phoneVerifiedAt DateTime?
+  termsAcceptedAt DateTime?
+  startParam      String?
+  referredById    String?
+  referralCount   Int       @default(0)
+  points          Int       @default(0)
+  xp              Int       @default(0)
+  seasonXp        Int       @default(0)
+  streak          Int       @default(0)
+  bestStreak      Int       @default(0)
+  dailyStreak     Int       @default(0)
+  bestDailyStreak Int       @default(0)
+  lastActiveDay   String?
+  streakFreeze    Int       @default(0)
+  fanTeamKey      String?
+  lastBoardRank   Int?
+  bonusSpins      Int       @default(0)
+  predictionBoost Int       @default(0)
+  avatarFace      String    @default("cool")
+  avatarJersey    String    @default("lime")
+  avatarCap       String    @default("cap")
+  avatarFrame     String    @default("lime")
+  avatarRole      String    @default("bat")
+  avatarNumber    Int       @default(7)
+  ageStatus       String    @default("pending")
+  birthYear       Int?
+  predStreak      Int       @default(0)
+  bestPredStreak  Int       @default(0)
+  streakSavers    Int       @default(0)
+  doubleDown      Int       @default(0)
+  friendCode      String?   @unique
+  leagueTier      Int       @default(1)
+  leaguePoints    Int       @default(0)
+  leagueWeek      String?
+  theme           String    @default("floodlight")
+  unlockedThemes  String    @default("floodlight")
+  status          String    @default("PENDING")
+  blockedAt       DateTime?
+  blockReason     String?
+  isDemo          Boolean   @default(false)
+  lastSeenAt      DateTime?
+  optOut          Boolean   @default(false)
+  botBlockedAt    DateTime?
+  /// Where the account came from: "telegram" (bot / Mini App) or "website" (LiveLinePro site verify gate).
+  source          String    @default("telegram")
+  /// How the phone was verified: "telegram" (contact share) or "sms" (website OTP).
+  verifyMethod    String?
+  /// Last website login through the verify gate.
+  webLoginAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions        Session[]
+  favorites       Favorite[]
+  reminders       Reminder[]
+  notifications   Notification[]
+  predictions     Prediction[]
+  badges          Badge[]
+  groupLinks      GroupMember[]
+  messages        WatchMessage[]
+  spins           Spin[]
+  scratches       ScratchCard[]
+  vouchers        VoucherOrder[]
+  giveawayEntries GiveawayEntry[]
+  adEvents        AdEvent[]
+  aiUsage         AiUsage[]
+  missions        MissionProgress[]
+  seasonClaims    SeasonClaim[]
+  plays           PlayEntry[]
+  chips           SeriesChip[]
+  votes           FanVote[]
+  danmaku         DanmakuNote[]
+  puzzles         PuzzleAttempt[]
+  stickers        StickerHolding[]
+  packs           StickerPackOpen[]
+  tickets         MatchTicket[]
+  fanXis          FanXi[]
+  friends         FriendLink[] @relation("friendA")
+  friendOf        FriendLink[] @relation("friendB")
+
+  @@index([status, createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt DateTime @default(now())
+  lastSeen  DateTime @default(now())
+  matchKey  String?
+
+  @@index([startedAt])
+  @@index([userId, startedAt])
+}
+
+model Favorite {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind   String
+  refKey String
+  label  String @default("")
+
+  @@unique([userId, kind, refKey])
+}
+
+model Reminder {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchKey      String?
+  teamKey       String?
+  seriesKey     String?
+  minutesBefore Int?
+  alertTypes    String
+  fireAt        DateTime?
+  status        String    @default("active")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, fireAt])
+  @@index([userId, status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String
+  matchKey  String?
+  sentAt    DateTime @default(now())
+  dedupeKey String?  @unique
+
+  @@index([userId, sentAt])
+}
+
+model Prediction {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchKey  String
+  kind      String
+  targetKey String
+  pick      String
+  lockedAt  DateTime  @default(now())
+  settledAt DateTime?
+  correct   Boolean?
+  points    Int       @default(0)
+  chip      String    @default("")
+  detail    String    @default("")
+
+  @@unique([userId, matchKey, kind, targetKey])
+  @@index([matchKey, settledAt])
+}
+
+model Badge {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeKey String
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, badgeKey])
+}
+
+model GroupChat {
+  id           String        @id
+  title        String?
+  kind         String        @default("group")
+  points       Int           @default(0)
+  referralCode String?       @unique
+  createdAt    DateTime      @default(now())
+  members      GroupMember[]
+}
+
+model GroupMember {
+  groupId  String
+  userId   String
+  group    GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime  @default(now())
+
+  @@id([groupId, userId])
+}
+
+model WatchMessage {
+  id        String    @id @default(cuid())
+  matchKey  String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([matchKey, createdAt])
+}
+
+model WatchReaction {
+  id        String   @id @default(cuid())
+  matchKey  String
+  messageId String   @default("")
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([matchKey, userId, emoji, messageId])
+}
+
+model WatchPoll {
+  id        String         @id @default(cuid())
+  matchKey  String
+  userId    String
+  question  String
+  options   String
+  createdAt DateTime       @default(now())
+  closesAt  DateTime
+  votes     WatchPollVote[]
+
+  @@index([matchKey])
+}
+
+model WatchPollVote {
+  pollId String
+  userId String
+  option Int
+  poll   WatchPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, userId])
+}
+
+model Moderation {
+  id         String    @id @default(cuid())
+  userId     String
+  matchKey   String    @default("")
+  mutedUntil DateTime?
+  banned     Boolean   @default(false)
+
+  @@unique([userId, matchKey])
+}
+
+model Advertiser {
+  id        String     @id @default(cuid())
+  name      String
+  brand     String
+  category  String     @default("other")
+  contact   String?
+  notes     String?
+  createdAt DateTime   @default(now())
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id           String     @id @default(cuid())
+  advertiserId String
+  advertiser   Advertiser @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  name         String
+  status       String     @default("draft")
+  startAt      DateTime?
+  endAt        DateTime?
+  budget       Int        @default(0)
+  flatFee      Int        @default(0)
+  currency     String     @default("INR")
+  createdAt    DateTime   @default(now())
+  creatives    Creative[]
+
+  @@index([status])
+}
+
+model Creative {
+  id           String    @id @default(cuid())
+  campaignId   String
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  type         String
+  slot         String
+  headline     String
+  body         String    @default("")
+  mediaUrl     String?
+  clickUrl     String?
+  cta          String    @default("Learn more")
+  frequencyCap Int       @default(4)
+  weight       Int       @default(1)
+  matchKeys    String    @default("")
+  seriesKeys   String    @default("")
+  teamKeys     String    @default("")
+  languages    String    @default("")
+  active       Boolean   @default(true)
+  events       AdEvent[]
+
+  @@index([slot, active])
+}
+
+model AdEvent {
+  id         String   @id @default(cuid())
+  creativeId String
+  creative   Creative @relation(fields: [creativeId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  dedupeKey  String   @unique
+  createdAt  DateTime @default(now())
+
+  @@index([creativeId, type])
+}
+
+model SponsorLead {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
+  brand     String
+  contact   String
+  budget    String   @default("")
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model ShareReport {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  campaignId String?
+  createdBy  String
+  createdAt  DateTime @default(now())
+}
+
+model AiUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day    String
+  count  Int    @default(0)
+
+  @@unique([userId, day])
+}
+
+model PrizeTable {
+  id          String  @id @default(cuid())
+  name        String
+  kind        String
+  sponsorName String?
+  active      Boolean @default(true)
+  dailyCap    Int     @default(5000)
+  budgetInr   Int     @default(0)
+  spentInr    Int     @default(0)
+  prizes      Prize[]
+}
+
+model Prize {
+  id           String     @id @default(cuid())
+  tableId      String
+  table        PrizeTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  label        String
+  kind         String
+  weight       Int
+  points       Int        @default(0)
+  themeKey     String?
+  badgeKey     String?
+  operatorCode String?
+  amountInr    Int?
+  inventory    Int?
+  awarded      Int        @default(0)
+  active       Boolean    @default(true)
+}
+
+model Spin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey    String
+  source    String
+  dedupeKey String   @unique
+  prizeId   String?
+  result    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, dayKey])
+}
+
+model ScratchCard {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source    String
+  sourceRef String?
+  opened    Boolean   @default(false)
+  result    String?
+  createdAt DateTime  @default(now())
+  openedAt  DateTime?
+
+  @@index([userId, opened])
+}
+
+model Giveaway {
+  id           String          @id @default(cuid())
+  title        String
+  description  String
+  sponsorName  String?
+  prizeLabel   String
+  operatorCode String?
+  amountInr    Int?
+  startsAt     DateTime
+  endsAt       DateTime
+  drawnAt      DateTime?
+  winnerUserId String?
+  status       String          @default("open")
+  entries      GiveawayEntry[]
+}
+
+model GiveawayEntry {
+  giveawayId String
+  userId     String
+  giveaway   Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([giveawayId, userId])
+}
+
+model GiftCatalogueItem {
+  operatorCode  String   @id
+  brandName     String
+  brandImage    String?
+  denominations String
+  variable      Boolean  @default(false)
+  syncedAt      DateTime @default(now())
+}
+
+model VoucherOrder {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId            String   @unique
+  operatorCode       String
+  brandName          String
+  amountInr          Int
+  mobile             String
+  recipientName      String
+  recipientEmail     String   @default("")
+  status             String
+  failureConfirmed   Boolean  @default(false)
+  transactionId      String?
+  redeemCodeEnc      String?
+  cardNoEnc          String?
+  providerMessage    String?
+  attempt            Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model RewardAudit {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  detail    String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model GiftportBalance {
+  id        String   @id @default(cuid())
+  balance   String
+  currency  String
+  message   String   @default("")
+  checkedAt DateTime @default(now())
+}
+
+model OutboundMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  kind      String
+  payload   String
+  createdAt DateTime @default(now())
+}
+
+model MissionProgress {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  missionKey String
+  periodKey  String
+  progress   Int     @default(0)
+  claimed    Boolean @default(false)
+
+  @@unique([userId, missionKey, periodKey])
+}
+
+model SeasonClaim {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seasonKey String
+  tier      Int
+  claimedAt DateTime @default(now())
+
+  @@unique([userId, seasonKey, tier])
+}
+
+model PlayEntry {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchKey  String
+  kind      String
+  targetKey String
+  pick      String
+  points    Int       @default(0)
+  settledAt DateTime?
+
+  @@unique([userId, matchKey, kind, targetKey])
+  @@index([matchKey, kind, settledAt])
+}
+
+model SeriesChip {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seriesKey String
+  kind      String
+  used      Boolean @default(false)
+
+  @@unique([userId, seriesKey, kind])
+}
+
+model LivePin {
+  chatId    String   @id
+  matchKey  String
+  messageId Int
+  updatedAt DateTime @updatedAt
+}
+
+model FanVote {
+  matchKey  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  @@id([matchKey, userId, category])
+}
+
+model DanmakuNote {
+  id        String   @id @default(cuid())
+  matchKey  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([matchKey, createdAt])
+}
+
+model PuzzleAttempt {
+  userId    String
+  day       String
+  puzzleKey String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answer    String
+  correct   Boolean
+  points    Int      @default(0)
+
+  @@id([userId, day, puzzleKey])
+}
+
+model StickerHolding {
+  userId     String
+  stickerKey String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  count      Int    @default(1)
+
+  @@id([userId, stickerKey])
+}
+
+model StickerPackOpen {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String
+  createdAt DateTime @default(now())
+
+  @@index([userId, day])
+}
+
+model MatchTicket {
+  userId    String
+  matchKey  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamKey   String
+  badge     String
+  stub      Boolean  @default(false)
+  claimedAt DateTime @default(now())
+
+  @@id([userId, matchKey])
+}
+
+model FanXi {
+  matchKey  String
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playerIds String
+
+  @@id([matchKey, userId])
+}
+
+model FriendLink {
+  userId   String
+  friendId String
+  user     User   @relation("friendA", fields: [userId], references: [id], onDelete: Cascade)
+  friend   User   @relation("friendB", fields: [friendId], references: [id], onDelete: Cascade)
+  streak   Int    @default(0)
+  lastDay  String @default("")
+
+  @@id([userId, friendId])
+}
+
+model MatchViewStat {
+  matchKey String
+  day      String
+  views    Int    @default(0)
+  peak     Int    @default(0)
+
+  @@id([matchKey, day])
+}
+
+model ChannelPost {
+  id        String   @id @default(cuid())
+  chatId    String
+  messageId Int
+  matchKey  String   @default("")
+  kind      String   @default("")
+  text      String   @default("")
+  views     Int      @default(0)
+  postedAt  DateTime @default(now())
+
+  @@unique([chatId, messageId])
+  @@index([postedAt])
+}
+
+model ChannelDay {
+  day         String   @id
+  subscribers Int
+  checkedAt   DateTime @default(now())
+}
+
+model AdminAccount {
+  id           String    @id @default(cuid())
+  telegramId   String?
+  username     String?
+  usernameNorm String?
+  role         String
+  source       String    @default("panel")
+  addedBy      String?
+  boundAt      DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([revokedAt])
+}
+
+model AdminAudit {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetId   String?
+  targetUser String?
+  role       String?
+  detail     String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model CrmTag {
+  id        String   @id @default(cuid())
+  userId    String
+  tag       String
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tag])
+  @@index([tag])
+}
+
+model CrmNote {
+  id        String   @id @default(cuid())
+  userId    String
+  body      String
+  actorId   String?
+  actorName String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model CrmSegment {
+  id        String   @id @default(cuid())
+  name      String
+  filter    String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Broadcast {
+  id          String    @id @default(cuid())
+  text        String
+  buttonText  String?
+  buttonParam String?
+  filter      String    @default("{}")
+  segmentName String?
+  status      String    @default("draft")
+  scheduledAt DateTime?
+  createdBy   String?
+  confirmedBy String?
+  confirmedAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  total       Int       @default(0)
+  sent        Int       @default(0)
+  failed      Int       @default(0)
+  blocked     Int       @default(0)
+  opened      Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  deliveries BroadcastDelivery[]
+
+  @@index([status, scheduledAt])
+}
+
+model BroadcastDelivery {
+  id          String    @id @default(cuid())
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  userId      String
+  telegramId  String
+  status      String    @default("queued")
+  messageId   Int?
+  error       String?
+  sentAt      DateTime?
+  openedAt    DateTime?
+
+  @@unique([broadcastId, userId])
+  @@index([broadcastId, status])
+  @@index([userId])
+}
+
+model AutoRule {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  config    String   @default("{}")
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+model AutoSend {
+  id        String    @id @default(cuid())
+  userId    String
+  ruleKey   String
+  step      Int       @default(0)
+  dedupeKey String    @unique
+  status    String
+  error     String?
+  sentAt    DateTime  @default(now())
+  openedAt  DateTime?
+
+  @@index([userId, sentAt])
+  @@index([ruleKey, sentAt])
+}
+
+model SponsorButton {
+  id        String       @id @default(cuid())
+  text      String
+  emoji     String       @default("")
+  style     String       @default("success")
+  url       String
+  enabled   Boolean      @default(false)
+  target    String       @default("verified")
+  startsAt  DateTime?
+  endsAt    DateTime?
+  frameable Boolean      @default(true)
+  frameNote String       @default("")
+  /// Optional banner image (an /ads-media/ upload, e.g. from Ads → Creative library) for the Home tile.
+  imageUrl  String       @default("")
+  sort      Int          @default(0)
+  createdBy String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  taps      SponsorTap[]
+}
+
+model SponsorTap {
+  id        String        @id @default(cuid())
+  sponsorId String
+  sponsor   SponsorButton @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  userId    String?
+  surface   String        @default("home")
+  createdAt DateTime      @default(now())
+
+  @@index([sponsorId, createdAt])
+  @@index([userId])
+}
+
+/// Ads manager (admin "🖼 Ads" tab): banners, native cards, video and HTML embeds for the website + Mini App.
+model AdUnit {
+  id         String       @id @default(cuid())
+  name       String
+  kind       String       @default("banner")
+  title      String       @default("")
+  body       String       @default("")
+  cta        String       @default("")
+  images     Json         @default("{}")
+  videoUrl   String       @default("")
+  posterUrl  String       @default("")
+  html       String       @default("")
+  targetUrl  String       @default("")
+  openMode   String       @default("inapp")
+  frameable  Boolean      @default(false)
+  placements String       @default("")
+  pages      String       @default("")
+  startsAt   DateTime?
+  endsAt     DateTime?
+  priority   Int          @default(0)
+  weight     Int          @default(1)
+  freqCap    Int          @default(1)
+  /// Interstitial auto-close after N seconds (0 = stays until closed).
+  autoCloseS Int          @default(10)
+  enabled    Boolean      @default(false)
+  createdBy  String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  stats      AdUnitStat[]
+}
+
+/// Daily impression / click counters per ad, surface (site|app), placement and page.
+model AdUnitStat {
+  id          String @id @default(cuid())
+  adId        String
+  ad          AdUnit @relation(fields: [adId], references: [id], onDelete: Cascade)
+  day         String
+  surface     String
+  placement   String
+  page        String
+  impressions Int    @default(0)
+  clicks      Int    @default(0)
+
+  @@unique([adId, day, surface, placement, page])
+  @@index([day])
+}

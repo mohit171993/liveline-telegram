@@ -1,0 +1,29 @@
+import { Queue, Worker } from "bullmq";
+import { env, vouchersEnabled } from "./env";
+import { bullConnection } from "./redis";
+import { dailySummary, fireReminder, maybeStreakNudges, requeueReminders } from "./services/alerts";
+import { refreshBalance } from "./services/rewards";
+
+export async function startWorkers() {
+  const connection = bullConnection();
+  new Worker("ll-reminders", async (job) => fireReminder(String(job.data.id)), { connection });
+  new Worker("ll-summary", async () => dailySummary(), { connection });
+  new Worker("ll-balance", async () => {
+    if (vouchersEnabled) await refreshBalance().catch(() => undefined);
+    await maybeStreakNudges().catch(() => undefined);
+  }, { connection });
+
+  const summary = new Queue("ll-summary", { connection });
+  const balance = new Queue("ll-balance", { connection });
+  const repeats = await summary.getRepeatableJobs().catch(() => []);
+  for (const job of repeats) await summary.removeRepeatableByKey(job.key).catch(() => undefined);
+  await summary.add("nightly", {}, {
+    repeat: { pattern: "0 22 * * *", tz: "Asia/Kolkata" },
+    jobId: "daily-summary-ist",
+  }).catch(() => undefined);
+  await balance.add("check", {}, { repeat: { every: 60 * 60 * 1000 }, jobId: "gift-balance" }).catch(() => undefined);
+  await requeueReminders().catch((err) => {
+    console.error(JSON.stringify({ level: "warn", msg: "requeue", err: String(err) }));
+  });
+  console.log(JSON.stringify({ level: "info", msg: "workers started", port: env.workerHealthPort }));
+}
